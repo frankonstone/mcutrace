@@ -89,6 +89,7 @@ jobs:
             -r docs/requirements-evidence.md \
             -a dogfood/tests.json \
             -a dogfood/build-evidence.json \
+            -a dogfood/implementation-evidence.json \
             --format text > dogfood/report.txt 2> dogfood/diagnostics.txt
           rc=$?
 
@@ -99,6 +100,7 @@ jobs:
             -r docs/requirements-evidence.md \
             -a dogfood/tests.json \
             -a dogfood/build-evidence.json \
+            -a dogfood/implementation-evidence.json \
             --format json > dogfood/report.json 2>> dogfood/diagnostics.txt
           json_rc=$?
 
