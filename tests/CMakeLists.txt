@@ -59,3 +59,23 @@ add_executable(mcutrace_evidence_expectation_tests test_evidence_expectations.cp
 target_link_libraries(mcutrace_evidence_expectation_tests PRIVATE mcutrace::core mcutest::mcutest)
 mcutrace_host_options(mcutrace_evidence_expectation_tests)
 add_test(NAME mcutrace_evidence_expectation_tests COMMAND mcutrace_evidence_expectation_tests)
+
+if(MCUTRACE_ENABLE_MCUCOV)
+    foreach(target IN ITEMS
+        mcutrace_tests
+        mcutrace_requirement_tests
+        mcutrace_importer_tests
+        mcutrace_producer_importer_tests
+        mcutrace_trace_import_tests
+        mcutrace_hardening_tests
+        mcutrace_assembly_tests
+        mcutrace_validation_tests
+        mcutrace_config_tests
+        mcutrace_cli_tests
+        mcutrace_output_tests
+        mcutrace_evidence_expectation_tests
+    )
+        target_sources(${target} PRIVATE coverage_dump.cpp)
+        target_link_libraries(${target} PRIVATE mcucov::runtime)
+    endforeach()
+endif()
