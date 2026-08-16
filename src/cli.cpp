@@ -3,6 +3,7 @@
 #include <mcutrace/assembly.hpp>
 #include <mcutrace/config.hpp>
 #include <mcutrace/output.hpp>
+#include <mcutrace/producer_importers.hpp>
 #include <mcutrace/requirements.hpp>
 #include <mcutrace/validation.hpp>
 
@@ -65,6 +66,25 @@ std::expected<void, CliError> parse_output_format(std::string_view value,
     return std::unexpected(CliError{.message = "output format must be 'text' or 'json'"});
 }
 
+std::expected<ImportFragment, CliError>
+load_artifact(const std::string& path,
+              const std::string& base_directory,
+              std::string_view importer) {
+    auto content = read_text_file(path);
+    if (!content) return std::unexpected(content.error());
+    auto fragment = import_producer_artifact(ArtifactInput{
+        .path = path,
+        .base_directory = base_directory,
+        .content = std::move(*content),
+    }, importer);
+    if (!fragment) {
+        return std::unexpected(CliError{
+            .message = "artifact import error: " + fragment.error().detail,
+        });
+    }
+    return std::move(*fragment);
+}
+
 }  // namespace
 
 std::expected<CliOptions, CliError> parse_cli(int argc, const char* const* argv) {
@@ -86,7 +106,7 @@ std::expected<CliOptions, CliError> parse_cli(int argc, const char* const* argv)
     (*requirements)->metavar("FILE").repeatable();
 
     auto artifacts = (*validate)->add_option(
-        "-a, --artifact", "Additional producer artifact file", options.artifact_files);
+        "-a, --artifact", "Additional producer artifact file (auto-detected)", options.artifact_files);
     if (!artifacts) return std::unexpected(CliError{.message = cli_error_text(artifacts.error())});
     (*artifacts)->metavar("FILE").repeatable();
 
@@ -147,11 +167,6 @@ int run_cli(const CliOptions& options) {
         config.root = std::filesystem::current_path().lexically_normal().generic_string();
     }
 
-    if (!config.artifacts.empty() || !options.artifact_files.empty()) {
-        std::cerr << "artifact import is not available until producer importers are implemented (P9)\n";
-        return 2;
-    }
-
     std::vector<std::string> paths = config.requirement_files;
     paths.reserve(paths.size() + options.requirement_files.size());
     for (const auto& path : options.requirement_files) paths.push_back(normalize_explicit_path(path));
@@ -176,7 +191,28 @@ int run_cli(const CliOptions& options) {
     const auto parsed_requirements = parse_requirements(documents);
     for (const auto& diagnostic : parsed_requirements.diagnostics) print_diagnostic(diagnostic);
 
-    const TraceResult trace = assemble_trace(parsed_requirements.requirements, {});
+    std::vector<ImportFragment> fragments;
+    fragments.reserve(config.artifacts.size() + options.artifact_files.size());
+    for (const auto& artifact : config.artifacts) {
+        auto fragment = load_artifact(artifact.path, artifact.base_directory, artifact.importer);
+        if (!fragment) {
+            std::cerr << fragment.error().message << '\n';
+            return 2;
+        }
+        fragments.push_back(std::move(*fragment));
+    }
+    const std::string explicit_base = std::filesystem::current_path().lexically_normal().generic_string();
+    for (const auto& artifact : options.artifact_files) {
+        const std::string normalized = normalize_explicit_path(artifact);
+        auto fragment = load_artifact(normalized, explicit_base, {});
+        if (!fragment) {
+            std::cerr << fragment.error().message << '\n';
+            return 2;
+        }
+        fragments.push_back(std::move(*fragment));
+    }
+
+    const TraceResult trace = assemble_trace(parsed_requirements.requirements, fragments);
     const ValidationResult validation = validate_trace(trace, config.validation);
 
     if (options.output_format == OutputFormat::json) {
