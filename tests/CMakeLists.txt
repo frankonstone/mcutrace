@@ -2,3 +2,8 @@ add_executable(mcutrace_tests test_model.cpp)
 target_link_libraries(mcutrace_tests PRIVATE mcutrace::core mcutest::mcutest)
 mcutrace_host_options(mcutrace_tests)
 add_test(NAME mcutrace_tests COMMAND mcutrace_tests)
+
+add_executable(mcutrace_requirement_tests test_requirements.cpp)
+target_link_libraries(mcutrace_requirement_tests PRIVATE mcutrace::core mcutest::mcutest)
+mcutrace_host_options(mcutrace_requirement_tests)
+add_test(NAME mcutrace_requirement_tests COMMAND mcutrace_requirement_tests)
