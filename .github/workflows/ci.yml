@@ -1,0 +1,54 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  macos:
+    name: macOS / Apple Clang
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/checkout@v6
+        with:
+          repository: frankonstone/mcucli
+          path: mcucli
+          token: ${{ secrets.MCU_REPOS_TOKEN }}
+
+      - uses: actions/checkout@v6
+        with:
+          repository: frankonstone/mcujson
+          path: mcujson
+          token: ${{ secrets.MCU_REPOS_TOKEN }}
+
+      - uses: actions/checkout@v6
+        with:
+          repository: frankonstone/mcutoml
+          path: mcutoml
+          token: ${{ secrets.MCU_REPOS_TOKEN }}
+
+      - uses: actions/checkout@v6
+        with:
+          repository: frankonstone/mcutest
+          path: mcutest
+          token: ${{ secrets.MCU_REPOS_TOKEN }}
+
+      - name: Configure
+        run: >-
+          cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+          -DMCUTRACE_MCUCLI_SOURCE_DIR=${{ github.workspace }}/mcucli
+          -DMCUTRACE_MCUJSON_SOURCE_DIR=${{ github.workspace }}/mcujson
+          -DMCUTRACE_MCUTOML_SOURCE_DIR=${{ github.workspace }}/mcutoml
+          -DMCUTRACE_MCUTEST_SOURCE_DIR=${{ github.workspace }}/mcutest
+
+      - name: Build
+        run: cmake --build build --config Release --parallel
+
+      - name: Test
+        run: ctest --test-dir build -C Release --output-on-failure
