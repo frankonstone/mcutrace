@@ -104,7 +104,7 @@ ValidationResult validate_trace(const TraceResult& trace, const ValidationPolicy
             }
         }
 
-        if (policy.missing_coverage.enabled && (node.kind == NodeKind::source || node.kind == NodeKind::test) &&
+        if (policy.missing_coverage.enabled && node.kind == NodeKind::source &&
             !connected_to_kind(trace.graph, node.id, NodeKind::coverage)) {
             append_diagnostic(result.diagnostics, "validation.missing_coverage_evidence",
                 policy.missing_coverage.severity, "trace node has no linked coverage evidence: " + node.id, node.source);
