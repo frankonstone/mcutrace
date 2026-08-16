@@ -23,6 +23,13 @@ target_link_libraries(mcutrace_trace_import_tests PRIVATE mcutrace::core mcutest
 mcutrace_host_options(mcutrace_trace_import_tests)
 add_test(NAME mcutrace_trace_import_tests COMMAND mcutrace_trace_import_tests)
 
+add_executable(mcutrace_hardening_tests test_hardening.cpp)
+target_link_libraries(mcutrace_hardening_tests PRIVATE mcutrace::core mcutest::mcutest)
+target_compile_definitions(mcutrace_hardening_tests PRIVATE
+    MCUTRACE_THIRD_PARTY_FIXTURE="${CMAKE_CURRENT_SOURCE_DIR}/fixtures/third-party-results.json")
+mcutrace_host_options(mcutrace_hardening_tests)
+add_test(NAME mcutrace_hardening_tests COMMAND mcutrace_hardening_tests)
+
 add_executable(mcutrace_assembly_tests test_assembly.cpp)
 target_link_libraries(mcutrace_assembly_tests PRIVATE mcutrace::core mcutest::mcutest)
 mcutrace_host_options(mcutrace_assembly_tests)
