@@ -32,3 +32,8 @@ add_executable(mcutrace_cli_tests test_cli.cpp)
 target_link_libraries(mcutrace_cli_tests PRIVATE mcutrace::core mcutest::mcutest)
 mcutrace_host_options(mcutrace_cli_tests)
 add_test(NAME mcutrace_cli_tests COMMAND mcutrace_cli_tests)
+
+add_executable(mcutrace_output_tests test_output.cpp)
+target_link_libraries(mcutrace_output_tests PRIVATE mcutrace::core mcutest::mcutest)
+mcutrace_host_options(mcutrace_output_tests)
+add_test(NAME mcutrace_output_tests COMMAND mcutrace_output_tests)
