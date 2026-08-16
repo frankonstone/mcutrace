@@ -46,6 +46,7 @@ foreach(dep IN ITEMS mcucli mcujson mcutoml)
 endforeach()
 
 add_library(mcutrace_core STATIC
+    src/importer.cpp
     src/model.cpp
     src/requirements.cpp
 )
