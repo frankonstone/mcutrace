@@ -50,6 +50,7 @@ add_library(mcutrace_core STATIC
     src/importer.cpp
     src/model.cpp
     src/requirements.cpp
+    src/validation.cpp
 )
 add_library(mcutrace::core ALIAS mcutrace_core)
 target_include_directories(mcutrace_core PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
