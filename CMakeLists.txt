@@ -51,12 +51,13 @@ add_library(mcutrace_core STATIC
     src/config.cpp
     src/importer.cpp
     src/model.cpp
+    src/output.cpp
     src/requirements.cpp
     src/validation.cpp
 )
 add_library(mcutrace::core ALIAS mcutrace_core)
 target_include_directories(mcutrace_core PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
-target_link_libraries(mcutrace_core PUBLIC mcucli::mcucli mcutoml::mcutoml)
+target_link_libraries(mcutrace_core PUBLIC mcucli::mcucli mcujson::mcujson mcutoml::mcutoml)
 mcutrace_host_options(mcutrace_core)
 
 add_executable(mcutrace src/main.cpp)
