@@ -108,14 +108,14 @@ TEST(assembly, canonicalizes_file_level_source_node_locations) {
 TEST(assembly, diagnoses_conflicting_duplicate_nodes_deterministically) {
     mcutrace::ImportFragment first;
     first.nodes.push_back(mcutrace::Node{
-        .id = "source:main",
-        .kind = mcutrace::NodeKind::source,
+        .id = "artifact:build",
+        .kind = mcutrace::NodeKind::artifact,
         .label = "zeta",
     });
     mcutrace::ImportFragment second;
     second.nodes.push_back(mcutrace::Node{
-        .id = "source:main",
-        .kind = mcutrace::NodeKind::source,
+        .id = "artifact:build",
+        .kind = mcutrace::NodeKind::artifact,
         .label = "alpha",
     });
 
@@ -126,10 +126,11 @@ TEST(assembly, diagnoses_conflicting_duplicate_nodes_deterministically) {
 
     ASSERT_EQ(a.graph.nodes().size(), static_cast<std::size_t>(1));
     ASSERT_EQ(b.graph.nodes().size(), static_cast<std::size_t>(1));
-    ASSERT_EQ(a.graph.nodes().front().label, std::string("main"));
-    ASSERT_EQ(b.graph.nodes().front().label, std::string("main"));
-    ASSERT_EQ(a.diagnostics.size(), static_cast<std::size_t>(0));
-    ASSERT_EQ(b.diagnostics.size(), static_cast<std::size_t>(0));
+    ASSERT_EQ(a.graph.nodes().front().label, std::string("alpha"));
+    ASSERT_EQ(b.graph.nodes().front().label, std::string("alpha"));
+    ASSERT_EQ(a.diagnostics.size(), static_cast<std::size_t>(1));
+    ASSERT_EQ(b.diagnostics.size(), static_cast<std::size_t>(1));
+    ASSERT_EQ(a.diagnostics.front().code, std::string("mcutrace.duplicate_node"));
 }
 
 TEST(assembly, carries_importer_artifacts_and_diagnostics_deterministically) {
