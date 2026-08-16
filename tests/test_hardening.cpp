@@ -7,7 +7,6 @@
 #include <expected>
 #include <fstream>
 #include <iterator>
-#include <span>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -84,8 +83,8 @@ std::string requirement_id(std::size_t value) {
 TEST(hardening, third_party_importer_uses_public_contract) {
     std::ifstream stream(MCUTRACE_THIRD_PARTY_FIXTURE, std::ios::binary);
     ASSERT_TRUE(static_cast<bool>(stream));
-    const std::string content(std::istreambuf_iterator<char>(stream),
-                              std::istreambuf_iterator<char>());
+    const std::string content{std::istreambuf_iterator<char>(stream),
+                              std::istreambuf_iterator<char>()};
 
     const VendorImporter importer;
     const auto result = importer.import(mcutrace::ArtifactInput{
@@ -115,7 +114,10 @@ TEST(hardening, assembles_large_graph_deterministically) {
         requirements.push_back(mcutrace::Requirement{
             .id = req_id,
             .title = "requirement",
-            .source = mcutrace::SourceLocation{.path = "requirements.md", .line = static_cast<std::uint32_t>(index)},
+            .source = mcutrace::SourceLocation{
+                .path = "requirements.md",
+                .line = static_cast<std::uint32_t>(index),
+            },
             .heading_level = 3,
         });
         const std::string test_id = "test:stress:" + req_id;
@@ -129,7 +131,10 @@ TEST(hardening, assembles_large_graph_deterministically) {
             .source_id = test_id,
             .target_id = req_id,
             .type = mcutrace::RelationshipType::known(mcutrace::RelationshipKind::verifies),
-            .provenance = mcutrace::Provenance{.importer = "stress", .artifact = "stress.json"},
+            .provenance = mcutrace::Provenance{
+                .importer = "stress",
+                .artifact = "stress.json",
+            },
         });
     }
 
@@ -139,8 +144,8 @@ TEST(hardening, assembles_large_graph_deterministically) {
 
     ASSERT_EQ(first.graph.nodes().size(), static_cast<std::size_t>(2000));
     ASSERT_EQ(first.graph.edges().size(), kCount);
-    ASSERT_EQ(first.graph.nodes(), second.graph.nodes());
-    ASSERT_EQ(first.graph.edges(), second.graph.edges());
+    ASSERT_TRUE(first.graph.nodes() == second.graph.nodes());
+    ASSERT_TRUE(first.graph.edges() == second.graph.edges());
 
     mcutrace::ValidationPolicy policy;
     policy.missing_implementation.enabled = false;
