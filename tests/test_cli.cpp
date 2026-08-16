@@ -7,14 +7,28 @@ TEST(cli, parses_validate_config_and_explicit_inputs) {
     const char* argv[] = {
         "mcutrace", "--config", "project.toml", "validate",
         "--requirement", "reqs.md", "--requirement", "more.md",
-        "--artifact", "out.json",
+        "--artifact", "out.json", "--format", "json",
     };
     const auto result = mcutrace::parse_cli(static_cast<int>(std::size(argv)), argv);
     ASSERT_TRUE(result.has_value());
     ASSERT_EQ(result->action, mcutrace::CliAction::validate);
+    ASSERT_EQ(result->output_format, mcutrace::OutputFormat::json);
     ASSERT_EQ(result->config_path, std::string("project.toml"));
     ASSERT_EQ(result->requirement_files.size(), static_cast<std::size_t>(2));
     ASSERT_EQ(result->artifact_files.size(), static_cast<std::size_t>(1));
+}
+
+TEST(cli, defaults_to_text_output) {
+    const char* argv[] = {"mcutrace", "validate"};
+    const auto result = mcutrace::parse_cli(static_cast<int>(std::size(argv)), argv);
+    ASSERT_TRUE(result.has_value());
+    ASSERT_EQ(result->output_format, mcutrace::OutputFormat::text);
+}
+
+TEST(cli, rejects_unknown_output_format) {
+    const char* argv[] = {"mcutrace", "validate", "--format", "xml"};
+    const auto result = mcutrace::parse_cli(static_cast<int>(std::size(argv)), argv);
+    ASSERT_FALSE(result.has_value());
 }
 
 TEST(cli, exposes_version_event) {
