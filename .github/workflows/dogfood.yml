@@ -45,6 +45,15 @@ jobs:
           path: mcucov
           token: ${{ secrets.MCU_REPOS_TOKEN }}
 
+      - name: Stage sibling dependencies outside coverage source root
+        shell: bash
+        run: |
+          deps="${RUNNER_TEMP}/mcutrace-deps"
+          mkdir -p "${deps}"
+          for dep in mcucli mcujson mcutoml mcutest mcucov; do
+            cp -R "${GITHUB_WORKSPACE}/${dep}" "${deps}/${dep}"
+          done
+
       - name: Install LLVM for mcucov
         shell: bash
         run: |
@@ -57,11 +66,11 @@ jobs:
       - name: Configure
         run: >-
           cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
-          -DMCUTRACE_MCUCLI_SOURCE_DIR=${{ github.workspace }}/mcucli
-          -DMCUTRACE_MCUJSON_SOURCE_DIR=${{ github.workspace }}/mcujson
-          -DMCUTRACE_MCUTOML_SOURCE_DIR=${{ github.workspace }}/mcutoml
-          -DMCUTRACE_MCUTEST_SOURCE_DIR=${{ github.workspace }}/mcutest
-          -DMCUTRACE_MCUCOV_SOURCE_DIR=${{ github.workspace }}/mcucov
+          -DMCUTRACE_MCUCLI_SOURCE_DIR=${{ runner.temp }}/mcutrace-deps/mcucli
+          -DMCUTRACE_MCUJSON_SOURCE_DIR=${{ runner.temp }}/mcutrace-deps/mcujson
+          -DMCUTRACE_MCUTOML_SOURCE_DIR=${{ runner.temp }}/mcutrace-deps/mcutoml
+          -DMCUTRACE_MCUTEST_SOURCE_DIR=${{ runner.temp }}/mcutrace-deps/mcutest
+          -DMCUTRACE_MCUCOV_SOURCE_DIR=${{ runner.temp }}/mcutrace-deps/mcucov
           -DMCUTRACE_ENABLE_MCUCOV=ON
           -DLLVM_DIR=${LLVM_DIR}
           -DClang_DIR=${Clang_DIR}
