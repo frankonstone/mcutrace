@@ -47,6 +47,7 @@ endforeach()
 
 add_library(mcutrace_core STATIC
     src/assembly.cpp
+    src/cli.cpp
     src/config.cpp
     src/importer.cpp
     src/model.cpp
@@ -55,7 +56,7 @@ add_library(mcutrace_core STATIC
 )
 add_library(mcutrace::core ALIAS mcutrace_core)
 target_include_directories(mcutrace_core PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
-target_link_libraries(mcutrace_core PUBLIC mcutoml::mcutoml)
+target_link_libraries(mcutrace_core PUBLIC mcucli::mcucli mcutoml::mcutoml)
 mcutrace_host_options(mcutrace_core)
 
 add_executable(mcutrace src/main.cpp)
