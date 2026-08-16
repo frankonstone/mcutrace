@@ -26,6 +26,8 @@ bool node_less(const Node& lhs, const Node& rhs) noexcept {
     if (lhs.id != rhs.id) return lhs.id < rhs.id;
     if (lhs.kind != rhs.kind) return lhs.kind < rhs.kind;
     if (lhs.label != rhs.label) return lhs.label < rhs.label;
+    if (lhs.evidence_state != rhs.evidence_state) return lhs.evidence_state < rhs.evidence_state;
+    if (lhs.expected_evidence != rhs.expected_evidence) return lhs.expected_evidence < rhs.expected_evidence;
     return location_less(lhs.source, rhs.source);
 }
 
