@@ -8,6 +8,8 @@
 
 namespace {
 
+constexpr std::uint32_t kMcutraceCoverageBuildId = 0x4d435452u;
+
 struct FileSink final {
     std::FILE* file = nullptr;
 
@@ -26,7 +28,7 @@ struct CoverageDump final {
 
         FileSink file_sink{.file = file};
         mcucov::BufferedSink<FileSink> sink(file_sink);
-        (void)mcucov::dump(sink);
+        (void)mcucov::dump(sink, kMcutraceCoverageBuildId);
         (void)std::fclose(file);
     }
 };
