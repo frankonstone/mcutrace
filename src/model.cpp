@@ -57,6 +57,10 @@ std::string_view error_code_name(ErrorCode code) noexcept {
         return "invalid_edge";
     case ErrorCode::duplicate_edge:
         return "duplicate_edge";
+    case ErrorCode::invalid_requirement_id:
+        return "invalid_requirement_id";
+    case ErrorCode::requirement_id_space_exhausted:
+        return "requirement_id_space_exhausted";
     }
     return "invalid_node_id";
 }
