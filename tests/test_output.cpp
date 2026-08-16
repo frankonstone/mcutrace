@@ -28,13 +28,13 @@ TEST(output, builds_summary_and_untraced_requirements) {
     const auto trace = sample_trace();
     mcutrace::ValidationResult validation;
     validation.diagnostics.push_back({
-        .severity = mcutrace::Severity::warning,
         .code = "TEST.WARNING",
+        .severity = mcutrace::Severity::warning,
         .message = "warning",
     });
     validation.diagnostics.push_back({
-        .severity = mcutrace::Severity::error,
         .code = "TEST.ERROR",
+        .severity = mcutrace::Severity::error,
         .message = "error",
     });
 
