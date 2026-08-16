@@ -127,3 +127,8 @@ TEST(model, rejects_invalid_edges_without_throwing) {
     ASSERT_FALSE(result.has_value());
     ASSERT_EQ(result.error().code, mcutrace::ErrorCode::invalid_edge);
 }
+
+int main(int argc, char* argv[]) {
+    mcutest::Runner<mcutest::StdoutOutput> runner;
+    return mcutest::run_with_gtest_compat(argc, argv, runner);
+}
