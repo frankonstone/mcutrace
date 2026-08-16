@@ -140,21 +140,6 @@ void augment_mcutest(ImportFragment& fragment, const mcujson::Json& root, const 
     }
 }
 
-void augment_mcucov(ImportFragment& fragment, const mcujson::Json& root, const ArtifactInput& input) {
-    const auto modules = root["modules"];
-    if (!modules.is_array()) return;
-    for (const auto module : modules) {
-        if (!module.is_object() || !module["path"].is_string()) continue;
-        auto normalized = normalize_artifact_path(module["path"].get<std::string_view>(), input.base_directory);
-        if (!normalized) continue;
-        const std::string variant = module["variant"].is_string() ? module["variant"].get<std::string>() : std::string{};
-        const std::string coverage_id = "coverage:mcucov:" + *normalized + ":" + variant;
-        const std::string source_id = "source:" + *normalized;
-        append_requirement_links(fragment, module["requirements"], coverage_id, RelationshipKind::covers, input);
-        append_requirement_links(fragment, module["requirements"], source_id, RelationshipKind::implements, input);
-    }
-}
-
 void augment_mcucheck(ImportFragment& fragment, const mcujson::Json& root, const ArtifactInput& input) {
     const auto diagnostics = root["diagnostics"];
     if (!diagnostics.is_array()) return;
@@ -177,6 +162,11 @@ void augment_mcucheck(ImportFragment& fragment, const mcujson::Json& root, const
 }  // namespace
 
 std::expected<ImportFragment, ImportError> import_trace_artifact(const ArtifactInput& input, std::string_view requested_importer) {
+    const auto format_value = mcujson::json_get<std::string_view>(input.content, "format");
+    if (format_value && *format_value == "mcucov-report") {
+        return import_producer_artifact(input, requested_importer);
+    }
+
     auto parsed = parse_json(input);
     if (!parsed || !parsed->is_object() || !(*parsed)["format"].is_string()) {
         if (!parsed) return std::unexpected(parsed.error());
@@ -188,7 +178,6 @@ std::expected<ImportFragment, ImportError> import_trace_artifact(const ArtifactI
     auto fragment = import_producer_artifact(input, requested_importer);
     if (!fragment) return std::unexpected(fragment.error());
     if (format == "mcutest-results") augment_mcutest(*fragment, *parsed, input);
-    else if (format == "mcucov-report") augment_mcucov(*fragment, *parsed, input);
     else if (format == "mcucheck-results") augment_mcucheck(*fragment, *parsed, input);
     return fragment;
 }
