@@ -21,7 +21,9 @@ void canonicalize_node(Node& node) {
 
     constexpr std::string_view prefix = "source:";
     if (node.id.starts_with(prefix)) {
-        node.source = SourceLocation{.path = node.id.substr(prefix.size())};
+        const auto path = node.id.substr(prefix.size());
+        node.label = path;
+        node.source = SourceLocation{.path = path};
         return;
     }
 
