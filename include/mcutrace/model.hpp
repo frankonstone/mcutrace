@@ -22,10 +22,19 @@ enum class NodeKind : std::uint8_t {
 
 [[nodiscard]] std::string_view node_kind_name(NodeKind kind) noexcept;
 
+enum class EvidenceState : std::uint8_t {
+    unknown,
+    passed,
+    failed,
+};
+
+[[nodiscard]] std::string_view evidence_state_name(EvidenceState state) noexcept;
+
 struct Node final {
     std::string id;
     NodeKind kind = NodeKind::artifact;
     std::string label;
+    EvidenceState evidence_state = EvidenceState::unknown;
     std::optional<SourceLocation> source;
 
     friend bool operator==(const Node&, const Node&) = default;
