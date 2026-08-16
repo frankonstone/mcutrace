@@ -1,0 +1,111 @@
+name: Dogfood
+
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  self-trace:
+    name: Self trace / macOS
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/checkout@v6
+        with:
+          repository: frankonstone/mcucli
+          path: mcucli
+          token: ${{ secrets.MCU_REPOS_TOKEN }}
+
+      - uses: actions/checkout@v6
+        with:
+          repository: frankonstone/mcujson
+          path: mcujson
+          token: ${{ secrets.MCU_REPOS_TOKEN }}
+
+      - uses: actions/checkout@v6
+        with:
+          repository: frankonstone/mcutoml
+          path: mcutoml
+          token: ${{ secrets.MCU_REPOS_TOKEN }}
+
+      - uses: actions/checkout@v6
+        with:
+          repository: frankonstone/mcutest
+          path: mcutest
+          token: ${{ secrets.MCU_REPOS_TOKEN }}
+
+      - name: Configure
+        run: >-
+          cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+          -DMCUTRACE_MCUCLI_SOURCE_DIR=${{ github.workspace }}/mcucli
+          -DMCUTRACE_MCUJSON_SOURCE_DIR=${{ github.workspace }}/mcujson
+          -DMCUTRACE_MCUTOML_SOURCE_DIR=${{ github.workspace }}/mcutoml
+          -DMCUTRACE_MCUTEST_SOURCE_DIR=${{ github.workspace }}/mcutest
+
+      - name: Build
+        run: cmake --build build --config Release --parallel
+
+      - name: Create representative producer artifacts
+        run: |
+          mkdir -p dogfood
+          cat > dogfood/tests.json <<'JSON'
+          {"format":"mcutest-results","version":1,"summary":{"tests":5,"failures":0},"tests":[
+            {"name":"requirements.parse_markdown","status":"passed","requirements":["REQ-0006","REQ-0007","REQ-0008"]},
+            {"name":"importer.generic_json","status":"passed","requirements":["REQ-0033","REQ-0034","REQ-0035"]},
+            {"name":"validation.dangling_reference","status":"passed","requirements":["REQ-0045"]},
+            {"name":"output.json_report","status":"passed","requirements":["REQ-0055","REQ-0057","REQ-0061"]},
+            {"name":"cli.validate","status":"passed","requirements":["REQ-0064","REQ-0067"]}
+          ]}
+          JSON
+          cat > dogfood/coverage.json <<'JSON'
+          {"format":"mcucov-report","version":1,"modules":[
+            {"id":1,"path":"src/requirements.cpp","variant":"host","requirements":["REQ-0006","REQ-0007","REQ-0008"],"skipped":[]},
+            {"id":2,"path":"src/importer.cpp","variant":"host","requirements":["REQ-0033","REQ-0034","REQ-0035"],"skipped":[]},
+            {"id":3,"path":"src/validation.cpp","variant":"host","requirements":["REQ-0045"],"skipped":[]},
+            {"id":4,"path":"src/output.cpp","variant":"host","requirements":["REQ-0055","REQ-0057","REQ-0061"],"skipped":[]},
+            {"id":5,"path":"src/cli.cpp","variant":"host","requirements":["REQ-0064","REQ-0067"],"skipped":[]}
+          ]}
+          JSON
+          cat > dogfood/check.json <<'JSON'
+          {"format":"mcucheck-results","version":1,"diagnostics":[
+            {"rule_id":"DOGFOOD-DEMO","message":"Representative static-analysis evidence","severity":"warning","state":"violation","id":"dogfood-demo","location":{"path":"src/cli.cpp","line":1,"column":1},"requirements":["REQ-0064"]}
+          ]}
+          JSON
+
+      - name: Run self trace
+        shell: bash
+        run: |
+          set +e
+          ./build/mcutrace validate \
+            -r docs/requirements.md \
+            -r docs/requirements-links.md \
+            -r docs/requirements-hardening.md \
+            -a dogfood/tests.json \
+            -a dogfood/coverage.json \
+            -a dogfood/check.json \
+            --format text > dogfood/report.txt 2> dogfood/diagnostics.txt
+          rc=$?
+          echo "MCUTRACE_EXIT_CODE=$rc"
+          echo "===== diagnostics ====="
+          cat dogfood/diagnostics.txt
+          echo "===== report ====="
+          cat dogfood/report.txt
+
+          ./build/mcutrace validate \
+            -r docs/requirements.md \
+            -r docs/requirements-links.md \
+            -r docs/requirements-hardening.md \
+            -a dogfood/tests.json \
+            -a dogfood/coverage.json \
+            -a dogfood/check.json \
+            --format json > dogfood/report.json 2>> dogfood/diagnostics.txt
+          json_rc=$?
+          echo "MCUTRACE_JSON_EXIT_CODE=$json_rc"
+          echo "===== json report ====="
+          cat dogfood/report.json
+          exit 0
