@@ -9,11 +9,13 @@ project(
 
 option(MCUTRACE_BUILD_TESTS "Build mcutrace tests" ON)
 option(MCUTRACE_DISABLE_EXCEPTIONS_RTTI "Disable exceptions and RTTI" ON)
+option(MCUTRACE_ENABLE_MCUCOV "Instrument mcutrace core with mcucov" OFF)
 
 set(MCUTRACE_MCUCLI_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../mcucli" CACHE PATH "Path to mcucli checkout")
 set(MCUTRACE_MCUJSON_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../mcujson" CACHE PATH "Path to mcujson checkout")
 set(MCUTRACE_MCUTOML_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../mcutoml" CACHE PATH "Path to mcutoml checkout")
 set(MCUTRACE_MCUTEST_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../mcutest" CACHE PATH "Path to mcutest checkout")
+set(MCUTRACE_MCUCOV_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../mcucov" CACHE PATH "Path to mcucov checkout")
 
 function(mcutrace_warnings target)
     if(MSVC)
@@ -45,6 +47,19 @@ foreach(dep IN ITEMS mcucli mcujson mcutoml)
     endif()
 endforeach()
 
+if(MCUTRACE_ENABLE_MCUCOV)
+    if(NOT EXISTS "${MCUTRACE_MCUCOV_SOURCE_DIR}/CMakeLists.txt")
+        message(FATAL_ERROR "MCUTRACE_ENABLE_MCUCOV requires mcucov; set MCUTRACE_MCUCOV_SOURCE_DIR")
+    endif()
+    set(MCUCOV_BUILD_TESTS OFF CACHE BOOL "" FORCE)
+    set(MCUCOV_BUILD_INSTRUMENTER ON CACHE BOOL "" FORCE)
+    set(MCUCOV_BUILD_HOST_TOOLS ON CACHE BOOL "" FORCE)
+    set(MCUCOV_INSTALL OFF CACHE BOOL "" FORCE)
+    set(MCUCOV_MCUCLI_SOURCE_DIR "${MCUTRACE_MCUCLI_SOURCE_DIR}" CACHE PATH "" FORCE)
+    set(MCUCOV_MCUJSON_SOURCE_DIR "${MCUTRACE_MCUJSON_SOURCE_DIR}" CACHE PATH "" FORCE)
+    add_subdirectory("${MCUTRACE_MCUCOV_SOURCE_DIR}" "${CMAKE_BINARY_DIR}/_deps/mcucov" EXCLUDE_FROM_ALL)
+endif()
+
 add_library(mcutrace_core STATIC
     src/assembly.cpp
     src/cli.cpp
@@ -61,6 +76,14 @@ add_library(mcutrace::core ALIAS mcutrace_core)
 target_include_directories(mcutrace_core PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
 target_link_libraries(mcutrace_core PUBLIC mcucli::mcucli mcujson::mcujson mcutoml::mcutoml)
 mcutrace_host_options(mcutrace_core)
+if(MCUTRACE_ENABLE_MCUCOV)
+    mcucov_instrument_target(
+        mcutrace_core
+        PROFILE BLOCK
+        BUILD_ID 0x4d435452
+        SOURCE_ROOT "${CMAKE_CURRENT_SOURCE_DIR}"
+    )
+endif()
 
 add_executable(mcutrace src/main.cpp)
 target_link_libraries(mcutrace PRIVATE mcutrace::core)
