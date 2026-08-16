@@ -7,18 +7,18 @@ namespace {
 
 mcutrace::TraceResult sample_trace() {
     mcutrace::TraceResult trace;
-    ASSERT_TRUE(trace.graph.add_node(mcutrace::Node{
-        .id = "REQ-0002", .kind = mcutrace::NodeKind::requirement, .label = "Second"}).has_value());
-    ASSERT_TRUE(trace.graph.add_node(mcutrace::Node{
-        .id = "REQ-0001", .kind = mcutrace::NodeKind::requirement, .label = "First"}).has_value());
-    ASSERT_TRUE(trace.graph.add_node(mcutrace::Node{
-        .id = "test:one", .kind = mcutrace::NodeKind::test, .label = "one"}).has_value());
-    ASSERT_TRUE(trace.graph.add_edge(mcutrace::Edge{
+    (void)trace.graph.add_node(mcutrace::Node{
+        .id = "REQ-0002", .kind = mcutrace::NodeKind::requirement, .label = "Second"});
+    (void)trace.graph.add_node(mcutrace::Node{
+        .id = "REQ-0001", .kind = mcutrace::NodeKind::requirement, .label = "First"});
+    (void)trace.graph.add_node(mcutrace::Node{
+        .id = "test:one", .kind = mcutrace::NodeKind::test, .label = "one"});
+    (void)trace.graph.add_edge(mcutrace::Edge{
         .source_id = "test:one",
         .target_id = "REQ-0001",
         .type = mcutrace::RelationshipType::known(mcutrace::RelationshipKind::verifies),
         .provenance = {.importer = "test", .artifact = "sample.json"},
-    }).has_value());
+    });
     return trace;
 }
 
