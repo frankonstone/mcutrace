@@ -18,6 +18,11 @@ target_link_libraries(mcutrace_producer_importer_tests PRIVATE mcutrace::core mc
 mcutrace_host_options(mcutrace_producer_importer_tests)
 add_test(NAME mcutrace_producer_importer_tests COMMAND mcutrace_producer_importer_tests)
 
+add_executable(mcutrace_trace_import_tests test_trace_import.cpp)
+target_link_libraries(mcutrace_trace_import_tests PRIVATE mcutrace::core mcutest::mcutest)
+mcutrace_host_options(mcutrace_trace_import_tests)
+add_test(NAME mcutrace_trace_import_tests COMMAND mcutrace_trace_import_tests)
+
 add_executable(mcutrace_assembly_tests test_assembly.cpp)
 target_link_libraries(mcutrace_assembly_tests PRIVATE mcutrace::core mcutest::mcutest)
 mcutrace_host_options(mcutrace_assembly_tests)

@@ -3,8 +3,8 @@
 #include <mcutrace/assembly.hpp>
 #include <mcutrace/config.hpp>
 #include <mcutrace/output.hpp>
-#include <mcutrace/producer_importers.hpp>
 #include <mcutrace/requirements.hpp>
+#include <mcutrace/trace_import.hpp>
 #include <mcutrace/validation.hpp>
 
 #include <mcucli/mcucli.hpp>
@@ -72,7 +72,7 @@ load_artifact(const std::string& path,
               std::string_view importer) {
     auto content = read_text_file(path);
     if (!content) return std::unexpected(content.error());
-    auto fragment = import_producer_artifact(ArtifactInput{
+    auto fragment = import_trace_artifact(ArtifactInput{
         .path = path,
         .base_directory = base_directory,
         .content = std::move(*content),
