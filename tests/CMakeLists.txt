@@ -7,3 +7,8 @@ add_executable(mcutrace_requirement_tests test_requirements.cpp)
 target_link_libraries(mcutrace_requirement_tests PRIVATE mcutrace::core mcutest::mcutest)
 mcutrace_host_options(mcutrace_requirement_tests)
 add_test(NAME mcutrace_requirement_tests COMMAND mcutrace_requirement_tests)
+
+add_executable(mcutrace_importer_tests test_importer.cpp)
+target_link_libraries(mcutrace_importer_tests PRIVATE mcutrace::core mcutest::mcutest)
+mcutrace_host_options(mcutrace_importer_tests)
+add_test(NAME mcutrace_importer_tests COMMAND mcutrace_importer_tests)
