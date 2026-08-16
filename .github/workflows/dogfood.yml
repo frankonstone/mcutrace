@@ -158,3 +158,17 @@ jobs:
           if [[ ${rc} -ne 0 || ${json_rc} -ne 0 ]]; then
             exit 1
           fi
+
+      - name: Preserve dogfood evidence
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: mcutrace-dogfood-evidence
+          path: |
+            dogfood/coverage.json
+            dogfood/tests.json
+            dogfood/report.txt
+            dogfood/report.json
+            dogfood/diagnostics.txt
+            dogfood/results/*.log
+          if-no-files-found: warn
