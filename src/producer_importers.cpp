@@ -88,7 +88,7 @@ std::expected<InputFormat, ImportError>
 identify_json(const ArtifactInput& input) {
     auto parsed = parse_json(input);
     if (!parsed || !parsed->is_object() || !(*parsed)["format"].is_string() ||
-        !(*parsed)["version"].is_int()) {
+        !(*parsed)["version"].is_number()) {
         return std::unexpected(ImportError{
             .code = ImportErrorCode::unrecognized_format,
             .detail = "artifact has no recognized format/version header: " + input.path,
@@ -175,7 +175,7 @@ import_mcutest(const ArtifactInput& input, const mcujson::Json& root, InputForma
         if (test["file"].is_string()) {
             auto path = source_path(test["file"].get<std::string_view>(), input);
             if (path) {
-                const auto line = test["line"].is_int()
+                const auto line = test["line"].is_number()
                     ? static_cast<std::uint32_t>(test["line"].get<long long>()) : 0U;
                 node.source = SourceLocation{.path = *path, .line = line};
             }
@@ -244,9 +244,9 @@ import_mcucov(const ArtifactInput& input, const mcujson::Json& root, InputFormat
                     .message = detail,
                     .source = SourceLocation{
                         .path = *normalized,
-                        .line = entry["line"].is_int()
+                        .line = entry["line"].is_number()
                             ? static_cast<std::uint32_t>(entry["line"].get<long long>()) : 0U,
-                        .column = entry["column"].is_int()
+                        .column = entry["column"].is_number()
                             ? static_cast<std::uint32_t>(entry["column"].get<long long>()) : 0U,
                     },
                 });
@@ -293,9 +293,9 @@ import_mcucheck(const ArtifactInput& input, const mcujson::Json& root, InputForm
         }
         auto normalized = source_path(location["path"].get<std::string_view>(), input);
         if (!normalized) return std::unexpected(normalized.error());
-        const auto line = location["line"].is_int()
+        const auto line = location["line"].is_number()
             ? static_cast<std::uint32_t>(location["line"].get<long long>()) : 0U;
-        const auto column = location["column"].is_int()
+        const auto column = location["column"].is_number()
             ? static_cast<std::uint32_t>(location["column"].get<long long>()) : 0U;
         const std::string rule = diagnostic["rule_id"].get<std::string>();
         const std::string message = diagnostic["message"].get<std::string>();
