@@ -45,6 +45,15 @@ jobs:
           path: mcucov
           token: ${{ secrets.MCU_REPOS_TOKEN }}
 
+      - name: Install LLVM for mcucov
+        shell: bash
+        run: |
+          if ! brew list llvm >/dev/null 2>&1; then
+            brew install llvm
+          fi
+          echo "LLVM_DIR=$(brew --prefix llvm)/lib/cmake/llvm" >> "$GITHUB_ENV"
+          echo "Clang_DIR=$(brew --prefix llvm)/lib/cmake/clang" >> "$GITHUB_ENV"
+
       - name: Configure
         run: >-
           cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
@@ -54,6 +63,8 @@ jobs:
           -DMCUTRACE_MCUTEST_SOURCE_DIR=${{ github.workspace }}/mcutest
           -DMCUTRACE_MCUCOV_SOURCE_DIR=${{ github.workspace }}/mcucov
           -DMCUTRACE_ENABLE_MCUCOV=ON
+          -DLLVM_DIR=${LLVM_DIR}
+          -DClang_DIR=${Clang_DIR}
 
       - name: Build
         run: cmake --build build --config Release --parallel
