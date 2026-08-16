@@ -8,16 +8,24 @@
 namespace mcutrace {
 namespace {
 
+std::string canonical_path_string(std::filesystem::path path) {
+    path = path.lexically_normal();
+    while (path.has_filename() == false && path.has_parent_path() && path != path.root_path()) {
+        path = path.parent_path();
+    }
+    return path.generic_string();
+}
+
 std::string normalize_path(std::string_view value, std::string_view base) {
     std::filesystem::path path(value);
     if (path.is_relative()) path = std::filesystem::path(base) / path;
-    return path.lexically_normal().generic_string();
+    return canonical_path_string(std::move(path));
 }
 
 std::string config_directory(std::string_view config_path) {
     const std::filesystem::path path(config_path);
     const auto parent = path.parent_path();
-    return parent.empty() ? std::string(".") : parent.lexically_normal().generic_string();
+    return parent.empty() ? std::string(".") : canonical_path_string(parent);
 }
 
 std::optional<Severity> parse_severity(std::string_view value) noexcept {
@@ -73,6 +81,24 @@ std::expected<void, ConfigError> read_rule(const mcutoml::TomlRef table,
     return {};
 }
 
+std::expected<void, ConfigError> read_requirements(const mcutoml::TomlRef requirements,
+                                                   std::string_view root,
+                                                   ProjectConfig& result) {
+    if (!requirements.valid()) return {};
+    if (!requirements.is_array()) {
+        return std::unexpected(ConfigError{.code = ConfigErrorCode::invalid_type,
+                                           .detail = "requirements must be an array"});
+    }
+    for (const auto entry : requirements) {
+        if (!entry.is_string()) {
+            return std::unexpected(ConfigError{.code = ConfigErrorCode::invalid_type,
+                                               .detail = "requirements entries must be strings"});
+        }
+        result.requirement_files.push_back(normalize_path(entry.get<std::string_view>(), root));
+    }
+    return {};
+}
+
 }  // namespace
 
 std::expected<ProjectConfig, ConfigError>
@@ -107,21 +133,10 @@ parse_project_config(std::string_view content, std::string_view config_path) {
     }
     if (result.root.empty()) result.root = normalize_path(".", config_base);
 
-    const auto requirements = document["requirements"];
-    if (requirements.valid()) {
-        if (!requirements.is_array()) {
-            return std::unexpected(ConfigError{.code = ConfigErrorCode::invalid_type,
-                                               .detail = "requirements must be an array"});
-        }
-        for (const auto entry : requirements) {
-            if (!entry.is_string()) {
-                return std::unexpected(ConfigError{.code = ConfigErrorCode::invalid_type,
-                                                   .detail = "requirements entries must be strings"});
-            }
-            result.requirement_files.push_back(
-                normalize_path(entry.get<std::string_view>(), result.root));
-        }
-    }
+    const auto requirements = project.valid() && project["requirements"].valid()
+        ? project["requirements"] : document["requirements"];
+    if (auto status = read_requirements(requirements, result.root, result); !status)
+        return std::unexpected(status.error());
 
     const auto artifacts = document["artifacts"];
     if (artifacts.valid()) {
@@ -150,6 +165,10 @@ parse_project_config(std::string_view content, std::string_view config_path) {
                 artifact.importer = std::string(importer.get<std::string_view>());
             }
             const auto base = entry["base"];
+            if (base.valid() && !base.is_string()) {
+                return std::unexpected(ConfigError{.code = ConfigErrorCode::invalid_type,
+                                                   .detail = "artifact.base must be a string"});
+            }
             artifact.base_directory = base.valid()
                 ? normalize_path(base.get<std::string_view>(), result.root)
                 : result.root;
