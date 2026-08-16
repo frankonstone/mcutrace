@@ -30,6 +30,8 @@ enum class ErrorCode : std::uint8_t {
     duplicate_node,
     invalid_edge,
     duplicate_edge,
+    invalid_requirement_id,
+    requirement_id_space_exhausted,
 };
 
 [[nodiscard]] std::string_view error_code_name(ErrorCode code) noexcept;
