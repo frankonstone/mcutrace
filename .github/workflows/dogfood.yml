@@ -86,7 +86,9 @@ jobs:
             -r docs/requirements.md \
             -r docs/requirements-links.md \
             -r docs/requirements-hardening.md \
+            -r docs/requirements-evidence.md \
             -a dogfood/tests.json \
+            -a dogfood/build-evidence.json \
             --format text > dogfood/report.txt 2> dogfood/diagnostics.txt
           rc=$?
 
@@ -94,7 +96,9 @@ jobs:
             -r docs/requirements.md \
             -r docs/requirements-links.md \
             -r docs/requirements-hardening.md \
+            -r docs/requirements-evidence.md \
             -a dogfood/tests.json \
+            -a dogfood/build-evidence.json \
             --format json > dogfood/report.json 2>> dogfood/diagnostics.txt
           json_rc=$?
 
