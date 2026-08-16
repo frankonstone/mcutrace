@@ -67,7 +67,10 @@ jobs:
           -DClang_DIR=${Clang_DIR}
 
       - name: Build
-        run: cmake --build build --config Release --parallel
+        shell: bash
+        run: |
+          cmake --build build --config Release --parallel
+          cmake --build build --config Release --target mcucov --parallel
 
       - name: Generate test and coverage evidence from real executables
         shell: bash
