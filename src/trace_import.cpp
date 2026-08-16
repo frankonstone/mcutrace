@@ -47,8 +47,19 @@ std::optional<NodeKind> node_kind(std::string_view name) {
     return std::nullopt;
 }
 
+std::string canonical_node_id(std::string id, const ArtifactInput& input) {
+    constexpr std::string_view prefix = "source:";
+    if (!std::string_view(id).starts_with(prefix) || id.size() == prefix.size()) return id;
+    auto normalized = normalize_artifact_path(
+        std::string_view(id).substr(prefix.size()), input.base_directory);
+    if (!normalized) return id;
+    return std::string(prefix) + *normalized;
+}
+
 void append_link(ImportFragment& fragment, std::string source_id, std::string target_id,
                  RelationshipType type, const ArtifactInput& input) {
+    source_id = canonical_node_id(std::move(source_id), input);
+    target_id = canonical_node_id(std::move(target_id), input);
     fragment.edges.push_back(Edge{.source_id = std::move(source_id), .target_id = std::move(target_id),
         .type = std::move(type), .provenance = Provenance{.importer = fragment.format.schema,
         .artifact = input.path, .source = SourceLocation{.path = input.path}},
@@ -111,9 +122,15 @@ std::expected<ImportFragment, ImportError> import_link_sidecar(const ArtifactInp
                         .message = "ignored mcutrace-links node with unsupported kind", .source = SourceLocation{.path = input.path}});
                     continue;
                 }
-                fragment.nodes.push_back(Node{.id = value["id"].get<std::string>(), .kind = *kind,
-                    .label = value["label"].is_string() ? value["label"].get<std::string>() : value["id"].get<std::string>(),
-                    .source = SourceLocation{.path = input.path}});
+                const std::string original_id = value["id"].get<std::string>();
+                const std::string id = canonical_node_id(original_id, input);
+                std::optional<SourceLocation> source = SourceLocation{.path = input.path};
+                if (*kind == NodeKind::source && std::string_view(id).starts_with("source:")) {
+                    source = SourceLocation{.path = id.substr(std::string_view("source:").size())};
+                }
+                fragment.nodes.push_back(Node{.id = id, .kind = *kind,
+                    .label = value["label"].is_string() ? value["label"].get<std::string>() : original_id,
+                    .source = std::move(source)});
             }
         }
     }
