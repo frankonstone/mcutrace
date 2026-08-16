@@ -2,6 +2,7 @@
 
 #include <mcutrace/assembly.hpp>
 #include <mcutrace/config.hpp>
+#include <mcutrace/output.hpp>
 #include <mcutrace/requirements.hpp>
 #include <mcutrace/validation.hpp>
 
@@ -51,10 +52,24 @@ void print_diagnostic(const Diagnostic& diagnostic) {
               << diagnostic.message << '\n';
 }
 
+std::expected<void, CliError> parse_output_format(std::string_view value,
+                                                  OutputFormat& output_format) {
+    if (value == "text") {
+        output_format = OutputFormat::text;
+        return {};
+    }
+    if (value == "json") {
+        output_format = OutputFormat::json;
+        return {};
+    }
+    return std::unexpected(CliError{.message = "output format must be 'text' or 'json'"});
+}
+
 }  // namespace
 
 std::expected<CliOptions, CliError> parse_cli(int argc, const char* const* argv) {
     CliOptions options;
+    std::string format = "text";
     mcucli::Application app("mcutrace", "Traceability aggregation and validation");
     app.set_version(kVersion);
 
@@ -75,6 +90,11 @@ std::expected<CliOptions, CliError> parse_cli(int argc, const char* const* argv)
     if (!artifacts) return std::unexpected(CliError{.message = cli_error_text(artifacts.error())});
     (*artifacts)->metavar("FILE").repeatable();
 
+    auto output = (*validate)->add_option(
+        "-f, --format", "Report format: text or json", format);
+    if (!output) return std::unexpected(CliError{.message = cli_error_text(output.error())});
+    (*output)->metavar("FORMAT");
+
     auto parsed = app.parse(argc, argv);
     if (!parsed) return std::unexpected(CliError{.message = cli_error_text(parsed.error())});
 
@@ -92,6 +112,9 @@ std::expected<CliOptions, CliError> parse_cli(int argc, const char* const* argv)
 
     if (parsed->command() != (*validate)->id()) {
         return std::unexpected(CliError{.message = "a command is required; use 'mcutrace validate'"});
+    }
+    if (auto status = parse_output_format(format, options.output_format); !status) {
+        return std::unexpected(status.error());
     }
     options.action = CliAction::validate;
     return options;
@@ -155,7 +178,18 @@ int run_cli(const CliOptions& options) {
 
     const TraceResult trace = assemble_trace(parsed_requirements.requirements, {});
     const ValidationResult validation = validate_trace(trace, config.validation);
-    for (const auto& diagnostic : validation.diagnostics) print_diagnostic(diagnostic);
+
+    if (options.output_format == OutputFormat::json) {
+        const auto report = render_json_report(trace, validation);
+        if (!report) {
+            std::cerr << report.error().detail << '\n';
+            return 2;
+        }
+        std::cout << *report << '\n';
+    } else {
+        for (const auto& diagnostic : validation.diagnostics) print_diagnostic(diagnostic);
+        std::cout << render_text_report(trace, validation);
+    }
 
     return validation.failed ? 1 : 0;
 }
