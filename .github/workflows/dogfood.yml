@@ -39,6 +39,12 @@ jobs:
           path: mcutest
           token: ${{ secrets.MCU_REPOS_TOKEN }}
 
+      - uses: actions/checkout@v6
+        with:
+          repository: frankonstone/mcucov
+          path: mcucov
+          token: ${{ secrets.MCU_REPOS_TOKEN }}
+
       - name: Configure
         run: >-
           cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
@@ -46,22 +52,27 @@ jobs:
           -DMCUTRACE_MCUJSON_SOURCE_DIR=${{ github.workspace }}/mcujson
           -DMCUTRACE_MCUTOML_SOURCE_DIR=${{ github.workspace }}/mcutoml
           -DMCUTRACE_MCUTEST_SOURCE_DIR=${{ github.workspace }}/mcutest
+          -DMCUTRACE_MCUCOV_SOURCE_DIR=${{ github.workspace }}/mcucov
+          -DMCUTRACE_ENABLE_MCUCOV=ON
 
       - name: Build
         run: cmake --build build --config Release --parallel
 
-      - name: Generate test evidence from real executables
+      - name: Generate test and coverage evidence from real executables
         shell: bash
         run: |
           mkdir -p dogfood/results
           printf '{"format":"mcutest-results","version":1,"tests":[' > dogfood/tests.json
           first=1
+          captures=()
           while IFS=$'\t' read -r test_name requirement_csv; do
             executable="build/tests/${test_name}"
+            capture="dogfood/results/${test_name}.mcuv"
             status=failed
-            if "${executable}" > "dogfood/results/${test_name}.log" 2>&1; then
+            if MCUTRACE_MCUCOV_CAPTURE="${capture}" "${executable}" > "dogfood/results/${test_name}.log" 2>&1; then
               status=passed
             fi
+            if [[ -s "${capture}" ]]; then captures+=("${capture}"); fi
 
             requirements=""
             IFS=',' read -ra reqs <<< "${requirement_csv}"
@@ -78,6 +89,21 @@ jobs:
           printf ']}' >> dogfood/tests.json
           cat dogfood/tests.json
 
+          if [[ ${#captures[@]} -eq 0 ]]; then
+            echo "no mcucov captures were produced" >&2
+            exit 1
+          fi
+
+          MCUCOV="build/_deps/mcucov/mcucov"
+          "${MCUCOV}" merge "${captures[@]}" --output dogfood/coverage.mcuv
+          "${MCUCOV}" report \
+            --input dogfood/coverage.mcuv \
+            --manifest build/mcucov/mcutrace_core \
+            --source-root . \
+            --format json \
+            --output dogfood/coverage.json
+          cat dogfood/coverage.json
+
       - name: Run self trace
         shell: bash
         run: |
@@ -90,6 +116,7 @@ jobs:
             -a dogfood/tests.json \
             -a dogfood/build-evidence.json \
             -a dogfood/implementation-evidence.json \
+            -a dogfood/coverage.json \
             --format text > dogfood/report.txt 2> dogfood/diagnostics.txt
           rc=$?
 
@@ -101,6 +128,7 @@ jobs:
             -a dogfood/tests.json \
             -a dogfood/build-evidence.json \
             -a dogfood/implementation-evidence.json \
+            -a dogfood/coverage.json \
             --format json > dogfood/report.json 2>> dogfood/diagnostics.txt
           json_rc=$?
 
