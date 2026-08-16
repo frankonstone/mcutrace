@@ -83,6 +83,18 @@ std::string_view node_kind_name(NodeKind kind) noexcept {
     return "artifact";
 }
 
+std::string_view evidence_state_name(EvidenceState state) noexcept {
+    switch (state) {
+    case EvidenceState::unknown:
+        return "unknown";
+    case EvidenceState::passed:
+        return "passed";
+    case EvidenceState::failed:
+        return "failed";
+    }
+    return "unknown";
+}
+
 std::string_view relationship_kind_name(RelationshipKind kind) noexcept {
     switch (kind) {
     case RelationshipKind::satisfies:
