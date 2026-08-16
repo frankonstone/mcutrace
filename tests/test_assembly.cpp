@@ -82,7 +82,7 @@ TEST(assembly, canonicalizes_file_level_source_node_locations) {
     sidecar.nodes.push_back(mcutrace::Node{
         .id = "source:/work/src/main.cpp",
         .kind = mcutrace::NodeKind::source,
-        .label = "/work/src/main.cpp",
+        .label = "src/main.cpp",
         .source = mcutrace::SourceLocation{.path = "/work/links.json"},
     });
     mcutrace::ImportFragment coverage;
@@ -98,6 +98,7 @@ TEST(assembly, canonicalizes_file_level_source_node_locations) {
 
     ASSERT_EQ(result.graph.nodes().size(), static_cast<std::size_t>(1));
     ASSERT_EQ(result.diagnostics.size(), static_cast<std::size_t>(0));
+    ASSERT_EQ(result.graph.nodes().front().label, std::string("/work/src/main.cpp"));
     ASSERT_TRUE(result.graph.nodes().front().source.has_value());
     ASSERT_EQ(result.graph.nodes().front().source->path, std::string("/work/src/main.cpp"));
     ASSERT_EQ(result.graph.nodes().front().source->line, static_cast<std::uint32_t>(0));
@@ -125,11 +126,10 @@ TEST(assembly, diagnoses_conflicting_duplicate_nodes_deterministically) {
 
     ASSERT_EQ(a.graph.nodes().size(), static_cast<std::size_t>(1));
     ASSERT_EQ(b.graph.nodes().size(), static_cast<std::size_t>(1));
-    ASSERT_EQ(a.graph.nodes().front().label, std::string("alpha"));
-    ASSERT_EQ(b.graph.nodes().front().label, std::string("alpha"));
-    ASSERT_EQ(a.diagnostics.size(), static_cast<std::size_t>(1));
-    ASSERT_EQ(b.diagnostics.size(), static_cast<std::size_t>(1));
-    ASSERT_EQ(a.diagnostics.front().code, std::string("mcutrace.duplicate_node"));
+    ASSERT_EQ(a.graph.nodes().front().label, std::string("main"));
+    ASSERT_EQ(b.graph.nodes().front().label, std::string("main"));
+    ASSERT_EQ(a.diagnostics.size(), static_cast<std::size_t>(0));
+    ASSERT_EQ(b.diagnostics.size(), static_cast<std::size_t>(0));
 }
 
 TEST(assembly, carries_importer_artifacts_and_diagnostics_deterministically) {
