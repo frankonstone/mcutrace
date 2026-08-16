@@ -54,6 +54,7 @@ add_library(mcutrace_core STATIC
     src/output.cpp
     src/producer_importers.cpp
     src/requirements.cpp
+    src/trace_import.cpp
     src/validation.cpp
 )
 add_library(mcutrace::core ALIAS mcutrace_core)
