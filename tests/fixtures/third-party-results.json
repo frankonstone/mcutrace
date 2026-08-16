@@ -1,0 +1,11 @@
+{
+  "format": "vendor-results",
+  "version": 1,
+  "checks": [
+    {
+      "id": "boot_test",
+      "status": "passed",
+      "requirements": ["REQ-0042"]
+    }
+  ]
+}
