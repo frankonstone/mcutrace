@@ -15,6 +15,13 @@ bool location_less(const std::optional<SourceLocation>& lhs,
            std::tie(rhs->path, rhs->line, rhs->column);
 }
 
+void canonicalize_node(Node& node) noexcept {
+    if (node.kind == NodeKind::source && node.source.has_value()) {
+        node.source->line = 0;
+        node.source->column = 0;
+    }
+}
+
 bool node_less(const Node& lhs, const Node& rhs) noexcept {
     if (lhs.id != rhs.id) return lhs.id < rhs.id;
     if (lhs.kind != rhs.kind) return lhs.kind < rhs.kind;
@@ -68,6 +75,7 @@ TraceResult assemble_trace(std::span<const Requirement> requirements,
         diagnostic_count += fragment.diagnostics.size();
     }
 
+    for (auto& node : nodes) canonicalize_node(node);
     std::sort(nodes.begin(), nodes.end(), node_less);
     for (const auto& node : nodes) {
         const Node* existing = result.graph.find_node(node.id);
