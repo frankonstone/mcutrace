@@ -45,7 +45,10 @@ foreach(dep IN ITEMS mcucli mcujson mcutoml)
     endif()
 endforeach()
 
-add_library(mcutrace_core STATIC src/model.cpp)
+add_library(mcutrace_core STATIC
+    src/model.cpp
+    src/requirements.cpp
+)
 add_library(mcutrace::core ALIAS mcutrace_core)
 target_include_directories(mcutrace_core PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
 mcutrace_host_options(mcutrace_core)
