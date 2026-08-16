@@ -1,10 +1,15 @@
 #include <mcutrace/producer_importers.hpp>
 
+#include <mcutrace/requirements.hpp>
+
 #include <algorithm>
 #include <cstdint>
+#include <optional>
+#include <span>
 #include <string>
 #include <string_view>
 #include <utility>
+#include <vector>
 
 #ifndef MCUJSON_MAX_NODES
 #define MCUJSON_MAX_NODES 8192
@@ -72,6 +77,24 @@ void add_source_and_edge(ImportFragment& fragment,
     });
 }
 
+void add_requirement_edge(ImportFragment& fragment,
+                          std::string source_id,
+                          std::string target_id,
+                          RelationshipKind relationship,
+                          const ArtifactInput& input) {
+    fragment.edges.push_back(Edge{
+        .source_id = std::move(source_id),
+        .target_id = std::move(target_id),
+        .type = RelationshipType::known(relationship),
+        .provenance = Provenance{
+            .importer = fragment.format.schema,
+            .artifact = input.path,
+            .source = SourceLocation{.path = input.path},
+        },
+        .source = SourceLocation{.path = input.path},
+    });
+}
+
 std::expected<mcujson::Json, ImportError> parse_json(const ArtifactInput& input) {
     auto parsed = mcujson::Json::parse(input.content);
     if (!parsed) {
@@ -86,17 +109,17 @@ std::expected<mcujson::Json, ImportError> parse_json(const ArtifactInput& input)
 
 std::expected<InputFormat, ImportError>
 identify_json(const ArtifactInput& input) {
-    auto parsed = parse_json(input);
-    if (!parsed || !parsed->is_object() || !(*parsed)["format"].is_string() ||
-        !(*parsed)["version"].is_number()) {
+    const auto format_value = mcujson::json_get<std::string_view>(input.content, "format");
+    const auto version_value = mcujson::json_get<long long>(input.content, "version");
+    if (!format_value || !version_value) {
         return std::unexpected(ImportError{
             .code = ImportErrorCode::unrecognized_format,
             .detail = "artifact has no recognized format/version header: " + input.path,
             .source = SourceLocation{.path = input.path},
         });
     }
-    const std::string format = (*parsed)["format"].get<std::string>();
-    const auto version = (*parsed)["version"].get<long long>();
+
+    const std::string format(*format_value);
     std::string producer;
     if (format == "mcutest-results") producer = std::string(kMcutest);
     else if (format == "mcucov-report") producer = std::string(kMcucov);
@@ -111,7 +134,7 @@ identify_json(const ArtifactInput& input) {
     return InputFormat{
         .producer = producer,
         .schema = format,
-        .version = std::to_string(version),
+        .version = std::to_string(*version_value),
     };
 }
 
@@ -185,17 +208,146 @@ import_mcutest(const ArtifactInput& input, const mcujson::Json& root, InputForma
     return fragment;
 }
 
+struct ParsedSkipped final {
+    std::string state;
+    std::string severity;
+    std::string detail;
+    std::uint32_t line = 0;
+    std::uint32_t column = 0;
+};
+
+struct ParsedMcucovModule final {
+    std::string path;
+    std::string variant;
+    std::vector<std::string> requirements;
+    std::vector<ParsedSkipped> skipped;
+};
+
+class McucovSaxHandler final : public mcujson::SaxHandler {
+public:
+    bool on_object_start() noexcept override {
+        ++depth_;
+        if (in_modules_ && depth_ == 3) {
+            current_module_ = ParsedMcucovModule{};
+            in_module_ = true;
+        } else if (in_skipped_ && depth_ == 5) {
+            current_skipped_ = ParsedSkipped{};
+            in_skipped_object_ = true;
+        }
+        return !failed_;
+    }
+
+    bool on_object_end() noexcept override {
+        if (in_skipped_object_ && depth_ == 5) {
+            current_module_.skipped.push_back(std::move(current_skipped_));
+            in_skipped_object_ = false;
+        } else if (in_module_ && depth_ == 3) {
+            modules.push_back(std::move(current_module_));
+            in_module_ = false;
+        }
+        --depth_;
+        return !failed_;
+    }
+
+    bool on_array_start() noexcept override {
+        ++depth_;
+        if (depth_ == 2 && key_ == "modules") {
+            saw_modules = true;
+            in_modules_ = true;
+        } else if (in_module_ && depth_ == 4 && key_ == "requirements") {
+            in_requirements_ = true;
+        } else if (in_module_ && depth_ == 4 && key_ == "skipped") {
+            in_skipped_ = true;
+        }
+        return !failed_;
+    }
+
+    bool on_array_end() noexcept override {
+        if (depth_ == 4 && in_requirements_) in_requirements_ = false;
+        if (depth_ == 4 && in_skipped_) in_skipped_ = false;
+        if (depth_ == 2 && in_modules_) in_modules_ = false;
+        --depth_;
+        return !failed_;
+    }
+
+    bool on_key(std::string_view key) noexcept override {
+        key_.assign(key);
+        return true;
+    }
+
+    bool on_string(std::string_view value) noexcept override {
+        if (in_module_ && depth_ == 3 && key_ == "path") {
+            return decode(value, current_module_.path);
+        }
+        if (in_module_ && depth_ == 3 && key_ == "variant") {
+            return decode(value, current_module_.variant);
+        }
+        if (in_module_ && in_requirements_ && depth_ == 4) {
+            std::string requirement;
+            if (!decode(value, requirement)) return false;
+            current_module_.requirements.push_back(std::move(requirement));
+            return true;
+        }
+        if (in_skipped_object_ && depth_ == 5 && key_ == "state") {
+            return decode(value, current_skipped_.state);
+        }
+        if (in_skipped_object_ && depth_ == 5 && key_ == "severity") {
+            return decode(value, current_skipped_.severity);
+        }
+        if (in_skipped_object_ && depth_ == 5 && key_ == "detail") {
+            return decode(value, current_skipped_.detail);
+        }
+        return true;
+    }
+
+    bool on_int(long long value) noexcept override {
+        if (!in_skipped_object_ || depth_ != 5 || value < 0) return true;
+        if (key_ == "line") current_skipped_.line = static_cast<std::uint32_t>(value);
+        else if (key_ == "column") current_skipped_.column = static_cast<std::uint32_t>(value);
+        return true;
+    }
+
+    bool saw_modules = false;
+    std::vector<ParsedMcucovModule> modules;
+
+private:
+    bool decode(std::string_view raw, std::string& output) noexcept {
+        output.resize(raw.size());
+        auto decoded = mcujson::decode_string(raw,
+            std::span<char>{output.data(), output.size()});
+        if (!decoded) {
+            failed_ = true;
+            return false;
+        }
+        output.resize(*decoded);
+        return true;
+    }
+
+    int depth_ = 0;
+    std::string key_;
+    bool failed_ = false;
+    bool in_modules_ = false;
+    bool in_module_ = false;
+    bool in_requirements_ = false;
+    bool in_skipped_ = false;
+    bool in_skipped_object_ = false;
+    ParsedMcucovModule current_module_;
+    ParsedSkipped current_skipped_;
+};
+
 std::expected<ImportFragment, ImportError>
-import_mcucov(const ArtifactInput& input, const mcujson::Json& root, InputFormat format) {
+import_mcucov(const ArtifactInput& input, InputFormat format) {
     if (auto supported = require_supported_version(info_for(kMcucov), format,
             SourceLocation{.path = input.path}); !supported) {
         return std::unexpected(supported.error());
     }
-    const auto modules = root["modules"];
-    if (!modules.is_array()) {
+
+    McucovSaxHandler handler;
+    const auto parsed = mcujson::json_sax_parse(input.content, handler);
+    if (!parsed || !handler.saw_modules) {
         return std::unexpected(ImportError{
             .code = ImportErrorCode::invalid_artifact,
-            .detail = "mcucov-report requires a modules array",
+            .detail = "mcucov-report requires a valid modules array",
             .source = SourceLocation{.path = input.path},
         });
     }
@@ -205,8 +357,8 @@ import_mcucov(const ArtifactInput& input, const mcujson::Json& root, InputFormat
         artifact_id(kMcucov, input.path), "mcucov-report", input.content,
         SourceLocation{.path = input.path}));
 
-    for (const auto module : modules) {
-        if (!module.is_object() || !module["path"].is_string()) {
+    for (const auto& module : handler.modules) {
+        if (module.path.empty()) {
             fragment.diagnostics.push_back(Diagnostic{
                 .code = "import.mcucov.invalid_module",
                 .severity = Severity::warning,
@@ -215,42 +367,47 @@ import_mcucov(const ArtifactInput& input, const mcujson::Json& root, InputFormat
             });
             continue;
         }
-        auto normalized = source_path(module["path"].get<std::string_view>(), input);
+        auto normalized = source_path(module.path, input);
         if (!normalized) return std::unexpected(normalized.error());
-        const std::string variant = module["variant"].is_string()
-            ? module["variant"].get<std::string>() : std::string{};
-        const std::string coverage_id = "coverage:mcucov:" + *normalized + ":" + variant;
+        const std::string coverage_id = "coverage:mcucov:" + *normalized + ":" + module.variant;
+        const std::string source_id = "source:" + *normalized;
         add_node_once(fragment.nodes, Node{
             .id = coverage_id,
             .kind = NodeKind::coverage,
-            .label = module["path"].get<std::string>(),
+            .label = module.path,
             .source = SourceLocation{.path = *normalized},
         });
         add_source_and_edge(fragment, *normalized, coverage_id,
                             RelationshipKind::covers, input);
 
-        const auto skipped = module["skipped"];
-        if (skipped.is_array()) {
-            for (const auto entry : skipped) {
-                if (!entry.is_object() || !entry["state"].is_string() ||
-                    entry["state"].get<std::string_view>() == "justified") continue;
-                const std::string detail = entry["detail"].is_string()
-                    ? entry["detail"].get<std::string>() : "construct was not instrumented";
-                const std::string severity_text = entry["severity"].is_string()
-                    ? entry["severity"].get<std::string>() : "warning";
+        for (const auto& requirement : module.requirements) {
+            if (!is_requirement_id(requirement)) {
                 fragment.diagnostics.push_back(Diagnostic{
-                    .code = "import.mcucov.not_instrumented",
-                    .severity = parse_severity(severity_text).value_or(Severity::warning),
-                    .message = detail,
-                    .source = SourceLocation{
-                        .path = *normalized,
-                        .line = entry["line"].is_number()
-                            ? static_cast<std::uint32_t>(entry["line"].get<long long>()) : 0U,
-                        .column = entry["column"].is_number()
-                            ? static_cast<std::uint32_t>(entry["column"].get<long long>()) : 0U,
-                    },
+                    .code = "import.requirements.invalid_id",
+                    .severity = Severity::warning,
+                    .message = "ignored invalid requirement reference",
+                    .source = SourceLocation{.path = input.path},
                 });
+                continue;
             }
+            add_requirement_edge(fragment, coverage_id, requirement,
+                                 RelationshipKind::covers, input);
+            add_requirement_edge(fragment, source_id, requirement,
+                                 RelationshipKind::implements, input);
+        }
+
+        for (const auto& skipped : module.skipped) {
+            if (skipped.state == "justified") continue;
+            fragment.diagnostics.push_back(Diagnostic{
+                .code = "import.mcucov.not_instrumented",
+                .severity = parse_severity(skipped.severity).value_or(Severity::warning),
+                .message = skipped.detail.empty() ? "construct was not instrumented" : skipped.detail,
+                .source = SourceLocation{
+                    .path = *normalized,
+                    .line = skipped.line,
+                    .column = skipped.column,
+                },
+            });
         }
     }
     return fragment;
@@ -335,10 +492,11 @@ import_producer_artifact(const ArtifactInput& input, std::string_view requested_
         });
     }
 
+    if (format->producer == kMcucov) return import_mcucov(input, std::move(*format));
+
     auto root = parse_json(input);
     if (!root) return std::unexpected(root.error());
     if (format->producer == kMcutest) return import_mcutest(input, *root, std::move(*format));
-    if (format->producer == kMcucov) return import_mcucov(input, *root, std::move(*format));
     if (format->producer == kMcucheck) return import_mcucheck(input, *root, std::move(*format));
     return std::unexpected(ImportError{
         .code = ImportErrorCode::unrecognized_format,
