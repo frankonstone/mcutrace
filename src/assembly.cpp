@@ -1,6 +1,7 @@
 #include <mcutrace/assembly.hpp>
 
 #include <algorithm>
+#include <string_view>
 #include <tuple>
 #include <utility>
 
@@ -15,8 +16,16 @@ bool location_less(const std::optional<SourceLocation>& lhs,
            std::tie(rhs->path, rhs->line, rhs->column);
 }
 
-void canonicalize_node(Node& node) noexcept {
-    if (node.kind == NodeKind::source && node.source.has_value()) {
+void canonicalize_node(Node& node) {
+    if (node.kind != NodeKind::source) return;
+
+    constexpr std::string_view prefix = "source:";
+    if (node.id.starts_with(prefix)) {
+        node.source = SourceLocation{.path = node.id.substr(prefix.size())};
+        return;
+    }
+
+    if (node.source.has_value()) {
         node.source->line = 0;
         node.source->column = 0;
     }
