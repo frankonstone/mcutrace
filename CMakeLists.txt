@@ -81,7 +81,7 @@ if(MCUTRACE_ENABLE_MCUCOV)
         mcutrace_core
         PROFILE BLOCK
         BUILD_ID 0x4d435452
-        SOURCE_ROOT "${CMAKE_CURRENT_SOURCE_DIR}"
+        SOURCE_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/src"
     )
 endif()
 
