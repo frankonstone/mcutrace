@@ -52,6 +52,9 @@ bool node_less(const Node& lhs, const Node& rhs) noexcept {
     if (lhs.evidence_state != rhs.evidence_state) {
         return lhs.evidence_state < rhs.evidence_state;
     }
+    if (lhs.finding_state != rhs.finding_state) {
+        return lhs.finding_state < rhs.finding_state;
+    }
     if (lhs.expected_evidence != rhs.expected_evidence) {
         return lhs.expected_evidence < rhs.expected_evidence;
     }
