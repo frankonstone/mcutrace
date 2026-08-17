@@ -63,19 +63,19 @@ class ExampleImporter final : public mcutrace::Importer {
 
 }  // namespace
 
-TEST(importer, normalizes_relative_paths_deterministically) {
+TEST(importer, normalizes_relative_paths_deterministically, "REQ-0043", "REQ-0044") {
     const auto path = mcutrace::normalize_artifact_path("reports/../out/result.json", "/project");
     ASSERT_TRUE(path.has_value());
     ASSERT_EQ(*path, std::string("/project/out/result.json"));
 }
 
-TEST(importer, rejects_empty_artifact_paths) {
+TEST(importer, rejects_empty_artifact_paths, "REQ-0035", "REQ-0043") {
     const auto path = mcutrace::normalize_artifact_path("");
     ASSERT_FALSE(path.has_value());
     ASSERT_EQ(path.error().code, mcutrace::ImportErrorCode::invalid_artifact);
 }
 
-TEST(importer, reports_unsupported_versions_explicitly) {
+TEST(importer, reports_unsupported_versions_explicitly, "REQ-0041", "REQ-0042") {
     const ExampleImporter importer;
     const mcutrace::InputFormat format{
         .producer = "example",
@@ -87,7 +87,7 @@ TEST(importer, reports_unsupported_versions_explicitly) {
     ASSERT_EQ(result.error().code, mcutrace::ImportErrorCode::unsupported_version);
 }
 
-TEST(importer, keeps_partial_entry_failures_as_diagnostics) {
+TEST(importer, keeps_partial_entry_failures_as_diagnostics, "REQ-0035", "REQ-0036", "REQ-0058") {
     const ExampleImporter importer;
     const mcutrace::ArtifactInput input{
         .path = "result.json",
@@ -103,7 +103,7 @@ TEST(importer, keeps_partial_entry_failures_as_diagnostics) {
     ASSERT_EQ(result->artifacts.front().source->path, std::string("/project/out/result.json"));
 }
 
-TEST(importer, preserves_unknown_json_payload_without_loss) {
+TEST(importer, preserves_unknown_json_payload_without_loss, "REQ-0026", "REQ-0032", "REQ-0040") {
     const std::string payload = "{\"vendor_extension\":{\"answer\":42}}";
     const auto artifact = mcutrace::preserve_json_artifact("vendor:1", "vendor.extension", payload);
     ASSERT_EQ(artifact.media_type, std::string("application/json"));
@@ -111,6 +111,6 @@ TEST(importer, preserves_unknown_json_payload_without_loss) {
 }
 
 int main(int argc, char* argv[]) {
-    mcutest::Runner<mcutest::StdoutOutput> runner;
+    mcutest::Runner<mcutest::JsonOutput> runner;
     return mcutest::run_with_gtest_compat(argc, argv, runner);
 }
