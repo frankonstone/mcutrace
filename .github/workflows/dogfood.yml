@@ -45,16 +45,22 @@ jobs:
           path: mcucov
           token: ${{ secrets.MCU_REPOS_TOKEN }}
 
+      - uses: actions/checkout@v6
+        with:
+          repository: frankonstone/mcucheck
+          path: mcucheck
+          token: ${{ secrets.MCU_REPOS_TOKEN }}
+
       - name: Stage sibling dependencies outside coverage source root
         shell: bash
         run: |
           deps="${RUNNER_TEMP}/mcutrace-deps"
           mkdir -p "${deps}"
-          for dep in mcucli mcujson mcutoml mcutest mcucov; do
+          for dep in mcucli mcujson mcutoml mcutest mcucov mcucheck; do
             cp -R "${GITHUB_WORKSPACE}/${dep}" "${deps}/${dep}"
           done
 
-      - name: Install LLVM for mcucov
+      - name: Install LLVM for host tools
         shell: bash
         run: |
           if ! brew list llvm >/dev/null 2>&1; then
@@ -63,9 +69,10 @@ jobs:
           echo "LLVM_DIR=$(brew --prefix llvm)/lib/cmake/llvm" >> "$GITHUB_ENV"
           echo "Clang_DIR=$(brew --prefix llvm)/lib/cmake/clang" >> "$GITHUB_ENV"
 
-      - name: Configure
+      - name: Configure mcutrace
         run: >-
           cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+          -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
           -DMCUTRACE_MCUCLI_SOURCE_DIR=${{ runner.temp }}/mcutrace-deps/mcucli
           -DMCUTRACE_MCUJSON_SOURCE_DIR=${{ runner.temp }}/mcutrace-deps/mcujson
           -DMCUTRACE_MCUTOML_SOURCE_DIR=${{ runner.temp }}/mcutrace-deps/mcutoml
@@ -75,11 +82,30 @@ jobs:
           -DLLVM_DIR=${LLVM_DIR}
           -DClang_DIR=${Clang_DIR}
 
-      - name: Build
+      - name: Build mcutrace
         shell: bash
         run: |
           cmake --build build --config Release --parallel
           cmake --build build --config Release --target mcucov --parallel
+
+      - name: Configure and build mcucheck
+        shell: bash
+        run: |
+          cmake \
+            -S "${RUNNER_TEMP}/mcutrace-deps/mcucheck" \
+            -B "${RUNNER_TEMP}/mcucheck-build" \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DMCUCHECK_BUILD_TESTS=OFF \
+            -DMCUCHECK_BUILD_TOOLS=ON \
+            -DMCUCHECK_INSTALL=OFF \
+            -DMCUCHECK_ENABLE_AUTOSAR_CPP14=OFF \
+            -DMCUCHECK_ENABLE_LLM_CPP=ON \
+            -DMCUCHECK_MCUCLI_SOURCE_DIR="${RUNNER_TEMP}/mcutrace-deps/mcucli" \
+            -DMCUCHECK_MCUJSON_SOURCE_DIR="${RUNNER_TEMP}/mcutrace-deps/mcujson" \
+            -DMCUCHECK_MCUTOML_SOURCE_DIR="${RUNNER_TEMP}/mcutrace-deps/mcutoml" \
+            -DLLVM_DIR="${LLVM_DIR}" \
+            -DClang_DIR="${Clang_DIR}"
+          cmake --build "${RUNNER_TEMP}/mcucheck-build" --target mcucheck --parallel
 
       - name: Generate test and coverage evidence from real executables
         shell: bash
@@ -127,6 +153,26 @@ jobs:
             --output dogfood/coverage.json
           cat dogfood/coverage.json
 
+      - name: Generate static-analysis evidence with mcucheck
+        shell: bash
+        run: |
+          set +e
+          MCUCHECK="${RUNNER_TEMP}/mcucheck-build/mcucheck"
+          "${MCUCHECK}" analyze build/compile_commands.json \
+            --project-root "${GITHUB_WORKSPACE}" \
+            --config "${RUNNER_TEMP}/mcutrace-deps/mcucheck/standards/llm_cpp/config/default.toml" \
+            --jobs 1 \
+            --format json \
+            > dogfood/mcucheck.json \
+            2> dogfood/mcucheck.log
+          mcucheck_rc=$?
+          set -e
+
+          echo "MCUCHECK_EXIT_CODE=${mcucheck_rc}"
+          cat dogfood/mcucheck.log
+          cat dogfood/mcucheck.json
+          test -s dogfood/mcucheck.json
+
       - name: Run self trace
         shell: bash
         run: |
@@ -140,6 +186,7 @@ jobs:
             -a dogfood/build-evidence.json \
             -a dogfood/implementation-evidence.json \
             -a dogfood/coverage.json \
+            -a dogfood/mcucheck.json \
             --format text > dogfood/report.txt 2> dogfood/diagnostics.txt
           rc=$?
 
@@ -152,6 +199,7 @@ jobs:
             -a dogfood/build-evidence.json \
             -a dogfood/implementation-evidence.json \
             -a dogfood/coverage.json \
+            -a dogfood/mcucheck.json \
             --format json > dogfood/report.json 2>> dogfood/diagnostics.txt
           json_rc=$?
 
@@ -175,6 +223,8 @@ jobs:
           name: mcutrace-dogfood-evidence
           path: |
             dogfood/coverage.json
+            dogfood/mcucheck.json
+            dogfood/mcucheck.log
             dogfood/tests.json
             dogfood/report.txt
             dogfood/report.json
