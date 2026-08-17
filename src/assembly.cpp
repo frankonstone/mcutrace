@@ -10,14 +10,20 @@ namespace {
 
 bool location_less(const std::optional<SourceLocation>& lhs,
                    const std::optional<SourceLocation>& rhs) noexcept {
-    if (!lhs.has_value()) return rhs.has_value();
-    if (!rhs.has_value()) return false;
+    if (!lhs.has_value()) {
+        return rhs.has_value();
+    }
+    if (!rhs.has_value()) {
+        return false;
+    }
     return std::tie(lhs->path, lhs->line, lhs->column) <
            std::tie(rhs->path, rhs->line, rhs->column);
 }
 
 void canonicalize_node(Node& node) {
-    if (node.kind != NodeKind::source) return;
+    if (node.kind != NodeKind::source) {
+        return;
+    }
 
     constexpr std::string_view prefix = "source:";
     if (node.id.starts_with(prefix)) {
@@ -34,26 +40,53 @@ void canonicalize_node(Node& node) {
 }
 
 bool node_less(const Node& lhs, const Node& rhs) noexcept {
-    if (lhs.id != rhs.id) return lhs.id < rhs.id;
-    if (lhs.kind != rhs.kind) return lhs.kind < rhs.kind;
-    if (lhs.label != rhs.label) return lhs.label < rhs.label;
-    if (lhs.evidence_state != rhs.evidence_state) return lhs.evidence_state < rhs.evidence_state;
-    if (lhs.expected_evidence != rhs.expected_evidence) return lhs.expected_evidence < rhs.expected_evidence;
+    if (lhs.id != rhs.id) {
+        return lhs.id < rhs.id;
+    }
+    if (lhs.kind != rhs.kind) {
+        return lhs.kind < rhs.kind;
+    }
+    if (lhs.label != rhs.label) {
+        return lhs.label < rhs.label;
+    }
+    if (lhs.evidence_state != rhs.evidence_state) {
+        return lhs.evidence_state < rhs.evidence_state;
+    }
+    if (lhs.finding_state != rhs.finding_state) {
+        return lhs.finding_state < rhs.finding_state;
+    }
+    if (lhs.expected_evidence != rhs.expected_evidence) {
+        return lhs.expected_evidence < rhs.expected_evidence;
+    }
     return location_less(lhs.source, rhs.source);
 }
 
 bool artifact_less(const GenericArtifact& lhs, const GenericArtifact& rhs) noexcept {
-    if (lhs.id != rhs.id) return lhs.id < rhs.id;
-    if (lhs.type != rhs.type) return lhs.type < rhs.type;
-    if (lhs.media_type != rhs.media_type) return lhs.media_type < rhs.media_type;
-    if (lhs.payload != rhs.payload) return lhs.payload < rhs.payload;
+    if (lhs.id != rhs.id) {
+        return lhs.id < rhs.id;
+    }
+    if (lhs.type != rhs.type) {
+        return lhs.type < rhs.type;
+    }
+    if (lhs.media_type != rhs.media_type) {
+        return lhs.media_type < rhs.media_type;
+    }
+    if (lhs.payload != rhs.payload) {
+        return lhs.payload < rhs.payload;
+    }
     return location_less(lhs.source, rhs.source);
 }
 
 bool diagnostic_less(const Diagnostic& lhs, const Diagnostic& rhs) noexcept {
-    if (lhs.code != rhs.code) return lhs.code < rhs.code;
-    if (lhs.severity != rhs.severity) return lhs.severity < rhs.severity;
-    if (lhs.message != rhs.message) return lhs.message < rhs.message;
+    if (lhs.code != rhs.code) {
+        return lhs.code < rhs.code;
+    }
+    if (lhs.severity != rhs.severity) {
+        return lhs.severity < rhs.severity;
+    }
+    if (lhs.message != rhs.message) {
+        return lhs.message < rhs.message;
+    }
     return location_less(lhs.source, rhs.source);
 }
 
@@ -66,41 +99,37 @@ Diagnostic duplicate_node_diagnostic(const Node& node) {
     };
 }
 
-}  // namespace
-
-TraceResult assemble_trace(std::span<const Requirement> requirements,
-                           std::span<const ImportFragment> fragments) {
-    TraceResult result;
-
+std::vector<Node> collect_nodes(std::span<const Requirement> requirements,
+                                std::span<const ImportFragment> fragments) {
     std::vector<Node> nodes;
     nodes.reserve(requirements.size());
     for (const auto& requirement : requirements) {
         nodes.push_back(requirement.as_node());
     }
-
-    std::size_t edge_count = 0;
-    std::size_t artifact_count = 0;
-    std::size_t diagnostic_count = 0;
     for (const auto& fragment : fragments) {
         nodes.insert(nodes.end(), fragment.nodes.begin(), fragment.nodes.end());
-        edge_count += fragment.edges.size();
-        artifact_count += fragment.artifacts.size();
-        diagnostic_count += fragment.diagnostics.size();
     }
-
-    for (auto& node : nodes) canonicalize_node(node);
+    for (auto& node : nodes) {
+        canonicalize_node(node);
+    }
     std::sort(nodes.begin(), nodes.end(), node_less);
+    return nodes;
+}
+
+void insert_nodes(Graph& graph,
+                  std::vector<Diagnostic>& diagnostics,
+                  std::span<const Node> nodes) {
     for (const auto& node : nodes) {
-        const Node* existing = result.graph.find_node(node.id);
+        const Node* existing = graph.find_node(node.id);
         if (existing != nullptr) {
             if (*existing != node) {
-                result.diagnostics.push_back(duplicate_node_diagnostic(node));
+                diagnostics.push_back(duplicate_node_diagnostic(node));
             }
             continue;
         }
-        const auto added = result.graph.add_node(node);
+        const auto added = graph.add_node(node);
         if (!added) {
-            result.diagnostics.push_back(Diagnostic{
+            diagnostics.push_back(Diagnostic{
                 .code = "mcutrace.node_error",
                 .severity = Severity::error,
                 .message = added.error().detail,
@@ -108,12 +137,11 @@ TraceResult assemble_trace(std::span<const Requirement> requirements,
             });
         }
     }
+}
 
-    std::vector<Edge> edges;
-    edges.reserve(edge_count);
-    result.artifacts.reserve(artifact_count);
-    result.diagnostics.reserve(result.diagnostics.size() + diagnostic_count);
-
+void collect_fragment_data(TraceResult& result,
+                           std::vector<Edge>& edges,
+                           std::span<const ImportFragment> fragments) {
     for (const auto& fragment : fragments) {
         edges.insert(edges.end(), fragment.edges.begin(), fragment.edges.end());
         result.artifacts.insert(result.artifacts.end(),
@@ -121,11 +149,15 @@ TraceResult assemble_trace(std::span<const Requirement> requirements,
         result.diagnostics.insert(result.diagnostics.end(),
                                   fragment.diagnostics.begin(), fragment.diagnostics.end());
     }
+}
 
+void insert_edges(Graph& graph,
+                  std::vector<Diagnostic>& diagnostics,
+                  std::span<const Edge> edges) {
     for (const auto& edge : edges) {
-        const auto added = result.graph.add_edge(edge);
+        const auto added = graph.add_edge(edge);
         if (!added) {
-            result.diagnostics.push_back(Diagnostic{
+            diagnostics.push_back(Diagnostic{
                 .code = "mcutrace.edge_error",
                 .severity = Severity::error,
                 .message = added.error().detail,
@@ -133,7 +165,9 @@ TraceResult assemble_trace(std::span<const Requirement> requirements,
             });
         }
     }
+}
 
+void deduplicate_artifacts_and_diagnostics(TraceResult& result) {
     std::sort(result.artifacts.begin(), result.artifacts.end(), artifact_less);
     result.artifacts.erase(std::unique(result.artifacts.begin(), result.artifacts.end()),
                            result.artifacts.end());
@@ -141,7 +175,20 @@ TraceResult assemble_trace(std::span<const Requirement> requirements,
     std::sort(result.diagnostics.begin(), result.diagnostics.end(), diagnostic_less);
     result.diagnostics.erase(std::unique(result.diagnostics.begin(), result.diagnostics.end()),
                              result.diagnostics.end());
+}
 
+}  // namespace
+
+TraceResult assemble_trace(std::span<const Requirement> requirements,
+                           std::span<const ImportFragment> fragments) {
+    TraceResult result;
+    const auto nodes = collect_nodes(requirements, fragments);
+    insert_nodes(result.graph, result.diagnostics, nodes);
+
+    std::vector<Edge> edges;
+    collect_fragment_data(result, edges, fragments);
+    insert_edges(result.graph, result.diagnostics, edges);
+    deduplicate_artifacts_and_diagnostics(result);
     return result;
 }
 

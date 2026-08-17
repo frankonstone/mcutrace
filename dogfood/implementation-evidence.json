@@ -57,6 +57,7 @@
     {"source":"source:src/model.cpp","target":"REQ-0031","type":"implements"},
     {"source":"source:src/model.cpp","target":"REQ-0032","type":"implements"},
     {"source":"source:src/model.cpp","target":"REQ-0078","type":"implements"},
+    {"source":"source:src/model.cpp","target":"REQ-0087","type":"implements"},
 
     {"source":"source:src/importer.cpp","target":"REQ-0002","type":"implements"},
     {"source":"source:src/importer.cpp","target":"REQ-0003","type":"implements"},
@@ -86,6 +87,7 @@
     {"source":"source:src/trace_import.cpp","target":"REQ-0081","type":"implements"},
     {"source":"source:src/trace_import.cpp","target":"REQ-0082","type":"implements"},
     {"source":"source:src/trace_import.cpp","target":"REQ-0083","type":"implements"},
+    {"source":"source:src/trace_import.cpp","target":"REQ-0087","type":"implements"},
 
     {"source":"source:src/validation.cpp","target":"REQ-0045","type":"implements"},
     {"source":"source:src/validation.cpp","target":"REQ-0047","type":"implements"},
@@ -96,6 +98,7 @@
     {"source":"source:src/validation.cpp","target":"REQ-0052","type":"implements"},
     {"source":"source:src/validation.cpp","target":"REQ-0053","type":"implements"},
     {"source":"source:src/validation.cpp","target":"REQ-0054","type":"implements"},
+    {"source":"source:src/validation.cpp","target":"REQ-0088","type":"implements"},
 
     {"source":"source:src/config.cpp","target":"REQ-0004","type":"implements"},
     {"source":"source:src/config.cpp","target":"REQ-0054","type":"implements"},
@@ -115,6 +118,7 @@
     {"source":"source:src/output.cpp","target":"REQ-0058","type":"implements"},
     {"source":"source:src/output.cpp","target":"REQ-0059","type":"implements"},
     {"source":"source:src/output.cpp","target":"REQ-0060","type":"implements"},
-    {"source":"source:src/output.cpp","target":"REQ-0061","type":"implements"}
+    {"source":"source:src/output.cpp","target":"REQ-0061","type":"implements"},
+    {"source":"source:src/output.cpp","target":"REQ-0087","type":"implements"}
   ]
 }

@@ -11,9 +11,13 @@ namespace mcutrace {
 namespace {
 
 bool has_requirement_evidence(const TraceResult& trace, const Node& requirement) {
-    if (requirement.expected_evidence.has_value() && *requirement.expected_evidence == 0U) return true;
+    if (requirement.expected_evidence.has_value() && *requirement.expected_evidence == 0U) {
+        return true;
+    }
     for (const auto& edge : trace.graph.edges()) {
-        if (edge.source_id == requirement.id || edge.target_id == requirement.id) return true;
+        if (edge.source_id == requirement.id || edge.target_id == requirement.id) {
+            return true;
+        }
     }
     return false;
 }
@@ -34,9 +38,13 @@ TraceReport build_report(const TraceResult& trace, const ValidationResult& valid
     report.summary.validation_warnings = diagnostic_count(validation, Severity::warning);
 
     for (const auto& node : trace.graph.nodes()) {
-        if (node.kind != NodeKind::requirement) continue;
+        if (node.kind != NodeKind::requirement) {
+            continue;
+        }
         ++report.summary.requirements;
-        if (!has_requirement_evidence(trace, node)) report.untraced_requirements.push_back(node.id);
+        if (!has_requirement_evidence(trace, node)) {
+            report.untraced_requirements.push_back(node.id);
+        }
     }
     return report;
 }
@@ -52,7 +60,9 @@ std::string render_text_report(const TraceResult& trace, const ValidationResult&
            << "validation warnings: " << report.summary.validation_warnings << '\n';
     if (!report.untraced_requirements.empty()) {
         output << "untraced requirements:\n";
-        for (const auto& id : report.untraced_requirements) output << "  " << id << '\n';
+        for (const auto& id : report.untraced_requirements) {
+            output << "  " << id << '\n';
+        }
     }
     return output.str();
 }
@@ -80,6 +90,9 @@ render_json_report(const TraceResult& trace, const ValidationResult& validation)
                     object("id", node.id)
                         ("kind", node_kind_name(node.kind))
                         ("label", node.label);
+                    if (!node.finding_state.empty()) {
+                        object("finding_state", node.finding_state);
+                    }
                     if (node.source) {
                         object.object("source", [&](mcujson::JsonWriter::Object& source) {
                             source("path", node.source->path)
@@ -116,7 +129,9 @@ render_json_report(const TraceResult& trace, const ValidationResult& validation)
             }
         });
         root.array("untraced_requirements", [&](mcujson::JsonWriter::Array& requirements) {
-            for (const auto& id : report.untraced_requirements) requirements(id);
+            for (const auto& id : report.untraced_requirements) {
+                requirements(id);
+            }
         });
     });
 
