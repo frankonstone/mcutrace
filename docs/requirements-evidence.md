@@ -8,3 +8,9 @@ A requirement without an explicit evidence annotation shall continue to expect t
 
 ### REQ-0086 No-evidence requirements
 mcutrace shall support `@evidence(none)` for process or policy requirements for which trace evidence is intentionally not required.
+
+### REQ-0087 Producer finding state preservation
+mcutrace shall preserve a producer-reported static-analysis finding state and expose it in machine-readable trace output.
+
+### REQ-0088 State-aware static-analysis validation
+mcutrace shall treat active or incomplete static-analysis states such as `violation`, `unavailable`, `failed`, and `limited` as actionable findings, while retaining but not reporting `informational`, `suppressed`, `deviated`, and `baselined` findings as active validation warnings.
