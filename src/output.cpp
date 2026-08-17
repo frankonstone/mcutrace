@@ -90,6 +90,9 @@ render_json_report(const TraceResult& trace, const ValidationResult& validation)
                     object("id", node.id)
                         ("kind", node_kind_name(node.kind))
                         ("label", node.label);
+                    if (!node.finding_state.empty()) {
+                        object("finding_state", node.finding_state);
+                    }
                     if (node.source) {
                         object.object("source", [&](mcujson::JsonWriter::Object& source) {
                             source("path", node.source->path)
