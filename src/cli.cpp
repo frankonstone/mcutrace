@@ -4,6 +4,7 @@
 #include <mcutrace/config.hpp>
 #include <mcutrace/output.hpp>
 #include <mcutrace/requirements.hpp>
+#include <mcutrace/source_annotations.hpp>
 #include <mcutrace/trace_import.hpp>
 #include <mcutrace/validation.hpp>
 
@@ -99,6 +100,25 @@ load_artifact(const std::string& path,
     return std::move(*fragment);
 }
 
+std::expected<ImportFragment, CliError>
+load_source(const std::string& path, const std::string& base_directory) {
+    auto content = read_text_file(path);
+    if (!content) {
+        return std::unexpected(content.error());
+    }
+    auto fragment = import_source_annotations(ArtifactInput{
+        .path = path,
+        .base_directory = base_directory,
+        .content = std::move(*content),
+    });
+    if (!fragment) {
+        return std::unexpected(CliError{
+            .message = "source annotation import error: " + fragment.error().detail,
+        });
+    }
+    return std::move(*fragment);
+}
+
 std::expected<ProjectConfig, CliError> load_project_config(const CliOptions& options) {
     if (options.config_path.empty()) {
         ProjectConfig config;
@@ -148,9 +168,11 @@ load_requirements(const ProjectConfig& config, const CliOptions& options) {
 std::expected<std::vector<ImportFragment>, CliError>
 load_fragments(const ProjectConfig& config, const CliOptions& options) {
     std::vector<ImportFragment> fragments;
-    fragments.reserve(config.artifacts.size() + options.artifact_files.size());
-    for (const auto& artifact : config.artifacts) {
-        auto fragment = load_artifact(artifact.path, artifact.base_directory, artifact.importer);
+    fragments.reserve(config.source_files.size() + options.source_files.size() +
+                      config.artifacts.size() + options.artifact_files.size());
+
+    for (const auto& source : config.source_files) {
+        auto fragment = load_source(source, config.root);
         if (!fragment) {
             return std::unexpected(fragment.error());
         }
@@ -159,6 +181,23 @@ load_fragments(const ProjectConfig& config, const CliOptions& options) {
 
     const std::string explicit_base =
         std::filesystem::current_path().lexically_normal().generic_string();
+    for (const auto& source : options.source_files) {
+        const std::string normalized = normalize_explicit_path(source);
+        auto fragment = load_source(normalized, explicit_base);
+        if (!fragment) {
+            return std::unexpected(fragment.error());
+        }
+        fragments.push_back(std::move(*fragment));
+    }
+
+    for (const auto& artifact : config.artifacts) {
+        auto fragment = load_artifact(artifact.path, artifact.base_directory, artifact.importer);
+        if (!fragment) {
+            return std::unexpected(fragment.error());
+        }
+        fragments.push_back(std::move(*fragment));
+    }
+
     for (const auto& artifact : options.artifact_files) {
         const std::string normalized = normalize_explicit_path(artifact);
         auto fragment = load_artifact(normalized, explicit_base, {});
@@ -215,6 +254,13 @@ std::expected<CliOptions, CliError> parse_cli(int argc, const char* const* argv)
             return std::unexpected(CliError{.message = cli_error_text(requirements.error())});
         }
         (*requirements)->metavar("FILE").repeatable();
+
+        auto sources = (*validate)->add_option(
+            "-s, --source", "Additional annotated source or header file", options.source_files);
+        if (!sources) {
+            return std::unexpected(CliError{.message = cli_error_text(sources.error())});
+        }
+        (*sources)->metavar("FILE").repeatable();
 
         auto artifacts = (*validate)->add_option(
             "-a, --artifact", "Additional producer artifact file (auto-detected)", options.artifact_files);
