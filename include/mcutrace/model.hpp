@@ -80,6 +80,8 @@ struct Provenance final {
     std::string importer;
     std::string artifact;
     std::optional<SourceLocation> source;
+    std::string scope;
+    std::string symbol;
 
     friend bool operator==(const Provenance&, const Provenance&) = default;
 };
