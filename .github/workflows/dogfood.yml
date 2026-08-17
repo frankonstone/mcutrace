@@ -142,7 +142,7 @@ jobs:
             capture="dogfood/results/${test_name}.mcuv"
             result="dogfood/results/${test_name}.json"
             log="dogfood/results/${test_name}.log"
-            if ! MCUTRACE_MCUCOV_CAPTURE="${capture}" "${executable}" > "${result}" 2> "${log}"; then
+            if ! MCUTRACE_MCUCOV_CAPTURE="${capture}" "${executable}" --mcutest-machine-output > "${result}" 2> "${log}"; then
               echo "${test_name} failed" >&2
               cat "${result}" >&2 || true
               cat "${log}" >&2 || true
