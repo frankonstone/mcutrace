@@ -99,43 +99,37 @@ Diagnostic duplicate_node_diagnostic(const Node& node) {
     };
 }
 
-}  // namespace
-
-TraceResult assemble_trace(std::span<const Requirement> requirements,
-                           std::span<const ImportFragment> fragments) {
-    TraceResult result;
-
+std::vector<Node> collect_nodes(std::span<const Requirement> requirements,
+                                std::span<const ImportFragment> fragments) {
     std::vector<Node> nodes;
     nodes.reserve(requirements.size());
     for (const auto& requirement : requirements) {
         nodes.push_back(requirement.as_node());
     }
-
-    std::size_t edge_count = 0;
-    std::size_t artifact_count = 0;
-    std::size_t diagnostic_count = 0;
     for (const auto& fragment : fragments) {
         nodes.insert(nodes.end(), fragment.nodes.begin(), fragment.nodes.end());
-        edge_count += fragment.edges.size();
-        artifact_count += fragment.artifacts.size();
-        diagnostic_count += fragment.diagnostics.size();
     }
-
     for (auto& node : nodes) {
         canonicalize_node(node);
     }
     std::sort(nodes.begin(), nodes.end(), node_less);
+    return nodes;
+}
+
+void insert_nodes(Graph& graph,
+                  std::vector<Diagnostic>& diagnostics,
+                  std::span<const Node> nodes) {
     for (const auto& node : nodes) {
-        const Node* existing = result.graph.find_node(node.id);
+        const Node* existing = graph.find_node(node.id);
         if (existing != nullptr) {
             if (*existing != node) {
-                result.diagnostics.push_back(duplicate_node_diagnostic(node));
+                diagnostics.push_back(duplicate_node_diagnostic(node));
             }
             continue;
         }
-        const auto added = result.graph.add_node(node);
+        const auto added = graph.add_node(node);
         if (!added) {
-            result.diagnostics.push_back(Diagnostic{
+            diagnostics.push_back(Diagnostic{
                 .code = "mcutrace.node_error",
                 .severity = Severity::error,
                 .message = added.error().detail,
@@ -143,12 +137,11 @@ TraceResult assemble_trace(std::span<const Requirement> requirements,
             });
         }
     }
+}
 
-    std::vector<Edge> edges;
-    edges.reserve(edge_count);
-    result.artifacts.reserve(artifact_count);
-    result.diagnostics.reserve(result.diagnostics.size() + diagnostic_count);
-
+void collect_fragment_data(TraceResult& result,
+                           std::vector<Edge>& edges,
+                           std::span<const ImportFragment> fragments) {
     for (const auto& fragment : fragments) {
         edges.insert(edges.end(), fragment.edges.begin(), fragment.edges.end());
         result.artifacts.insert(result.artifacts.end(),
@@ -156,11 +149,15 @@ TraceResult assemble_trace(std::span<const Requirement> requirements,
         result.diagnostics.insert(result.diagnostics.end(),
                                   fragment.diagnostics.begin(), fragment.diagnostics.end());
     }
+}
 
+void insert_edges(Graph& graph,
+                  std::vector<Diagnostic>& diagnostics,
+                  std::span<const Edge> edges) {
     for (const auto& edge : edges) {
-        const auto added = result.graph.add_edge(edge);
+        const auto added = graph.add_edge(edge);
         if (!added) {
-            result.diagnostics.push_back(Diagnostic{
+            diagnostics.push_back(Diagnostic{
                 .code = "mcutrace.edge_error",
                 .severity = Severity::error,
                 .message = added.error().detail,
@@ -168,7 +165,9 @@ TraceResult assemble_trace(std::span<const Requirement> requirements,
             });
         }
     }
+}
 
+void deduplicate_artifacts_and_diagnostics(TraceResult& result) {
     std::sort(result.artifacts.begin(), result.artifacts.end(), artifact_less);
     result.artifacts.erase(std::unique(result.artifacts.begin(), result.artifacts.end()),
                            result.artifacts.end());
@@ -176,7 +175,20 @@ TraceResult assemble_trace(std::span<const Requirement> requirements,
     std::sort(result.diagnostics.begin(), result.diagnostics.end(), diagnostic_less);
     result.diagnostics.erase(std::unique(result.diagnostics.begin(), result.diagnostics.end()),
                              result.diagnostics.end());
+}
 
+}  // namespace
+
+TraceResult assemble_trace(std::span<const Requirement> requirements,
+                           std::span<const ImportFragment> fragments) {
+    TraceResult result;
+    const auto nodes = collect_nodes(requirements, fragments);
+    insert_nodes(result.graph, result.diagnostics, nodes);
+
+    std::vector<Edge> edges;
+    collect_fragment_data(result, edges, fragments);
+    insert_edges(result.graph, result.diagnostics, edges);
+    deduplicate_artifacts_and_diagnostics(result);
     return result;
 }
 
