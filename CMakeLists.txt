@@ -69,6 +69,7 @@ add_library(mcutrace_core STATIC
     src/output.cpp
     src/producer_importers.cpp
     src/requirements.cpp
+    src/source_annotations.cpp
     src/trace_import.cpp
     src/validation.cpp
 )
