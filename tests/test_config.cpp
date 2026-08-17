@@ -3,7 +3,7 @@
 
 #include <string>
 
-TEST(config, parses_project_inputs_and_normalizes_paths, "REQ-0004", "REQ-0044", "REQ-0054", "REQ-0065", "REQ-0093") {
+TEST(config, parses_project_inputs_and_normalizes_paths, "REQ-0004", "REQ-0044", "REQ-0054", "REQ-0062", "REQ-0065", "REQ-0093") {
     constexpr auto text = R"toml(
 [project]
 root = ".."
@@ -67,7 +67,7 @@ severity = "critical"
     ASSERT_EQ(config.error().code, mcutrace::ConfigErrorCode::invalid_value);
 }
 
-TEST(config, reports_toml_parse_failure, "REQ-0004", "REQ-0035") {
+TEST(config, reports_toml_parse_failure, "REQ-0004", "REQ-0035", "REQ-0062") {
     const auto config = mcutrace::parse_project_config("[project\nroot = 42");
     ASSERT_FALSE(config.has_value());
     ASSERT_EQ(config.error().code, mcutrace::ConfigErrorCode::parse_failed);
