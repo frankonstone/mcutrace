@@ -40,6 +40,7 @@ jobs:
       - uses: actions/checkout@v6
         with:
           repository: frankonstone/mcutest
+          ref: agent/per-test-requirements
           path: mcutest
           token: ${{ secrets.MCU_REPOS_TOKEN }}
 
@@ -116,35 +117,67 @@ jobs:
             -DClang_DIR="${MCUCHECK_CLANG_DIR}"
           cmake --build "${RUNNER_TEMP}/mcucheck-build" --target mcucheck --parallel
 
-      - name: Generate test and coverage evidence from real executables
+      - name: Generate per-test and coverage evidence from real executables
         shell: bash
         run: |
           mkdir -p dogfood/results
-          printf '{"format":"mcutest-results","version":1,"tests":[' > dogfood/tests.json
-          first=1
           captures=()
-          while IFS=$'\t' read -r test_name requirement_csv; do
+          test_names=(
+            mcutrace_tests
+            mcutrace_requirement_tests
+            mcutrace_importer_tests
+            mcutrace_producer_importer_tests
+            mcutrace_trace_import_tests
+            mcutrace_hardening_tests
+            mcutrace_assembly_tests
+            mcutrace_validation_tests
+            mcutrace_config_tests
+            mcutrace_cli_tests
+            mcutrace_output_tests
+            mcutrace_evidence_expectation_tests
+          )
+
+          for test_name in "${test_names[@]}"; do
             executable="build/tests/${test_name}"
             capture="dogfood/results/${test_name}.mcuv"
-            status=failed
-            if MCUTRACE_MCUCOV_CAPTURE="${capture}" "${executable}" > "dogfood/results/${test_name}.log" 2>&1; then
-              status=passed
+            result="dogfood/results/${test_name}.json"
+            log="dogfood/results/${test_name}.log"
+            if ! MCUTRACE_MCUCOV_CAPTURE="${capture}" "${executable}" > "${result}" 2> "${log}"; then
+              echo "${test_name} failed" >&2
+              cat "${result}" >&2 || true
+              cat "${log}" >&2 || true
+              exit 1
             fi
             if [[ -s "${capture}" ]]; then captures+=("${capture}"); fi
+          done
 
-            requirements=""
-            IFS=',' read -ra reqs <<< "${requirement_csv}"
-            for req in "${reqs[@]}"; do
-              if [[ -n "${requirements}" ]]; then requirements+=','; fi
-              requirements+="\"${req}\""
-            done
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
 
-            if [[ ${first} -eq 0 ]]; then printf ',' >> dogfood/tests.json; fi
-            first=0
-            printf '{"name":"%s","status":"%s","requirements":[%s]}' \
-              "${test_name}" "${status}" "${requirements}" >> dogfood/tests.json
-          done < dogfood/test-map.tsv
-          printf ']}' >> dogfood/tests.json
+          tests = []
+          failures = 0
+          for path in sorted(Path("dogfood/results").glob("mcutrace_*_tests.json")):
+              document = json.loads(path.read_text())
+              if document.get("format") != "mcutest-results" or document.get("version") != 1:
+                  raise SystemExit(f"unexpected mcutest result format in {path}")
+              for test in document.get("tests", []):
+                  requirements = test.get("requirements", [])
+                  if not requirements:
+                      raise SystemExit(f"test has no requirement references: {test.get('name')} ({path})")
+                  tests.append(test)
+                  if test.get("status") == "failed":
+                      failures += 1
+
+          output = {
+              "format": "mcutest-results",
+              "version": 1,
+              "summary": {"tests": len(tests), "failures": failures},
+              "tests": tests,
+          }
+          Path("dogfood/tests.json").write_text(json.dumps(output, separators=(",", ":")) + "\n")
+          print(f"merged {len(tests)} individual test results; failures={failures}")
+          PY
           cat dogfood/tests.json
 
           if [[ ${#captures[@]} -eq 0 ]]; then
@@ -255,5 +288,6 @@ jobs:
             dogfood/report.txt
             dogfood/report.json
             dogfood/diagnostics.txt
+            dogfood/results/*.json
             dogfood/results/*.log
           if-no-files-found: warn
