@@ -25,28 +25,40 @@ constexpr std::string_view kVersion = "0.1.0";
 
 std::string cli_error_text(const mcucli::Error& error) {
     std::string result = "command line error";
-    if (!error.subject.empty()) result += " for " + std::string(error.subject);
-    if (!error.detail.empty()) result += ": " + std::string(error.detail);
-    if (!error.token.empty()) result += " (" + std::string(error.token) + ")";
+    if (!error.subject.empty()) {
+        result += " for " + std::string(error.subject);
+    }
+    if (!error.detail.empty()) {
+        result += ": " + std::string(error.detail);
+    }
+    if (!error.token.empty()) {
+        result += " (" + std::string(error.token) + ")";
+    }
     return result;
 }
 
 std::expected<std::string, CliError> read_text_file(const std::string& path) {
     std::ifstream stream(path, std::ios::binary);
-    if (!stream) return std::unexpected(CliError{.message = "cannot open file: " + path});
+    if (!stream) {
+        return std::unexpected(CliError{.message = "cannot open file: " + path});
+    }
     return std::string(std::istreambuf_iterator<char>(stream), std::istreambuf_iterator<char>());
 }
 
 std::string normalize_explicit_path(std::string_view value) {
     std::filesystem::path path(value);
-    if (path.is_relative()) path = std::filesystem::current_path() / path;
+    if (path.is_relative()) {
+        path = std::filesystem::current_path() / path;
+    }
     return path.lexically_normal().generic_string();
 }
 
 void print_diagnostic(const Diagnostic& diagnostic) {
     if (diagnostic.source) {
         std::cerr << diagnostic.source->path;
-        if (diagnostic.source->line != 0) std::cerr << ':' << diagnostic.source->line;
+        if (diagnostic.source->line != 0) {
+            std::cerr << ':' << diagnostic.source->line;
+        }
         std::cerr << ": ";
     }
     std::cerr << severity_name(diagnostic.severity) << ' ' << diagnostic.code << ": "
@@ -71,7 +83,9 @@ load_artifact(const std::string& path,
               const std::string& base_directory,
               std::string_view importer) {
     auto content = read_text_file(path);
-    if (!content) return std::unexpected(content.error());
+    if (!content) {
+        return std::unexpected(content.error());
+    }
     auto fragment = import_trace_artifact(ArtifactInput{
         .path = path,
         .base_directory = base_directory,
@@ -94,29 +108,41 @@ std::expected<CliOptions, CliError> parse_cli(int argc, const char* const* argv)
     app.set_version(kVersion);
 
     auto config = app.add_option("-c, --config", "TOML configuration file", options.config_path);
-    if (!config) return std::unexpected(CliError{.message = cli_error_text(config.error())});
+    if (!config) {
+        return std::unexpected(CliError{.message = cli_error_text(config.error())});
+    }
     (*config)->metavar("FILE");
 
     auto validate = app.add_command("validate", "Validate the configured traceability graph");
-    if (!validate) return std::unexpected(CliError{.message = cli_error_text(validate.error())});
+    if (!validate) {
+        return std::unexpected(CliError{.message = cli_error_text(validate.error())});
+    }
 
     auto requirements = (*validate)->add_option(
         "-r, --requirement", "Additional requirement Markdown file", options.requirement_files);
-    if (!requirements) return std::unexpected(CliError{.message = cli_error_text(requirements.error())});
+    if (!requirements) {
+        return std::unexpected(CliError{.message = cli_error_text(requirements.error())});
+    }
     (*requirements)->metavar("FILE").repeatable();
 
     auto artifacts = (*validate)->add_option(
         "-a, --artifact", "Additional producer artifact file (auto-detected)", options.artifact_files);
-    if (!artifacts) return std::unexpected(CliError{.message = cli_error_text(artifacts.error())});
+    if (!artifacts) {
+        return std::unexpected(CliError{.message = cli_error_text(artifacts.error())});
+    }
     (*artifacts)->metavar("FILE").repeatable();
 
     auto output = (*validate)->add_option(
         "-f, --format", "Report format: text or json", format);
-    if (!output) return std::unexpected(CliError{.message = cli_error_text(output.error())});
+    if (!output) {
+        return std::unexpected(CliError{.message = cli_error_text(output.error())});
+    }
     (*output)->metavar("FORMAT");
 
     auto parsed = app.parse(argc, argv);
-    if (!parsed) return std::unexpected(CliError{.message = cli_error_text(parsed.error())});
+    if (!parsed) {
+        return std::unexpected(CliError{.message = cli_error_text(parsed.error())});
+    }
 
     if (parsed->kind() == mcucli::ParseEventKind::version) {
         options.action = CliAction::version;
@@ -125,7 +151,9 @@ std::expected<CliOptions, CliError> parse_cli(int argc, const char* const* argv)
     if (parsed->kind() == mcucli::ParseEventKind::help) {
         options.action = CliAction::help;
         auto help = app.help(parsed->command());
-        if (!help) return std::unexpected(CliError{.message = cli_error_text(help.error())});
+        if (!help) {
+            return std::unexpected(CliError{.message = cli_error_text(help.error())});
+        }
         options.help_text = std::move(*help);
         return options;
     }
@@ -169,7 +197,9 @@ int run_cli(const CliOptions& options) {
 
     std::vector<std::string> paths = config.requirement_files;
     paths.reserve(paths.size() + options.requirement_files.size());
-    for (const auto& path : options.requirement_files) paths.push_back(normalize_explicit_path(path));
+    for (const auto& path : options.requirement_files) {
+        paths.push_back(normalize_explicit_path(path));
+    }
 
     std::vector<std::string> contents;
     contents.reserve(paths.size());
@@ -189,7 +219,9 @@ int run_cli(const CliOptions& options) {
     }
 
     const auto parsed_requirements = parse_requirements(documents);
-    for (const auto& diagnostic : parsed_requirements.diagnostics) print_diagnostic(diagnostic);
+    for (const auto& diagnostic : parsed_requirements.diagnostics) {
+        print_diagnostic(diagnostic);
+    }
 
     std::vector<ImportFragment> fragments;
     fragments.reserve(config.artifacts.size() + options.artifact_files.size());
@@ -223,7 +255,9 @@ int run_cli(const CliOptions& options) {
         }
         std::cout << *report << '\n';
     } else {
-        for (const auto& diagnostic : validation.diagnostics) print_diagnostic(diagnostic);
+        for (const auto& diagnostic : validation.diagnostics) {
+            print_diagnostic(diagnostic);
+        }
         std::cout << render_text_report(trace, validation);
     }
 
