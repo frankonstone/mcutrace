@@ -3,11 +3,17 @@
 
 #include <string>
 
-TEST(model, exposes_stable_node_kind_and_severity_names, "REQ-0019", "REQ-0021", "REQ-0023", "REQ-0052") {
+TEST(model, exposes_stable_node_kind_and_severity_names, "REQ-0019", "REQ-0021", "REQ-0022", "REQ-0023", "REQ-0024", "REQ-0025", "REQ-0052") {
     ASSERT_EQ(std::string(mcutrace::node_kind_name(mcutrace::NodeKind::requirement)),
               std::string("requirement"));
+    ASSERT_EQ(std::string(mcutrace::node_kind_name(mcutrace::NodeKind::source)),
+              std::string("source"));
     ASSERT_EQ(std::string(mcutrace::node_kind_name(mcutrace::NodeKind::test)),
               std::string("test"));
+    ASSERT_EQ(std::string(mcutrace::node_kind_name(mcutrace::NodeKind::coverage)),
+              std::string("coverage"));
+    ASSERT_EQ(std::string(mcutrace::node_kind_name(mcutrace::NodeKind::finding)),
+              std::string("finding"));
     ASSERT_EQ(std::string(mcutrace::severity_name(mcutrace::Severity::warning)),
               std::string("warning"));
 }
@@ -22,7 +28,7 @@ TEST(model, preserves_known_and_custom_relationship_types, "REQ-0028", "REQ-0032
     ASSERT_EQ(custom.kind, mcutrace::RelationshipKind::custom);
 }
 
-TEST(model, stores_nodes_in_deterministic_identity_order, "REQ-0005", "REQ-0020") {
+TEST(model, stores_nodes_in_deterministic_identity_order, "REQ-0005", "REQ-0020", "REQ-0022") {
     mcutrace::Graph graph;
     ASSERT_TRUE(graph.add_node({.id = "TEST-0002", .kind = mcutrace::NodeKind::test}).has_value());
     ASSERT_TRUE(graph.add_node({.id = "REQ-0001", .kind = mcutrace::NodeKind::requirement}).has_value());
@@ -73,7 +79,7 @@ TEST(model, rejects_empty_node_identity_with_source_context, "REQ-0020", "REQ-00
     ASSERT_EQ(result.error().source->line, static_cast<std::uint32_t>(4));
 }
 
-TEST(model, preserves_multiple_edge_provenance_sources, "REQ-0029", "REQ-0031") {
+TEST(model, preserves_multiple_edge_provenance_sources, "REQ-0029", "REQ-0030", "REQ-0031") {
     mcutrace::Graph graph;
     const auto type = mcutrace::RelationshipType::known(mcutrace::RelationshipKind::verifies);
 
@@ -81,17 +87,18 @@ TEST(model, preserves_multiple_edge_provenance_sources, "REQ-0029", "REQ-0031") 
         .source_id = "TEST-0001",
         .target_id = "REQ-0001",
         .type = type,
-        .provenance = {.importer = "mcutest", .artifact = "unit.json"},
+        .provenance = {.importer = "mcutest", .artifact = "unit.json", .source = mcutrace::SourceLocation{.path = "unit.json", .line = 3}},
     }).has_value());
     ASSERT_TRUE(graph.add_edge({
         .source_id = "TEST-0001",
         .target_id = "REQ-0001",
         .type = type,
-        .provenance = {.importer = "external", .artifact = "system.json"},
+        .provenance = {.importer = "external", .artifact = "system.json", .source = mcutrace::SourceLocation{.path = "system.json", .line = 7}},
     }).has_value());
 
     ASSERT_EQ(graph.edges().size(), static_cast<std::size_t>(2));
     ASSERT_EQ(graph.edges()[0].provenance.importer, std::string("external"));
+    ASSERT_EQ(graph.edges()[0].provenance.source->line, static_cast<std::uint32_t>(7));
     ASSERT_EQ(graph.edges()[1].provenance.importer, std::string("mcutest"));
 }
 
