@@ -19,6 +19,40 @@ TEST(trace_import, imports_sidecar_relationships) {
     ASSERT_EQ(result->edges[2].type.name, std::string("vendor-risk"));
 }
 
+TEST(trace_import, imports_explicit_sidecar_nodes) {
+    const mcutrace::ArtifactInput input{
+        .path = "/tmp/build-links.json",
+        .content = R"({"format":"mcutrace-links","version":1,"nodes":[{"id":"artifact:ci:macos","kind":"artifact","label":"macOS CI"}],"links":[{"source":"artifact:ci:macos","target":"REQ-0077","type":"verifies"}]})",
+    };
+
+    const auto result = mcutrace::import_trace_artifact(input);
+    ASSERT_TRUE(result.has_value());
+    ASSERT_EQ(result->nodes.size(), static_cast<std::size_t>(1));
+    ASSERT_EQ(result->nodes[0].id, std::string("artifact:ci:macos"));
+    ASSERT_EQ(result->nodes[0].kind, mcutrace::NodeKind::artifact);
+    ASSERT_EQ(result->nodes[0].label, std::string("macOS CI"));
+    ASSERT_EQ(result->edges.size(), static_cast<std::size_t>(1));
+    ASSERT_EQ(result->edges[0].source_id, std::string("artifact:ci:macos"));
+    ASSERT_EQ(result->edges[0].target_id, std::string("REQ-0077"));
+}
+
+TEST(trace_import, canonicalizes_relative_source_sidecar_ids) {
+    const mcutrace::ArtifactInput input{
+        .path = "/work/project/dogfood/links.json",
+        .base_directory = "/work/project",
+        .content = R"({"format":"mcutrace-links","version":1,"nodes":[{"id":"source:src/foo.cpp","kind":"source","label":"src/foo.cpp"}],"links":[{"source":"source:src/foo.cpp","target":"REQ-0001","type":"implements"}]})",
+    };
+
+    const auto result = mcutrace::import_trace_artifact(input);
+    ASSERT_TRUE(result.has_value());
+    ASSERT_EQ(result->nodes.size(), static_cast<std::size_t>(1));
+    ASSERT_EQ(result->nodes[0].id, std::string("source:/work/project/src/foo.cpp"));
+    ASSERT_TRUE(result->nodes[0].source.has_value());
+    ASSERT_EQ(result->nodes[0].source->path, std::string("/work/project/src/foo.cpp"));
+    ASSERT_EQ(result->edges.size(), static_cast<std::size_t>(1));
+    ASSERT_EQ(result->edges[0].source_id, std::string("source:/work/project/src/foo.cpp"));
+}
+
 TEST(trace_import, augments_mcutest_requirement_links) {
     const mcutrace::ArtifactInput input{
         .path = "/tmp/tests.json",

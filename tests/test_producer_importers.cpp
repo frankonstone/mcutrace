@@ -34,6 +34,24 @@ TEST(producer_importers, imports_mcucov_report) {
     ASSERT_EQ(result->diagnostics[0].source->path, std::string("/work/project/src/foo.cpp"));
 }
 
+TEST(producer_importers, streams_mcucov_reports_larger_than_dom_string_capacity) {
+    std::string content = R"({"format":"mcucov-report","version":1,"modules":[{"path":"src/foo.cpp","variant":"host","probes":[{"name":")";
+    content.append(70000, 'x');
+    content += R"("}],"skipped":[]}]})";
+
+    const mcutrace::ArtifactInput input{
+        .path = "/tmp/large-coverage.json",
+        .base_directory = "/work/project",
+        .content = content,
+    };
+    const auto result = mcutrace::import_producer_artifact(input, "mcucov");
+    ASSERT_TRUE(result.has_value());
+    ASSERT_EQ(result->nodes.size(), static_cast<std::size_t>(2));
+    ASSERT_EQ(result->nodes[0].kind, mcutrace::NodeKind::coverage);
+    ASSERT_EQ(result->nodes[1].id, std::string("source:/work/project/src/foo.cpp"));
+    ASSERT_EQ(result->edges.size(), static_cast<std::size_t>(1));
+}
+
 TEST(producer_importers, imports_mcucheck_results) {
     const mcutrace::ArtifactInput input{
         .path = "/tmp/check.json",

@@ -10,9 +10,10 @@
 namespace mcutrace {
 namespace {
 
-bool has_requirement_evidence(const TraceResult& trace, std::string_view requirement_id) {
+bool has_requirement_evidence(const TraceResult& trace, const Node& requirement) {
+    if (requirement.expected_evidence.has_value() && *requirement.expected_evidence == 0U) return true;
     for (const auto& edge : trace.graph.edges()) {
-        if (edge.source_id == requirement_id || edge.target_id == requirement_id) return true;
+        if (edge.source_id == requirement.id || edge.target_id == requirement.id) return true;
     }
     return false;
 }
@@ -35,7 +36,7 @@ TraceReport build_report(const TraceResult& trace, const ValidationResult& valid
     for (const auto& node : trace.graph.nodes()) {
         if (node.kind != NodeKind::requirement) continue;
         ++report.summary.requirements;
-        if (!has_requirement_evidence(trace, node.id)) report.untraced_requirements.push_back(node.id);
+        if (!has_requirement_evidence(trace, node)) report.untraced_requirements.push_back(node.id);
     }
     return report;
 }

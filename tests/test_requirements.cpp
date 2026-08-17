@@ -80,6 +80,22 @@ TEST(requirements, diagnoses_malformed_ids_and_marker_without_id) {
     ASSERT_EQ(parsed.diagnostics[1].source->line, std::uint32_t{2});
 }
 
+TEST(requirements, diagnoses_invalid_evidence_annotations) {
+    constexpr std::string_view markdown =
+        "## REQ-0001 Bad evidence @evidence(test,none)\n"
+        "## REQ-0002 Unknown evidence @evidence(runtime)\n";
+    const std::array documents{mcutrace::RequirementDocument{"req.md", markdown}};
+
+    const auto parsed = mcutrace::parse_requirements(documents);
+
+    ASSERT_EQ(parsed.requirements.size(), std::size_t{0});
+    ASSERT_EQ(parsed.diagnostics.size(), std::size_t{2});
+    ASSERT_EQ(parsed.diagnostics[0].code, std::string{"MTR-REQ-INVALID-EVIDENCE"});
+    ASSERT_EQ(parsed.diagnostics[0].source->line, std::uint32_t{1});
+    ASSERT_EQ(parsed.diagnostics[1].code, std::string{"MTR-REQ-INVALID-EVIDENCE"});
+    ASSERT_EQ(parsed.diagnostics[1].source->line, std::uint32_t{2});
+}
+
 TEST(requirements, diagnoses_duplicates_across_documents) {
     constexpr std::string_view first = "## REQ-0003 First\nBody\n";
     constexpr std::string_view second = "## REQ-0003 Second\nBody\n";

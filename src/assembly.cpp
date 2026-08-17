@@ -1,6 +1,7 @@
 #include <mcutrace/assembly.hpp>
 
 #include <algorithm>
+#include <string_view>
 #include <tuple>
 #include <utility>
 
@@ -15,10 +16,29 @@ bool location_less(const std::optional<SourceLocation>& lhs,
            std::tie(rhs->path, rhs->line, rhs->column);
 }
 
+void canonicalize_node(Node& node) {
+    if (node.kind != NodeKind::source) return;
+
+    constexpr std::string_view prefix = "source:";
+    if (node.id.starts_with(prefix)) {
+        const auto path = node.id.substr(prefix.size());
+        node.label = path;
+        node.source = SourceLocation{.path = path};
+        return;
+    }
+
+    if (node.source.has_value()) {
+        node.source->line = 0;
+        node.source->column = 0;
+    }
+}
+
 bool node_less(const Node& lhs, const Node& rhs) noexcept {
     if (lhs.id != rhs.id) return lhs.id < rhs.id;
     if (lhs.kind != rhs.kind) return lhs.kind < rhs.kind;
     if (lhs.label != rhs.label) return lhs.label < rhs.label;
+    if (lhs.evidence_state != rhs.evidence_state) return lhs.evidence_state < rhs.evidence_state;
+    if (lhs.expected_evidence != rhs.expected_evidence) return lhs.expected_evidence < rhs.expected_evidence;
     return location_less(lhs.source, rhs.source);
 }
 
@@ -68,6 +88,7 @@ TraceResult assemble_trace(std::span<const Requirement> requirements,
         diagnostic_count += fragment.diagnostics.size();
     }
 
+    for (auto& node : nodes) canonicalize_node(node);
     std::sort(nodes.begin(), nodes.end(), node_less);
     for (const auto& node : nodes) {
         const Node* existing = result.graph.find_node(node.id);

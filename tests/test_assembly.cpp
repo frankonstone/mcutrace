@@ -77,17 +77,45 @@ TEST(assembly, keeps_dangling_edges_for_validation) {
     ASSERT_EQ(result.graph.edges().front().target_id, std::string("REQ-9999"));
 }
 
+TEST(assembly, canonicalizes_file_level_source_node_locations) {
+    mcutrace::ImportFragment sidecar;
+    sidecar.nodes.push_back(mcutrace::Node{
+        .id = "source:/work/src/main.cpp",
+        .kind = mcutrace::NodeKind::source,
+        .label = "src/main.cpp",
+        .source = mcutrace::SourceLocation{.path = "/work/links.json"},
+    });
+    mcutrace::ImportFragment coverage;
+    coverage.nodes.push_back(mcutrace::Node{
+        .id = "source:/work/src/main.cpp",
+        .kind = mcutrace::NodeKind::source,
+        .label = "/work/src/main.cpp",
+        .source = mcutrace::SourceLocation{.path = "/work/src/main.cpp", .line = 42, .column = 7},
+    });
+
+    const std::array fragments{sidecar, coverage};
+    const auto result = mcutrace::assemble_trace({}, fragments);
+
+    ASSERT_EQ(result.graph.nodes().size(), static_cast<std::size_t>(1));
+    ASSERT_EQ(result.diagnostics.size(), static_cast<std::size_t>(0));
+    ASSERT_EQ(result.graph.nodes().front().label, std::string("/work/src/main.cpp"));
+    ASSERT_TRUE(result.graph.nodes().front().source.has_value());
+    ASSERT_EQ(result.graph.nodes().front().source->path, std::string("/work/src/main.cpp"));
+    ASSERT_EQ(result.graph.nodes().front().source->line, static_cast<std::uint32_t>(0));
+    ASSERT_EQ(result.graph.nodes().front().source->column, static_cast<std::uint32_t>(0));
+}
+
 TEST(assembly, diagnoses_conflicting_duplicate_nodes_deterministically) {
     mcutrace::ImportFragment first;
     first.nodes.push_back(mcutrace::Node{
-        .id = "source:main",
-        .kind = mcutrace::NodeKind::source,
+        .id = "artifact:build",
+        .kind = mcutrace::NodeKind::artifact,
         .label = "zeta",
     });
     mcutrace::ImportFragment second;
     second.nodes.push_back(mcutrace::Node{
-        .id = "source:main",
-        .kind = mcutrace::NodeKind::source,
+        .id = "artifact:build",
+        .kind = mcutrace::NodeKind::artifact,
         .label = "alpha",
     });
 

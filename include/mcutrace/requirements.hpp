@@ -2,6 +2,7 @@
 
 #include <cstdint>
 #include <expected>
+#include <optional>
 #include <span>
 #include <string>
 #include <string_view>
@@ -18,6 +19,7 @@ struct Requirement final {
     std::string body;
     SourceLocation source;
     std::uint8_t heading_level = 0;
+    std::optional<std::uint8_t> expected_evidence;
 
     [[nodiscard]] Node as_node() const;
 

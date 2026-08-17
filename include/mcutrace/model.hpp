@@ -30,12 +30,24 @@ enum class EvidenceState : std::uint8_t {
 
 [[nodiscard]] std::string_view evidence_state_name(EvidenceState state) noexcept;
 
+enum class EvidenceExpectation : std::uint8_t {
+    test = 1U << 0U,
+    implementation = 1U << 1U,
+    coverage = 1U << 2U,
+    build = 1U << 3U,
+};
+
+[[nodiscard]] constexpr std::uint8_t evidence_mask(EvidenceExpectation value) noexcept {
+    return static_cast<std::uint8_t>(value);
+}
+
 struct Node final {
     std::string id;
     NodeKind kind = NodeKind::artifact;
     std::string label;
     EvidenceState evidence_state = EvidenceState::unknown;
     std::optional<SourceLocation> source;
+    std::optional<std::uint8_t> expected_evidence;
 
     friend bool operator==(const Node&, const Node&) = default;
 };

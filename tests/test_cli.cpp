@@ -18,6 +18,14 @@ TEST(cli, parses_validate_config_and_explicit_inputs) {
     ASSERT_EQ(result->artifact_files.size(), static_cast<std::size_t>(1));
 }
 
+TEST(cli, explicit_inputs_do_not_require_default_config) {
+    const char* argv[] = {"mcutrace", "validate", "--requirement", "reqs.md"};
+    const auto result = mcutrace::parse_cli(static_cast<int>(std::size(argv)), argv);
+    ASSERT_TRUE(result.has_value());
+    ASSERT_TRUE(result->config_path.empty());
+    ASSERT_EQ(result->requirement_files.size(), static_cast<std::size_t>(1));
+}
+
 TEST(cli, defaults_to_text_output) {
     const char* argv[] = {"mcutrace", "validate"};
     const auto result = mcutrace::parse_cli(static_cast<int>(std::size(argv)), argv);

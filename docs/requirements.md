@@ -49,7 +49,7 @@ mcutrace shall diagnose malformed strings that are intended to be requirement ID
 ### REQ-0015 Requirement ordering
 Requirement discovery shall preserve deterministic document order.
 
-### REQ-0016 Editable requirements
+### REQ-0016 Editable requirements @evidence(none)
 mcutrace shall not impose ownership restrictions on who or what may modify requirement documents.
 
 ### REQ-0017 Requirement ID allocation support
@@ -200,7 +200,7 @@ Machine-readable output shall carry an mcutrace schema version.
 ### REQ-0062 mcutoml usage
 The host implementation shall use mcutoml for TOML parsing.
 
-### REQ-0063 mcujson usage
+### REQ-0063 mcujson usage @evidence(build)
 The host implementation shall use mcujson for JSON parsing and serialization.
 
 ### REQ-0064 mcucli usage
@@ -220,31 +220,31 @@ The CLI shall expose the mcutrace version.
 
 ## Host implementation
 
-### REQ-0069 C++23
+### REQ-0069 C++23 @evidence(build)
 The host implementation shall use C++23.
 
-### REQ-0070 No exceptions
+### REQ-0070 No exceptions @evidence(build)
 The default host build shall compile with C++ exceptions disabled.
 
 ### REQ-0071 std::expected errors
 Recoverable host errors shall be represented with `std::expected` or equivalent explicit result types rather than exceptions.
 
-### REQ-0072 No RTTI
+### REQ-0072 No RTTI @evidence(build)
 The default host build shall compile with RTTI disabled unless a required platform integration proves otherwise.
 
-### REQ-0073 No third-party host libraries
+### REQ-0073 No third-party host libraries @evidence(test,build)
 The host implementation shall not introduce third-party libraries when equivalent functionality is provided by the maintained `mcu*` libraries or the C++ standard library.
 
-### REQ-0074 Warnings as errors
+### REQ-0074 Warnings as errors @evidence(build)
 Project code shall build with a high warning level and warnings treated as errors in CI.
 
-### REQ-0075 Automated tests
+### REQ-0075 Automated tests @evidence(build)
 Core model, parsers, importers, validation, and output behavior shall be covered by automated tests.
 
-### REQ-0076 mcutest usage
+### REQ-0076 mcutest usage @evidence(build)
 Host unit tests shall use mcutest.
 
-### REQ-0077 macOS initial CI
+### REQ-0077 macOS initial CI @evidence(build)
 During initial development, the required CI host shall be macOS only to conserve runner time.
 
 ### REQ-0078 Future host portability

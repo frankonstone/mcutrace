@@ -1,0 +1,183 @@
+name: Dogfood
+
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  self-trace:
+    name: Self trace / macOS
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/checkout@v6
+        with:
+          repository: frankonstone/mcucli
+          path: mcucli
+          token: ${{ secrets.MCU_REPOS_TOKEN }}
+
+      - uses: actions/checkout@v6
+        with:
+          repository: frankonstone/mcujson
+          path: mcujson
+          token: ${{ secrets.MCU_REPOS_TOKEN }}
+
+      - uses: actions/checkout@v6
+        with:
+          repository: frankonstone/mcutoml
+          path: mcutoml
+          token: ${{ secrets.MCU_REPOS_TOKEN }}
+
+      - uses: actions/checkout@v6
+        with:
+          repository: frankonstone/mcutest
+          path: mcutest
+          token: ${{ secrets.MCU_REPOS_TOKEN }}
+
+      - uses: actions/checkout@v6
+        with:
+          repository: frankonstone/mcucov
+          path: mcucov
+          token: ${{ secrets.MCU_REPOS_TOKEN }}
+
+      - name: Stage sibling dependencies outside coverage source root
+        shell: bash
+        run: |
+          deps="${RUNNER_TEMP}/mcutrace-deps"
+          mkdir -p "${deps}"
+          for dep in mcucli mcujson mcutoml mcutest mcucov; do
+            cp -R "${GITHUB_WORKSPACE}/${dep}" "${deps}/${dep}"
+          done
+
+      - name: Install LLVM for mcucov
+        shell: bash
+        run: |
+          if ! brew list llvm >/dev/null 2>&1; then
+            brew install llvm
+          fi
+          echo "LLVM_DIR=$(brew --prefix llvm)/lib/cmake/llvm" >> "$GITHUB_ENV"
+          echo "Clang_DIR=$(brew --prefix llvm)/lib/cmake/clang" >> "$GITHUB_ENV"
+
+      - name: Configure
+        run: >-
+          cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+          -DMCUTRACE_MCUCLI_SOURCE_DIR=${{ runner.temp }}/mcutrace-deps/mcucli
+          -DMCUTRACE_MCUJSON_SOURCE_DIR=${{ runner.temp }}/mcutrace-deps/mcujson
+          -DMCUTRACE_MCUTOML_SOURCE_DIR=${{ runner.temp }}/mcutrace-deps/mcutoml
+          -DMCUTRACE_MCUTEST_SOURCE_DIR=${{ runner.temp }}/mcutrace-deps/mcutest
+          -DMCUTRACE_MCUCOV_SOURCE_DIR=${{ runner.temp }}/mcutrace-deps/mcucov
+          -DMCUTRACE_ENABLE_MCUCOV=ON
+          -DLLVM_DIR=${LLVM_DIR}
+          -DClang_DIR=${Clang_DIR}
+
+      - name: Build
+        shell: bash
+        run: |
+          cmake --build build --config Release --parallel
+          cmake --build build --config Release --target mcucov --parallel
+
+      - name: Generate test and coverage evidence from real executables
+        shell: bash
+        run: |
+          mkdir -p dogfood/results
+          printf '{"format":"mcutest-results","version":1,"tests":[' > dogfood/tests.json
+          first=1
+          captures=()
+          while IFS=$'\t' read -r test_name requirement_csv; do
+            executable="build/tests/${test_name}"
+            capture="dogfood/results/${test_name}.mcuv"
+            status=failed
+            if MCUTRACE_MCUCOV_CAPTURE="${capture}" "${executable}" > "dogfood/results/${test_name}.log" 2>&1; then
+              status=passed
+            fi
+            if [[ -s "${capture}" ]]; then captures+=("${capture}"); fi
+
+            requirements=""
+            IFS=',' read -ra reqs <<< "${requirement_csv}"
+            for req in "${reqs[@]}"; do
+              if [[ -n "${requirements}" ]]; then requirements+=','; fi
+              requirements+="\"${req}\""
+            done
+
+            if [[ ${first} -eq 0 ]]; then printf ',' >> dogfood/tests.json; fi
+            first=0
+            printf '{"name":"%s","status":"%s","requirements":[%s]}' \
+              "${test_name}" "${status}" "${requirements}" >> dogfood/tests.json
+          done < dogfood/test-map.tsv
+          printf ']}' >> dogfood/tests.json
+          cat dogfood/tests.json
+
+          if [[ ${#captures[@]} -eq 0 ]]; then
+            echo "no mcucov captures were produced" >&2
+            exit 1
+          fi
+
+          MCUCOV="build/_deps/mcucov/mcucov"
+          "${MCUCOV}" merge "${captures[@]}" --output dogfood/coverage.mcuv
+          "${MCUCOV}" report \
+            --input dogfood/coverage.mcuv \
+            --manifest build/mcucov/mcutrace_core \
+            --source-root . \
+            --format json \
+            --output dogfood/coverage.json
+          cat dogfood/coverage.json
+
+      - name: Run self trace
+        shell: bash
+        run: |
+          set +e
+          ./build/mcutrace validate \
+            -r docs/requirements.md \
+            -r docs/requirements-links.md \
+            -r docs/requirements-hardening.md \
+            -r docs/requirements-evidence.md \
+            -a dogfood/tests.json \
+            -a dogfood/build-evidence.json \
+            -a dogfood/implementation-evidence.json \
+            -a dogfood/coverage.json \
+            --format text > dogfood/report.txt 2> dogfood/diagnostics.txt
+          rc=$?
+
+          ./build/mcutrace validate \
+            -r docs/requirements.md \
+            -r docs/requirements-links.md \
+            -r docs/requirements-hardening.md \
+            -r docs/requirements-evidence.md \
+            -a dogfood/tests.json \
+            -a dogfood/build-evidence.json \
+            -a dogfood/implementation-evidence.json \
+            -a dogfood/coverage.json \
+            --format json > dogfood/report.json 2>> dogfood/diagnostics.txt
+          json_rc=$?
+
+          echo "MCUTRACE_EXIT_CODE=${rc}"
+          echo "MCUTRACE_JSON_EXIT_CODE=${json_rc}"
+          echo "===== diagnostics ====="
+          cat dogfood/diagnostics.txt
+          echo "===== report ====="
+          cat dogfood/report.txt
+          echo "===== json report ====="
+          cat dogfood/report.json
+
+          if [[ ${rc} -ne 0 || ${json_rc} -ne 0 ]]; then
+            exit 1
+          fi
+
+      - name: Preserve dogfood evidence
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: mcutrace-dogfood-evidence
+          path: |
+            dogfood/coverage.json
+            dogfood/tests.json
+            dogfood/report.txt
+            dogfood/report.json
+            dogfood/diagnostics.txt
+            dogfood/results/*.log
+          if-no-files-found: warn

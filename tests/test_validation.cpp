@@ -74,7 +74,7 @@ TEST(validation, distinguishes_missing_from_failed_test_evidence) {
     ASSERT_TRUE(result.failed);
 }
 
-TEST(validation, reports_missing_implementation_and_coverage_evidence) {
+TEST(validation, reports_missing_implementation_without_requiring_test_node_coverage) {
     mcutrace::TraceResult trace;
     ASSERT_TRUE(trace.graph.add_node(node("REQ-0001", mcutrace::NodeKind::requirement)).has_value());
     ASSERT_TRUE(trace.graph.add_node(node("test:unit", mcutrace::NodeKind::test,
@@ -86,7 +86,7 @@ TEST(validation, reports_missing_implementation_and_coverage_evidence) {
 
     const auto result = mcutrace::validate_trace(trace, policy);
     ASSERT_TRUE(has_code(result, "validation.missing_implementation_evidence"));
-    ASSERT_TRUE(has_code(result, "validation.missing_coverage_evidence"));
+    ASSERT_FALSE(has_code(result, "validation.missing_coverage_evidence"));
     ASSERT_FALSE(result.failed);
 }
 

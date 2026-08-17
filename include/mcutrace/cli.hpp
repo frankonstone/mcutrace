@@ -12,7 +12,7 @@ enum class OutputFormat { text, json };
 struct CliOptions final {
     CliAction action = CliAction::validate;
     OutputFormat output_format = OutputFormat::text;
-    std::string config_path = "mcutrace.toml";
+    std::string config_path;
     std::vector<std::string> requirement_files;
     std::vector<std::string> artifact_files;
     std::string help_text;
