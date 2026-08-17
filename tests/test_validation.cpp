@@ -41,7 +41,7 @@ bool has_code(const mcutrace::ValidationResult& result, std::string_view code) {
 
 }  // namespace
 
-TEST(validation, reports_dangling_references_without_removing_them) {
+TEST(validation, reports_dangling_references_without_removing_them, "REQ-0045", "REQ-0082") {
     mcutrace::TraceResult trace;
     ASSERT_TRUE(trace.graph.add_node(node("REQ-0001", mcutrace::NodeKind::requirement)).has_value());
     ASSERT_TRUE(trace.graph.add_edge(edge("test:missing", "REQ-0001", mcutrace::RelationshipKind::verifies)).has_value());
@@ -58,7 +58,7 @@ TEST(validation, reports_dangling_references_without_removing_them) {
     ASSERT_TRUE(result.failed);
 }
 
-TEST(validation, distinguishes_missing_from_failed_test_evidence) {
+TEST(validation, distinguishes_missing_from_failed_test_evidence, "REQ-0047", "REQ-0050") {
     mcutrace::TraceResult trace;
     ASSERT_TRUE(trace.graph.add_node(node("REQ-0001", mcutrace::NodeKind::requirement)).has_value());
     ASSERT_TRUE(trace.graph.add_node(node("test:unit", mcutrace::NodeKind::test,
@@ -76,7 +76,7 @@ TEST(validation, distinguishes_missing_from_failed_test_evidence) {
     ASSERT_TRUE(result.failed);
 }
 
-TEST(validation, reports_missing_implementation_without_requiring_test_node_coverage) {
+TEST(validation, reports_missing_implementation_without_requiring_test_node_coverage, "REQ-0048", "REQ-0049") {
     mcutrace::TraceResult trace;
     ASSERT_TRUE(trace.graph.add_node(node("REQ-0001", mcutrace::NodeKind::requirement)).has_value());
     ASSERT_TRUE(trace.graph.add_node(node("test:unit", mcutrace::NodeKind::test,
@@ -92,7 +92,7 @@ TEST(validation, reports_missing_implementation_without_requiring_test_node_cove
     ASSERT_FALSE(result.failed);
 }
 
-TEST(validation, coverage_link_satisfies_coverage_policy) {
+TEST(validation, coverage_link_satisfies_coverage_policy, "REQ-0049") {
     mcutrace::TraceResult trace;
     ASSERT_TRUE(trace.graph.add_node(node("source:control.cpp", mcutrace::NodeKind::source)).has_value());
     ASSERT_TRUE(trace.graph.add_node(node("coverage:control.cpp", mcutrace::NodeKind::coverage)).has_value());
@@ -109,7 +109,7 @@ TEST(validation, coverage_link_satisfies_coverage_policy) {
     ASSERT_FALSE(has_code(result, "validation.missing_coverage_evidence"));
 }
 
-TEST(validation, reports_linked_static_analysis_findings) {
+TEST(validation, reports_linked_static_analysis_findings, "REQ-0051", "REQ-0088") {
     mcutrace::TraceResult trace;
     ASSERT_TRUE(trace.graph.add_node(node("source:control.cpp", mcutrace::NodeKind::source)).has_value());
     ASSERT_TRUE(trace.graph.add_node(node("finding:dead-code", mcutrace::NodeKind::finding,
@@ -127,7 +127,7 @@ TEST(validation, reports_linked_static_analysis_findings) {
     ASSERT_TRUE(has_code(result, "validation.static_analysis_finding"));
 }
 
-TEST(validation, ignores_non_actionable_static_analysis_states) {
+TEST(validation, ignores_non_actionable_static_analysis_states, "REQ-0088") {
     for (const std::string state : {"informational", "suppressed", "deviated", "baselined"}) {
         mcutrace::TraceResult trace;
         ASSERT_TRUE(trace.graph.add_node(node("source:control.cpp", mcutrace::NodeKind::source)).has_value());
@@ -147,7 +147,7 @@ TEST(validation, ignores_non_actionable_static_analysis_states) {
     }
 }
 
-TEST(validation, policy_can_disable_rules_and_change_failure_threshold) {
+TEST(validation, policy_can_disable_rules_and_change_failure_threshold, "REQ-0052", "REQ-0053", "REQ-0054") {
     mcutrace::TraceResult trace;
     ASSERT_TRUE(trace.graph.add_node(node("REQ-0001", mcutrace::NodeKind::requirement)).has_value());
 
@@ -165,7 +165,7 @@ TEST(validation, policy_can_disable_rules_and_change_failure_threshold) {
     ASSERT_TRUE(result.failed);
 }
 
-TEST(validation, output_order_is_deterministic) {
+TEST(validation, output_order_is_deterministic, "REQ-0005") {
     mcutrace::TraceResult trace;
     ASSERT_TRUE(trace.graph.add_node(node("REQ-0002", mcutrace::NodeKind::requirement)).has_value());
     ASSERT_TRUE(trace.graph.add_node(node("REQ-0001", mcutrace::NodeKind::requirement)).has_value());
@@ -182,6 +182,6 @@ TEST(validation, output_order_is_deterministic) {
 }
 
 int main(int argc, char* argv[]) {
-    mcutest::Runner<mcutest::StdoutOutput> runner;
+    mcutest::Runner<mcutest::JsonOutput> runner;
     return mcutest::run_with_gtest_compat(argc, argv, runner);
 }
