@@ -161,9 +161,25 @@ jobs:
       - name: Generate static-analysis evidence with mcucheck
         shell: bash
         run: |
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+
+          source = Path("build/compile_commands.json")
+          target = Path("dogfood/compile_commands.mcucheck.json")
+          commands = json.loads(source.read_text())
+          for entry in commands:
+              if "arguments" in entry:
+                  entry["arguments"] = [arg for arg in entry["arguments"] if arg != "-Werror"]
+              elif "command" in entry:
+                  parts = entry["command"].split()
+                  entry["command"] = " ".join(part for part in parts if part != "-Werror")
+          target.write_text(json.dumps(commands, indent=2) + "\n")
+          PY
+
           set +e
           MCUCHECK="${RUNNER_TEMP}/mcucheck-build/mcucheck"
-          "${MCUCHECK}" analyze build/compile_commands.json \
+          "${MCUCHECK}" analyze dogfood/compile_commands.mcucheck.json \
             --project-root "${GITHUB_WORKSPACE}" \
             --config "${RUNNER_TEMP}/mcutrace-deps/mcucheck/standards/llm_cpp/config/default.toml" \
             --jobs 1 \
@@ -228,6 +244,7 @@ jobs:
           name: mcutrace-dogfood-evidence
           path: |
             dogfood/coverage.json
+            dogfood/compile_commands.mcucheck.json
             dogfood/mcucheck.json
             dogfood/mcucheck.log
             dogfood/tests.json
