@@ -25,9 +25,11 @@ namespace {
 std::expected<mcujson::Json, ImportError> parse_json(const ArtifactInput& input) {
     auto parsed = mcujson::Json::parse(input.content);
     if (!parsed) {
-        return std::unexpected(ImportError{.code = ImportErrorCode::invalid_artifact,
+        return std::unexpected(ImportError{
+            .code = ImportErrorCode::invalid_artifact,
             .detail = "invalid JSON artifact: " + input.path,
-            .source = SourceLocation{.path = input.path}});
+            .source = SourceLocation{.path = input.path},
+        });
     }
     return std::move(*parsed);
 }
@@ -80,20 +82,24 @@ std::string canonical_node_id(std::string id, const ArtifactInput& input) {
     }
     auto normalized = normalize_artifact_path(
         std::string_view(id).substr(prefix.size()), input.base_directory);
-    if (!normalized) {
-        return id;
-    }
-    return std::string(prefix) + *normalized;
+    return normalized ? std::string(prefix) + *normalized : id;
 }
 
 void append_link(ImportFragment& fragment, std::string source_id, std::string target_id,
                  RelationshipType type, const ArtifactInput& input) {
     source_id = canonical_node_id(std::move(source_id), input);
     target_id = canonical_node_id(std::move(target_id), input);
-    fragment.edges.push_back(Edge{.source_id = std::move(source_id), .target_id = std::move(target_id),
-        .type = std::move(type), .provenance = Provenance{.importer = fragment.format.schema,
-        .artifact = input.path, .source = SourceLocation{.path = input.path}},
-        .source = SourceLocation{.path = input.path}});
+    fragment.edges.push_back(Edge{
+        .source_id = std::move(source_id),
+        .target_id = std::move(target_id),
+        .type = std::move(type),
+        .provenance = Provenance{
+            .importer = fragment.format.schema,
+            .artifact = input.path,
+            .source = SourceLocation{.path = input.path},
+        },
+        .source = SourceLocation{.path = input.path},
+    });
 }
 
 void append_requirement_links(ImportFragment& fragment, const mcujson::JsonRef& requirements,
@@ -103,14 +109,22 @@ void append_requirement_links(ImportFragment& fragment, const mcujson::JsonRef& 
         return;
     }
     if (!requirements.is_array()) {
-        fragment.diagnostics.push_back(Diagnostic{.code = "import.requirements.not_array", .severity = Severity::warning,
-            .message = "requirements must be an array of REQ-NNNN identifiers", .source = SourceLocation{.path = input.path}});
+        fragment.diagnostics.push_back(Diagnostic{
+            .code = "import.requirements.not_array",
+            .severity = Severity::warning,
+            .message = "requirements must be an array of REQ-NNNN identifiers",
+            .source = SourceLocation{.path = input.path},
+        });
         return;
     }
     for (const auto value : requirements) {
         if (!value.is_string() || !is_requirement_id(value.get<std::string_view>())) {
-            fragment.diagnostics.push_back(Diagnostic{.code = "import.requirements.invalid_id", .severity = Severity::warning,
-                .message = "ignored invalid requirement reference", .source = SourceLocation{.path = input.path}});
+            fragment.diagnostics.push_back(Diagnostic{
+                .code = "import.requirements.invalid_id",
+                .severity = Severity::warning,
+                .message = "ignored invalid requirement reference",
+                .source = SourceLocation{.path = input.path},
+            });
             continue;
         }
         append_link(fragment, std::string(evidence_id), value.get<std::string>(),
@@ -118,84 +132,152 @@ void append_requirement_links(ImportFragment& fragment, const mcujson::JsonRef& 
     }
 }
 
-std::expected<ImportFragment, ImportError> import_link_sidecar(
+std::expected<void, ImportError> validate_sidecar_header(
     const ArtifactInput& input,
     const mcujson::Json& root,
     std::string_view requested_importer) {
     if (!requested_importer.empty() && requested_importer != "mcutrace-links" &&
         requested_importer != "mcutrace") {
-        return std::unexpected(ImportError{.code = ImportErrorCode::unrecognized_format,
+        return std::unexpected(ImportError{
+            .code = ImportErrorCode::unrecognized_format,
             .detail = "artifact identifies as 'mcutrace-links' but importer '" +
                       std::string(requested_importer) + "' was requested",
-            .source = SourceLocation{.path = input.path}});
+            .source = SourceLocation{.path = input.path},
+        });
     }
     if (!root["version"].is_number()) {
-        return std::unexpected(ImportError{.code = ImportErrorCode::invalid_artifact,
+        return std::unexpected(ImportError{
+            .code = ImportErrorCode::invalid_artifact,
             .detail = "mcutrace-links requires a numeric version",
-            .source = SourceLocation{.path = input.path}});
+            .source = SourceLocation{.path = input.path},
+        });
     }
     const auto version = root["version"].get<long long>();
     if (version != 1) {
-        return std::unexpected(ImportError{.code = ImportErrorCode::unsupported_version,
+        return std::unexpected(ImportError{
+            .code = ImportErrorCode::unsupported_version,
             .detail = "unsupported mcutrace-links version: " + std::to_string(version),
-            .source = SourceLocation{.path = input.path}});
+            .source = SourceLocation{.path = input.path},
+        });
     }
-    const auto links = root["links"];
-    if (!links.is_array()) {
-        return std::unexpected(ImportError{.code = ImportErrorCode::invalid_artifact,
+    if (!root["links"].is_array()) {
+        return std::unexpected(ImportError{
+            .code = ImportErrorCode::invalid_artifact,
             .detail = "mcutrace-links requires a links array",
-            .source = SourceLocation{.path = input.path}});
+            .source = SourceLocation{.path = input.path},
+        });
+    }
+    return {};
+}
+
+ImportFragment make_sidecar_fragment(const ArtifactInput& input) {
+    ImportFragment fragment{
+        .format = InputFormat{.producer = "mcutrace", .schema = "mcutrace-links", .version = "1"},
+        .nodes = {},
+        .edges = {},
+        .artifacts = {},
+        .diagnostics = {},
+    };
+    fragment.artifacts.push_back(preserve_json_artifact(
+        "artifact:mcutrace-links:" + input.path, "mcutrace-links", input.content,
+        SourceLocation{.path = input.path}));
+    return fragment;
+}
+
+void append_sidecar_node(ImportFragment& fragment,
+                         const mcujson::JsonRef& value,
+                         const ArtifactInput& input) {
+    if (!value.is_object() || !value["id"].is_string() || !value["kind"].is_string()) {
+        fragment.diagnostics.push_back(Diagnostic{
+            .code = "import.links.invalid_node",
+            .severity = Severity::warning,
+            .message = "ignored malformed mcutrace-links node",
+            .source = SourceLocation{.path = input.path},
+        });
+        return;
+    }
+    const auto kind = node_kind(value["kind"].get<std::string_view>());
+    if (!kind) {
+        fragment.diagnostics.push_back(Diagnostic{
+            .code = "import.links.invalid_node_kind",
+            .severity = Severity::warning,
+            .message = "ignored mcutrace-links node with unsupported kind",
+            .source = SourceLocation{.path = input.path},
+        });
+        return;
     }
 
-    ImportFragment fragment{.format = InputFormat{.producer = "mcutrace", .schema = "mcutrace-links", .version = "1"}};
-    fragment.artifacts.push_back(preserve_json_artifact("artifact:mcutrace-links:" + input.path,
-        "mcutrace-links", input.content, SourceLocation{.path = input.path}));
-
-    const auto nodes = root["nodes"];
-    if (nodes.valid()) {
-        if (!nodes.is_array()) {
-            fragment.diagnostics.push_back(Diagnostic{.code = "import.links.nodes_not_array", .severity = Severity::warning,
-                .message = "mcutrace-links nodes must be an array", .source = SourceLocation{.path = input.path}});
-        } else {
-            for (const auto value : nodes) {
-                if (!value.is_object() || !value["id"].is_string() || !value["kind"].is_string()) {
-                    fragment.diagnostics.push_back(Diagnostic{.code = "import.links.invalid_node", .severity = Severity::warning,
-                        .message = "ignored malformed mcutrace-links node", .source = SourceLocation{.path = input.path}});
-                    continue;
-                }
-                const auto kind = node_kind(value["kind"].get<std::string_view>());
-                if (!kind) {
-                    fragment.diagnostics.push_back(Diagnostic{.code = "import.links.invalid_node_kind", .severity = Severity::warning,
-                        .message = "ignored mcutrace-links node with unsupported kind", .source = SourceLocation{.path = input.path}});
-                    continue;
-                }
-                const std::string original_id = value["id"].get<std::string>();
-                const std::string id = canonical_node_id(original_id, input);
-                std::optional<SourceLocation> source = SourceLocation{.path = input.path};
-                if (*kind == NodeKind::source && std::string_view(id).starts_with("source:")) {
-                    source = SourceLocation{.path = id.substr(std::string_view("source:").size())};
-                }
-                fragment.nodes.push_back(Node{.id = id, .kind = *kind,
-                    .label = value["label"].is_string() ? value["label"].get<std::string>() : original_id,
-                    .source = std::move(source)});
-            }
-        }
+    const std::string original_id = value["id"].get<std::string>();
+    const std::string id = canonical_node_id(original_id, input);
+    std::optional<SourceLocation> source = SourceLocation{.path = input.path};
+    if (*kind == NodeKind::source && std::string_view(id).starts_with("source:")) {
+        source = SourceLocation{.path = id.substr(std::string_view("source:").size())};
     }
+    fragment.nodes.push_back(Node{
+        .id = id,
+        .kind = *kind,
+        .label = value["label"].is_string() ? value["label"].get<std::string>() : original_id,
+        .evidence_state = EvidenceState::unknown,
+        .finding_state = {},
+        .source = std::move(source),
+        .expected_evidence = std::nullopt,
+    });
+}
 
-    for (const auto link : links) {
-        if (!link.is_object() || !link["source"].is_string() ||
-            !link["target"].is_string() || !link["type"].is_string()) {
-            fragment.diagnostics.push_back(Diagnostic{.code = "import.links.invalid_entry", .severity = Severity::warning,
-                .message = "ignored malformed mcutrace-links entry", .source = SourceLocation{.path = input.path}});
-            continue;
-        }
-        append_link(fragment, link["source"].get<std::string>(), link["target"].get<std::string>(),
-                    relationship_type(link["type"].get<std::string_view>()), input);
+void append_sidecar_nodes(ImportFragment& fragment,
+                          const mcujson::JsonRef& nodes,
+                          const ArtifactInput& input) {
+    if (!nodes.valid()) {
+        return;
+    }
+    if (!nodes.is_array()) {
+        fragment.diagnostics.push_back(Diagnostic{
+            .code = "import.links.nodes_not_array",
+            .severity = Severity::warning,
+            .message = "mcutrace-links nodes must be an array",
+            .source = SourceLocation{.path = input.path},
+        });
+        return;
+    }
+    for (const auto value : nodes) {
+        append_sidecar_node(fragment, value, input);
+    }
+}
+
+void append_sidecar_link(ImportFragment& fragment,
+                         const mcujson::JsonRef& link,
+                         const ArtifactInput& input) {
+    if (!link.is_object() || !link["source"].is_string() ||
+        !link["target"].is_string() || !link["type"].is_string()) {
+        fragment.diagnostics.push_back(Diagnostic{
+            .code = "import.links.invalid_entry",
+            .severity = Severity::warning,
+            .message = "ignored malformed mcutrace-links entry",
+            .source = SourceLocation{.path = input.path},
+        });
+        return;
+    }
+    append_link(fragment, link["source"].get<std::string>(), link["target"].get<std::string>(),
+                relationship_type(link["type"].get<std::string_view>()), input);
+}
+
+std::expected<ImportFragment, ImportError> import_link_sidecar(
+    const ArtifactInput& input,
+    const mcujson::Json& root,
+    std::string_view requested_importer) {
+    if (auto status = validate_sidecar_header(input, root, requested_importer); !status) {
+        return std::unexpected(status.error());
+    }
+    auto fragment = make_sidecar_fragment(input);
+    append_sidecar_nodes(fragment, root["nodes"], input);
+    for (const auto link : root["links"]) {
+        append_sidecar_link(fragment, link, input);
     }
     return fragment;
 }
 
-void augment_mcutest(ImportFragment& fragment, const mcujson::Json& root, const ArtifactInput& input) {
+void augment_mcutest(ImportFragment& fragment, const mcujson::Json& root,
+                     const ArtifactInput& input) {
     const auto tests = root["tests"];
     if (!tests.is_array()) {
         return;
@@ -223,7 +305,32 @@ void set_finding_state(ImportFragment& fragment,
     }
 }
 
-void augment_mcucheck(ImportFragment& fragment, const mcujson::Json& root, const ArtifactInput& input) {
+std::optional<std::string> mcucheck_finding_id(const mcujson::JsonRef& diagnostic,
+                                               const ArtifactInput& input,
+                                               std::size_t fallback_index) {
+    if (!diagnostic.is_object() || !diagnostic["rule_id"].is_string()) {
+        return std::nullopt;
+    }
+    const auto location = diagnostic["location"];
+    if (!location.is_object() || !location["path"].is_string()) {
+        return std::nullopt;
+    }
+    auto normalized = normalize_artifact_path(
+        location["path"].get<std::string_view>(), input.base_directory);
+    if (!normalized) {
+        return std::nullopt;
+    }
+    const auto line = location["line"].is_number()
+        ? static_cast<std::uint32_t>(location["line"].get<long long>()) : 0U;
+    const std::string stable = diagnostic["id"].is_string()
+        ? diagnostic["id"].get<std::string>()
+        : diagnostic["rule_id"].get<std::string>() + ":" + *normalized + ":" +
+          std::to_string(line) + ":" + std::to_string(fallback_index);
+    return "finding:mcucheck:" + stable;
+}
+
+void augment_mcucheck(ImportFragment& fragment, const mcujson::Json& root,
+                      const ArtifactInput& input) {
     const auto diagnostics = root["diagnostics"];
     if (!diagnostics.is_array()) {
         return;
@@ -231,27 +338,12 @@ void augment_mcucheck(ImportFragment& fragment, const mcujson::Json& root, const
     std::size_t fallback_index = 0;
     for (const auto diagnostic : diagnostics) {
         ++fallback_index;
-        if (!diagnostic.is_object() || !diagnostic["rule_id"].is_string()) {
+        const auto finding_id = mcucheck_finding_id(diagnostic, input, fallback_index);
+        if (!finding_id) {
             continue;
         }
-        const auto location = diagnostic["location"];
-        if (!location.is_object() || !location["path"].is_string()) {
-            continue;
-        }
-        auto normalized = normalize_artifact_path(
-            location["path"].get<std::string_view>(), input.base_directory);
-        if (!normalized) {
-            continue;
-        }
-        const auto line = location["line"].is_number()
-            ? static_cast<std::uint32_t>(location["line"].get<long long>()) : 0U;
-        const std::string stable = diagnostic["id"].is_string()
-            ? diagnostic["id"].get<std::string>()
-            : diagnostic["rule_id"].get<std::string>() + ":" + *normalized + ":" +
-              std::to_string(line) + ":" + std::to_string(fallback_index);
-        const std::string finding_id = "finding:mcucheck:" + stable;
-        set_finding_state(fragment, finding_id, diagnostic["state"]);
-        append_requirement_links(fragment, diagnostic["requirements"], finding_id,
+        set_finding_state(fragment, *finding_id, diagnostic["state"]);
+        append_requirement_links(fragment, diagnostic["requirements"], *finding_id,
                                  RelationshipKind::reports, input);
     }
 }
@@ -267,14 +359,17 @@ std::expected<ImportFragment, ImportError> import_trace_artifact(
     }
 
     auto parsed = parse_json(input);
-    if (!parsed || !parsed->is_object() || !(*parsed)["format"].is_string()) {
-        if (!parsed) {
-            return std::unexpected(parsed.error());
-        }
-        return std::unexpected(ImportError{.code = ImportErrorCode::unrecognized_format,
-            .detail = "artifact has no recognized format header: " + input.path,
-            .source = SourceLocation{.path = input.path}});
+    if (!parsed) {
+        return std::unexpected(parsed.error());
     }
+    if (!parsed->is_object() || !(*parsed)["format"].is_string()) {
+        return std::unexpected(ImportError{
+            .code = ImportErrorCode::unrecognized_format,
+            .detail = "artifact has no recognized format header: " + input.path,
+            .source = SourceLocation{.path = input.path},
+        });
+    }
+
     const std::string format = (*parsed)["format"].get<std::string>();
     if (format == "mcutrace-links") {
         return import_link_sidecar(input, *parsed, requested_importer);
