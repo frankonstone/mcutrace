@@ -3,7 +3,7 @@
 
 #include <string>
 
-TEST(config, parses_project_inputs_and_normalizes_paths) {
+TEST(config, parses_project_inputs_and_normalizes_paths, "REQ-0004", "REQ-0044", "REQ-0054", "REQ-0065") {
     constexpr auto text = R"toml(
 [project]
 root = ".."
@@ -31,7 +31,7 @@ path = "build/cov.json"
     ASSERT_EQ(config->artifacts[1].base_directory, std::string("/work/project"));
 }
 
-TEST(config, maps_validation_policy) {
+TEST(config, maps_validation_policy, "REQ-0052", "REQ-0054") {
     constexpr auto text = R"toml(
 [validation]
 fail_at_or_above = "warning"
@@ -53,7 +53,7 @@ severity = "warning"
     ASSERT_EQ(config->validation.failed_test.severity, mcutrace::Severity::warning);
 }
 
-TEST(config, rejects_invalid_validation_severity) {
+TEST(config, rejects_invalid_validation_severity, "REQ-0052", "REQ-0054") {
     constexpr auto text = R"toml(
 [validation.failed_test]
 severity = "critical"
@@ -63,13 +63,13 @@ severity = "critical"
     ASSERT_EQ(config.error().code, mcutrace::ConfigErrorCode::invalid_value);
 }
 
-TEST(config, reports_toml_parse_failure) {
+TEST(config, reports_toml_parse_failure, "REQ-0004", "REQ-0035") {
     const auto config = mcutrace::parse_project_config("[project\nroot = 42");
     ASSERT_FALSE(config.has_value());
     ASSERT_EQ(config.error().code, mcutrace::ConfigErrorCode::parse_failed);
 }
 
 int main(int argc, char* argv[]) {
-    mcutest::Runner<mcutest::StdoutOutput> runner;
+    mcutest::Runner<mcutest::JsonOutput> runner;
     return mcutest::run_with_gtest_compat(argc, argv, runner);
 }
