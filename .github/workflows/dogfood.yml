@@ -66,8 +66,13 @@ jobs:
           if ! brew list llvm >/dev/null 2>&1; then
             brew install llvm
           fi
+          if ! brew list llvm@21 >/dev/null 2>&1; then
+            brew install llvm@21
+          fi
           echo "LLVM_DIR=$(brew --prefix llvm)/lib/cmake/llvm" >> "$GITHUB_ENV"
           echo "Clang_DIR=$(brew --prefix llvm)/lib/cmake/clang" >> "$GITHUB_ENV"
+          echo "MCUCHECK_LLVM_DIR=$(brew --prefix llvm@21)/lib/cmake/llvm" >> "$GITHUB_ENV"
+          echo "MCUCHECK_CLANG_DIR=$(brew --prefix llvm@21)/lib/cmake/clang" >> "$GITHUB_ENV"
 
       - name: Configure mcutrace
         run: >-
@@ -103,8 +108,8 @@ jobs:
             -DMCUCHECK_MCUCLI_SOURCE_DIR="${RUNNER_TEMP}/mcutrace-deps/mcucli" \
             -DMCUCHECK_MCUJSON_SOURCE_DIR="${RUNNER_TEMP}/mcutrace-deps/mcujson" \
             -DMCUCHECK_MCUTOML_SOURCE_DIR="${RUNNER_TEMP}/mcutrace-deps/mcutoml" \
-            -DLLVM_DIR="${LLVM_DIR}" \
-            -DClang_DIR="${Clang_DIR}"
+            -DLLVM_DIR="${MCUCHECK_LLVM_DIR}" \
+            -DClang_DIR="${MCUCHECK_CLANG_DIR}"
           cmake --build "${RUNNER_TEMP}/mcucheck-build" --target mcucheck --parallel
 
       - name: Generate test and coverage evidence from real executables
