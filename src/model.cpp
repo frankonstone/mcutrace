@@ -8,16 +8,28 @@ namespace {
 
 bool location_less(const std::optional<SourceLocation>& lhs,
                    const std::optional<SourceLocation>& rhs) noexcept {
-    if (!lhs.has_value()) return rhs.has_value();
-    if (!rhs.has_value()) return false;
-    if (lhs->path != rhs->path) return lhs->path < rhs->path;
-    if (lhs->line != rhs->line) return lhs->line < rhs->line;
+    if (!lhs.has_value()) {
+        return rhs.has_value();
+    }
+    if (!rhs.has_value()) {
+        return false;
+    }
+    if (lhs->path != rhs->path) {
+        return lhs->path < rhs->path;
+    }
+    if (lhs->line != rhs->line) {
+        return lhs->line < rhs->line;
+    }
     return lhs->column < rhs->column;
 }
 
 bool edge_less(const Edge& lhs, const Edge& rhs) noexcept {
-    if (lhs.source_id != rhs.source_id) return lhs.source_id < rhs.source_id;
-    if (lhs.target_id != rhs.target_id) return lhs.target_id < rhs.target_id;
+    if (lhs.source_id != rhs.source_id) {
+        return lhs.source_id < rhs.source_id;
+    }
+    if (lhs.target_id != rhs.target_id) {
+        return lhs.target_id < rhs.target_id;
+    }
     if (lhs.type.display_name() != rhs.type.display_name()) {
         return lhs.type.display_name() < rhs.type.display_name();
     }
@@ -124,7 +136,9 @@ RelationshipType RelationshipType::custom(std::string name) {
 }
 
 std::string_view RelationshipType::display_name() const noexcept {
-    if (kind == RelationshipKind::custom && !name.empty()) return name;
+    if (kind == RelationshipKind::custom && !name.empty()) {
+        return name;
+    }
     return relationship_kind_name(kind);
 }
 
@@ -141,7 +155,9 @@ std::expected<void, Error> Graph::add_node(Node node) {
         nodes_.begin(), nodes_.end(), node.id,
         [](const Node& current, std::string_view id) { return current.id < id; });
     if (position != nodes_.end() && position->id == node.id) {
-        if (*position == node) return {};
+        if (*position == node) {
+            return {};
+        }
         return std::unexpected(Error{
             .code = ErrorCode::duplicate_node,
             .detail = "conflicting node identity: " + node.id,
@@ -164,7 +180,9 @@ std::expected<void, Error> Graph::add_edge(Edge edge) {
 
     const auto position = std::lower_bound(edges_.begin(), edges_.end(), edge, edge_less);
     if (position != edges_.end() && !edge_less(edge, *position) && !edge_less(*position, edge)) {
-        if (*position == edge) return {};
+        if (*position == edge) {
+            return {};
+        }
         return std::unexpected(Error{
             .code = ErrorCode::duplicate_edge,
             .detail = "conflicting duplicate traceability edge",
@@ -179,7 +197,9 @@ const Node* Graph::find_node(std::string_view id) const noexcept {
     const auto position = std::lower_bound(
         nodes_.begin(), nodes_.end(), id,
         [](const Node& current, std::string_view value) { return current.id < value; });
-    if (position == nodes_.end() || position->id != id) return nullptr;
+    if (position == nodes_.end() || position->id != id) {
+        return nullptr;
+    }
     return &*position;
 }
 
