@@ -30,7 +30,7 @@ mcutrace::Edge verifies(std::string source, std::string target, std::string arti
 
 }  // namespace
 
-TEST(assembly, merges_requirements_and_imported_nodes) {
+TEST(assembly, merges_requirements_and_imported_nodes, "REQ-0001", "REQ-0019", "REQ-0021") {
     const std::array requirements{
         requirement("REQ-0002", "Second", 8),
         requirement("REQ-0001", "First", 3),
@@ -51,7 +51,7 @@ TEST(assembly, merges_requirements_and_imported_nodes) {
     ASSERT_EQ(result.graph.nodes()[2].id, std::string("test:alpha"));
 }
 
-TEST(assembly, preserves_multiple_provenance_sources_for_same_relationship) {
+TEST(assembly, preserves_multiple_provenance_sources_for_same_relationship, "REQ-0029", "REQ-0031") {
     mcutrace::ImportFragment first;
     first.edges.push_back(verifies("test:alpha", "REQ-0001", "a.json"));
     mcutrace::ImportFragment second;
@@ -65,7 +65,7 @@ TEST(assembly, preserves_multiple_provenance_sources_for_same_relationship) {
     ASSERT_EQ(result.graph.edges()[1].provenance.artifact, std::string("b.json"));
 }
 
-TEST(assembly, keeps_dangling_edges_for_validation) {
+TEST(assembly, keeps_dangling_edges_for_validation, "REQ-0045", "REQ-0082") {
     mcutrace::ImportFragment fragment;
     fragment.edges.push_back(verifies("test:missing", "REQ-9999", "results.json"));
 
@@ -77,7 +77,7 @@ TEST(assembly, keeps_dangling_edges_for_validation) {
     ASSERT_EQ(result.graph.edges().front().target_id, std::string("REQ-9999"));
 }
 
-TEST(assembly, canonicalizes_file_level_source_node_locations) {
+TEST(assembly, canonicalizes_file_level_source_node_locations, "REQ-0020", "REQ-0043") {
     mcutrace::ImportFragment sidecar;
     sidecar.nodes.push_back(mcutrace::Node{
         .id = "source:/work/src/main.cpp",
@@ -105,7 +105,7 @@ TEST(assembly, canonicalizes_file_level_source_node_locations) {
     ASSERT_EQ(result.graph.nodes().front().source->column, static_cast<std::uint32_t>(0));
 }
 
-TEST(assembly, diagnoses_conflicting_duplicate_nodes_deterministically) {
+TEST(assembly, diagnoses_conflicting_duplicate_nodes_deterministically, "REQ-0005", "REQ-0046") {
     mcutrace::ImportFragment first;
     first.nodes.push_back(mcutrace::Node{
         .id = "artifact:build",
@@ -133,7 +133,7 @@ TEST(assembly, diagnoses_conflicting_duplicate_nodes_deterministically) {
     ASSERT_EQ(a.diagnostics.front().code, std::string("mcutrace.duplicate_node"));
 }
 
-TEST(assembly, carries_importer_artifacts_and_diagnostics_deterministically) {
+TEST(assembly, carries_importer_artifacts_and_diagnostics_deterministically, "REQ-0005", "REQ-0026", "REQ-0036") {
     mcutrace::ImportFragment first;
     first.artifacts.push_back(mcutrace::preserve_json_artifact("b", "raw", "{\"b\":1}"));
     first.diagnostics.push_back(mcutrace::Diagnostic{
@@ -162,6 +162,6 @@ TEST(assembly, carries_importer_artifacts_and_diagnostics_deterministically) {
 }
 
 int main(int argc, char* argv[]) {
-    mcutest::Runner<mcutest::StdoutOutput> runner;
+    mcutest::Runner<mcutest::JsonOutput> runner;
     return mcutest::run_with_gtest_compat(argc, argv, runner);
 }
