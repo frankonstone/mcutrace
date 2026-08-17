@@ -14,6 +14,7 @@ struct CliOptions final {
     OutputFormat output_format = OutputFormat::text;
     std::string config_path;
     std::vector<std::string> requirement_files;
+    std::vector<std::string> source_files;
     std::vector<std::string> artifact_files;
     std::string help_text;
 };
