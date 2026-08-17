@@ -15,6 +15,7 @@
     {"source":"artifact:build:cmake","target":"REQ-0074","type":"verifies"},
     {"source":"artifact:build:cmake","target":"REQ-0075","type":"verifies"},
     {"source":"artifact:build:cmake","target":"REQ-0076","type":"verifies"},
-    {"source":"artifact:ci:macos","target":"REQ-0077","type":"verifies"}
+    {"source":"artifact:ci:macos","target":"REQ-0077","type":"verifies"},
+    {"source":"artifact:ci:macos","target":"REQ-0094","type":"verifies"}
   ]
 }
