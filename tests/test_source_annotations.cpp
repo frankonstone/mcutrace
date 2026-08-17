@@ -3,7 +3,7 @@
 
 #include <string>
 
-TEST(source_annotations, imports_file_scope, "REQ-0088", "REQ-0089") {
+TEST(source_annotations, imports_file_scope, "REQ-0089", "REQ-0090") {
     const mcutrace::ArtifactInput input{
         .path = "/work/project/include/widget.hpp",
         .base_directory = "/work/project",
@@ -20,7 +20,7 @@ TEST(source_annotations, imports_file_scope, "REQ-0088", "REQ-0089") {
     ASSERT_EQ(result->edges[0].target_id, std::string("REQ-0001"));
 }
 
-TEST(source_annotations, binds_to_class, "REQ-0088", "REQ-0090", "REQ-0091") {
+TEST(source_annotations, binds_to_class, "REQ-0089", "REQ-0091", "REQ-0092") {
     const mcutrace::ArtifactInput input{
         .path = "/work/project/include/widget.hpp",
         .base_directory = "/work/project",
@@ -37,7 +37,7 @@ TEST(source_annotations, binds_to_class, "REQ-0088", "REQ-0090", "REQ-0091") {
     ASSERT_EQ(result->edges[0].source->line, static_cast<std::uint32_t>(1));
 }
 
-TEST(source_annotations, binds_to_method_definition, "REQ-0088", "REQ-0090", "REQ-0091") {
+TEST(source_annotations, binds_to_method_definition, "REQ-0089", "REQ-0091", "REQ-0092") {
     const mcutrace::ArtifactInput input{
         .path = "/work/project/src/widget.cpp",
         .base_directory = "/work/project",
@@ -51,7 +51,7 @@ TEST(source_annotations, binds_to_method_definition, "REQ-0088", "REQ-0090", "RE
     ASSERT_EQ(result->edges[0].provenance.symbol, std::string("Widget::start"));
 }
 
-TEST(source_annotations, binds_to_function_declaration_in_header, "REQ-0088", "REQ-0090") {
+TEST(source_annotations, binds_to_function_declaration_in_header, "REQ-0089", "REQ-0091") {
     const mcutrace::ArtifactInput input{
         .path = "/work/project/include/api.hpp",
         .base_directory = "/work/project",
@@ -65,7 +65,7 @@ TEST(source_annotations, binds_to_function_declaration_in_header, "REQ-0088", "R
     ASSERT_EQ(result->edges[0].provenance.symbol, std::string("parse_value"));
 }
 
-TEST(source_annotations, diagnoses_malformed_requirement, "REQ-0088") {
+TEST(source_annotations, diagnoses_malformed_requirement, "REQ-0089") {
     const mcutrace::ArtifactInput input{
         .path = "/work/project/src/foo.cpp",
         .content = "// @req REQ-1\nvoid foo();\n",
@@ -78,7 +78,7 @@ TEST(source_annotations, diagnoses_malformed_requirement, "REQ-0088") {
     ASSERT_EQ(result->diagnostics[0].code, std::string("source.annotation.invalid_requirement"));
 }
 
-TEST(source_annotations, diagnoses_unsupported_variable_target, "REQ-0090") {
+TEST(source_annotations, diagnoses_unsupported_variable_target, "REQ-0091") {
     const mcutrace::ArtifactInput input{
         .path = "/work/project/src/foo.cpp",
         .content = "// @req REQ-0007\nconstexpr int value = 7;\n",
