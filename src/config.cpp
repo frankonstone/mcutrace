@@ -95,22 +95,23 @@ std::expected<void, ConfigError> read_rule(const mcutoml::TomlRef table,
     return {};
 }
 
-std::expected<void, ConfigError> read_requirements(const mcutoml::TomlRef requirements,
-                                                   std::string_view root,
-                                                   ProjectConfig& result) {
-    if (!requirements.valid()) {
+std::expected<void, ConfigError> read_path_array(const mcutoml::TomlRef values,
+                                                 std::string_view name,
+                                                 std::string_view root,
+                                                 std::vector<std::string>& result) {
+    if (!values.valid()) {
         return {};
     }
-    if (!requirements.is_array()) {
+    if (!values.is_array()) {
         return std::unexpected(config_error(ConfigErrorCode::invalid_type,
-                                            "requirements must be an array"));
+                                            std::string(name) + " must be an array"));
     }
-    for (const auto entry : requirements) {
+    for (const auto entry : values) {
         if (!entry.is_string()) {
             return std::unexpected(config_error(ConfigErrorCode::invalid_type,
-                                                "requirements entries must be strings"));
+                                                std::string(name) + " entries must be strings"));
         }
-        result.requirement_files.push_back(normalize_path(entry.get<std::string_view>(), root));
+        result.push_back(normalize_path(entry.get<std::string_view>(), root));
     }
     return {};
 }
@@ -139,7 +140,13 @@ std::expected<void, ConfigError> read_project(const mcutoml::Toml& document,
 
     const auto requirements = project.valid() && project["requirements"].valid()
         ? project["requirements"] : document["requirements"];
-    return read_requirements(requirements, result.root, result);
+    if (auto status = read_path_array(requirements, "requirements", result.root,
+                                      result.requirement_files); !status) {
+        return std::unexpected(status.error());
+    }
+    const auto sources = project.valid() && project["sources"].valid()
+        ? project["sources"] : document["sources"];
+    return read_path_array(sources, "sources", result.root, result.source_files);
 }
 
 std::expected<ArtifactConfig, ConfigError> read_artifact(const mcutoml::TomlRef entry,

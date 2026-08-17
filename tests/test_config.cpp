@@ -3,12 +3,13 @@
 
 #include <string>
 
-TEST(config, parses_project_inputs_and_normalizes_paths, "REQ-0004", "REQ-0044", "REQ-0054", "REQ-0065") {
+TEST(config, parses_project_inputs_and_normalizes_paths, "REQ-0004", "REQ-0044", "REQ-0054", "REQ-0065", "REQ-0093") {
     constexpr auto text = R"toml(
 [project]
 root = ".."
 
 requirements = ["docs/requirements.md", "spec/feature.md"]
+sources = ["src/feature.cpp", "include/feature.hpp"]
 
 [[artifacts]]
 path = "build/test.json"
@@ -24,6 +25,9 @@ path = "build/cov.json"
     ASSERT_EQ(config->root, std::string("/work/project"));
     ASSERT_EQ(config->requirement_files.size(), static_cast<std::size_t>(2));
     ASSERT_EQ(config->requirement_files[0], std::string("/work/project/docs/requirements.md"));
+    ASSERT_EQ(config->source_files.size(), static_cast<std::size_t>(2));
+    ASSERT_EQ(config->source_files[0], std::string("/work/project/src/feature.cpp"));
+    ASSERT_EQ(config->source_files[1], std::string("/work/project/include/feature.hpp"));
     ASSERT_EQ(config->artifacts.size(), static_cast<std::size_t>(2));
     ASSERT_EQ(config->artifacts[0].path, std::string("/work/project/build/test.json"));
     ASSERT_EQ(config->artifacts[0].importer, std::string("mcutest"));

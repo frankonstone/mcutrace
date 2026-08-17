@@ -23,6 +23,11 @@ target_link_libraries(mcutrace_trace_import_tests PRIVATE mcutrace::core mcutest
 mcutrace_host_options(mcutrace_trace_import_tests)
 add_test(NAME mcutrace_trace_import_tests COMMAND mcutrace_trace_import_tests)
 
+add_executable(mcutrace_source_annotation_tests test_source_annotations.cpp)
+target_link_libraries(mcutrace_source_annotation_tests PRIVATE mcutrace::core mcutest::mcutest)
+mcutrace_host_options(mcutrace_source_annotation_tests)
+add_test(NAME mcutrace_source_annotation_tests COMMAND mcutrace_source_annotation_tests)
+
 add_executable(mcutrace_hardening_tests test_hardening.cpp)
 target_link_libraries(mcutrace_hardening_tests PRIVATE mcutrace::core mcutest::mcutest)
 target_compile_definitions(mcutrace_hardening_tests PRIVATE
@@ -67,6 +72,7 @@ if(MCUTRACE_ENABLE_MCUCOV)
         mcutrace_importer_tests
         mcutrace_producer_importer_tests
         mcutrace_trace_import_tests
+        mcutrace_source_annotation_tests
         mcutrace_hardening_tests
         mcutrace_assembly_tests
         mcutrace_validation_tests
