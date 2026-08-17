@@ -51,6 +51,7 @@ normalize_artifact_path(std::string_view path, std::string_view base_directory) 
         return std::unexpected(ImportError{
             .code = ImportErrorCode::invalid_artifact,
             .detail = "artifact path must not be empty",
+            .source = std::nullopt,
         });
     }
 
