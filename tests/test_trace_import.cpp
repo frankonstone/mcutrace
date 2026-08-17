@@ -83,15 +83,18 @@ TEST(trace_import, augments_mcucov_requirement_links) {
     ASSERT_EQ(result->edges[2].type.kind, mcutrace::RelationshipKind::implements);
 }
 
-TEST(trace_import, augments_mcucheck_requirement_links) {
+TEST(trace_import, augments_mcucheck_requirement_links_and_preserves_state) {
     const mcutrace::ArtifactInput input{
         .path = "/tmp/check.json",
         .base_directory = "/work/project",
-        .content = R"({"format":"mcucheck-results","version":1,"diagnostics":[{"rule_id":"A1","message":"bad","id":"abc","location":{"path":"src/foo.cpp","line":7,"column":2},"requirements":["REQ-0004"]}]})",
+        .content = R"({"format":"mcucheck-results","version":1,"diagnostics":[{"rule_id":"A1","message":"bad","state":"informational","id":"abc","location":{"path":"src/foo.cpp","line":7,"column":2},"requirements":["REQ-0004"]}]})",
     };
 
     const auto result = mcutrace::import_trace_artifact(input);
     ASSERT_TRUE(result.has_value());
+    ASSERT_EQ(result->nodes.size(), static_cast<std::size_t>(2));
+    ASSERT_EQ(result->nodes[0].id, std::string("finding:mcucheck:abc"));
+    ASSERT_EQ(result->nodes[0].finding_state, std::string("informational"));
     ASSERT_EQ(result->edges.size(), static_cast<std::size_t>(2));
     ASSERT_EQ(result->edges[1].source_id, std::string("finding:mcucheck:abc"));
     ASSERT_EQ(result->edges[1].target_id, std::string("REQ-0004"));
