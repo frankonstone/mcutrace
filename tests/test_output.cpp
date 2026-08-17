@@ -62,6 +62,24 @@ TEST(output, renders_deterministic_versioned_json) {
     ASSERT_NE(first->find("\"untraced_requirements\":[\"REQ-0002\"]"), std::string::npos);
 }
 
+TEST(output, renders_finding_state_in_json) {
+    mcutrace::TraceResult trace;
+    ASSERT_TRUE(trace.graph.add_node(mcutrace::Node{
+        .id = "finding:mcucheck:abc",
+        .kind = mcutrace::NodeKind::finding,
+        .label = "A1: informational",
+        .evidence_state = mcutrace::EvidenceState::unknown,
+        .finding_state = "informational",
+        .source = std::nullopt,
+        .expected_evidence = std::nullopt,
+    }).has_value());
+
+    const mcutrace::ValidationResult validation;
+    const auto json = mcutrace::render_json_report(trace, validation);
+    ASSERT_TRUE(json.has_value());
+    ASSERT_NE(json->find("\"finding_state\":\"informational\""), std::string::npos);
+}
+
 TEST(output, renders_human_readable_summary) {
     const auto trace = sample_trace();
     const mcutrace::ValidationResult validation;
