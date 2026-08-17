@@ -3,7 +3,7 @@
 
 #include <string>
 
-TEST(model, exposes_stable_node_kind_and_severity_names) {
+TEST(model, exposes_stable_node_kind_and_severity_names, "REQ-0019", "REQ-0021", "REQ-0023", "REQ-0052") {
     ASSERT_EQ(std::string(mcutrace::node_kind_name(mcutrace::NodeKind::requirement)),
               std::string("requirement"));
     ASSERT_EQ(std::string(mcutrace::node_kind_name(mcutrace::NodeKind::test)),
@@ -12,7 +12,7 @@ TEST(model, exposes_stable_node_kind_and_severity_names) {
               std::string("warning"));
 }
 
-TEST(model, preserves_known_and_custom_relationship_types) {
+TEST(model, preserves_known_and_custom_relationship_types, "REQ-0028", "REQ-0032") {
     const auto verifies =
         mcutrace::RelationshipType::known(mcutrace::RelationshipKind::verifies);
     const auto custom = mcutrace::RelationshipType::custom("derived-from");
@@ -22,7 +22,7 @@ TEST(model, preserves_known_and_custom_relationship_types) {
     ASSERT_EQ(custom.kind, mcutrace::RelationshipKind::custom);
 }
 
-TEST(model, stores_nodes_in_deterministic_identity_order) {
+TEST(model, stores_nodes_in_deterministic_identity_order, "REQ-0005", "REQ-0020") {
     mcutrace::Graph graph;
     ASSERT_TRUE(graph.add_node({.id = "TEST-0002", .kind = mcutrace::NodeKind::test}).has_value());
     ASSERT_TRUE(graph.add_node({.id = "REQ-0001", .kind = mcutrace::NodeKind::requirement}).has_value());
@@ -36,7 +36,7 @@ TEST(model, stores_nodes_in_deterministic_identity_order) {
     ASSERT_TRUE(graph.find_node("missing") == nullptr);
 }
 
-TEST(model, accepts_identical_node_reinsertion_and_rejects_conflicts) {
+TEST(model, accepts_identical_node_reinsertion_and_rejects_conflicts, "REQ-0020", "REQ-0046") {
     mcutrace::Graph graph;
     const mcutrace::Node requirement{
         .id = "REQ-0001",
@@ -58,7 +58,7 @@ TEST(model, accepts_identical_node_reinsertion_and_rejects_conflicts) {
     ASSERT_EQ(graph.nodes().size(), static_cast<std::size_t>(1));
 }
 
-TEST(model, rejects_empty_node_identity_with_source_context) {
+TEST(model, rejects_empty_node_identity_with_source_context, "REQ-0020", "REQ-0058") {
     mcutrace::Graph graph;
     const auto result = graph.add_node({
         .id = "",
@@ -73,7 +73,7 @@ TEST(model, rejects_empty_node_identity_with_source_context) {
     ASSERT_EQ(result.error().source->line, static_cast<std::uint32_t>(4));
 }
 
-TEST(model, preserves_multiple_edge_provenance_sources) {
+TEST(model, preserves_multiple_edge_provenance_sources, "REQ-0029", "REQ-0031") {
     mcutrace::Graph graph;
     const auto type = mcutrace::RelationshipType::known(mcutrace::RelationshipKind::verifies);
 
@@ -95,7 +95,7 @@ TEST(model, preserves_multiple_edge_provenance_sources) {
     ASSERT_EQ(graph.edges()[1].provenance.importer, std::string("mcutest"));
 }
 
-TEST(model, preserves_dangling_edges_for_later_validation) {
+TEST(model, preserves_dangling_edges_for_later_validation, "REQ-0027", "REQ-0082") {
     mcutrace::Graph graph;
     const auto result = graph.add_edge({
         .source_id = "UNKNOWN-TEST",
@@ -115,7 +115,7 @@ TEST(model, preserves_dangling_edges_for_later_validation) {
     ASSERT_EQ(graph.edges()[0].source->line, static_cast<std::uint32_t>(7));
 }
 
-TEST(model, rejects_invalid_edges_without_throwing) {
+TEST(model, rejects_invalid_edges_without_throwing, "REQ-0027", "REQ-0028", "REQ-0071") {
     mcutrace::Graph graph;
     const auto result = graph.add_edge({
         .source_id = "REQ-0001",
@@ -129,6 +129,6 @@ TEST(model, rejects_invalid_edges_without_throwing) {
 }
 
 int main(int argc, char* argv[]) {
-    mcutest::Runner<mcutest::StdoutOutput> runner;
+    mcutest::Runner<mcutest::JsonOutput> runner;
     return mcutest::run_with_gtest_compat(argc, argv, runner);
 }
