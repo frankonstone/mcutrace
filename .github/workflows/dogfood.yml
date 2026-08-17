@@ -40,7 +40,6 @@ jobs:
       - uses: actions/checkout@v6
         with:
           repository: frankonstone/mcutest
-          ref: agent/per-test-requirements
           path: mcutest
           token: ${{ secrets.MCU_REPOS_TOKEN }}
 
