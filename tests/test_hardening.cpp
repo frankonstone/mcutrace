@@ -80,7 +80,7 @@ std::string requirement_id(std::size_t value) {
 
 }  // namespace
 
-TEST(hardening, third_party_importer_uses_public_contract) {
+TEST(hardening, third_party_importer_uses_public_contract, "REQ-0003", "REQ-0040", "REQ-0041", "REQ-0042") {
     std::ifstream stream(MCUTRACE_THIRD_PARTY_FIXTURE, std::ios::binary);
     ASSERT_TRUE(static_cast<bool>(stream));
     const std::string content{std::istreambuf_iterator<char>(stream),
@@ -99,7 +99,7 @@ TEST(hardening, third_party_importer_uses_public_contract) {
     ASSERT_EQ(result->edges[0].target_id, std::string("REQ-0042"));
 }
 
-TEST(hardening, assembles_large_graph_deterministically) {
+TEST(hardening, assembles_large_graph_deterministically, "REQ-0005", "REQ-0046", "REQ-0078") {
     constexpr std::size_t kCount = 1000;
     std::vector<mcutrace::Requirement> requirements;
     requirements.reserve(kCount);
@@ -155,6 +155,6 @@ TEST(hardening, assembles_large_graph_deterministically) {
 }
 
 int main(int argc, char* argv[]) {
-    mcutest::Runner<mcutest::StdoutOutput> runner;
+    mcutest::Runner<mcutest::JsonOutput> runner;
     return mcutest::run_with_gtest_compat(argc, argv, runner);
 }

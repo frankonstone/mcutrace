@@ -3,7 +3,7 @@
 
 #include <string>
 
-TEST(cli, parses_validate_config_and_explicit_inputs) {
+TEST(cli, parses_validate_config_and_explicit_inputs, "REQ-0065", "REQ-0066", "REQ-0067") {
     const char* argv[] = {
         "mcutrace", "--config", "project.toml", "validate",
         "--requirement", "reqs.md", "--requirement", "more.md",
@@ -18,7 +18,7 @@ TEST(cli, parses_validate_config_and_explicit_inputs) {
     ASSERT_EQ(result->artifact_files.size(), static_cast<std::size_t>(1));
 }
 
-TEST(cli, explicit_inputs_do_not_require_default_config) {
+TEST(cli, explicit_inputs_do_not_require_default_config, "REQ-0066") {
     const char* argv[] = {"mcutrace", "validate", "--requirement", "reqs.md"};
     const auto result = mcutrace::parse_cli(static_cast<int>(std::size(argv)), argv);
     ASSERT_TRUE(result.has_value());
@@ -26,27 +26,27 @@ TEST(cli, explicit_inputs_do_not_require_default_config) {
     ASSERT_EQ(result->requirement_files.size(), static_cast<std::size_t>(1));
 }
 
-TEST(cli, defaults_to_text_output) {
+TEST(cli, defaults_to_text_output, "REQ-0056", "REQ-0067") {
     const char* argv[] = {"mcutrace", "validate"};
     const auto result = mcutrace::parse_cli(static_cast<int>(std::size(argv)), argv);
     ASSERT_TRUE(result.has_value());
     ASSERT_EQ(result->output_format, mcutrace::OutputFormat::text);
 }
 
-TEST(cli, rejects_unknown_output_format) {
+TEST(cli, rejects_unknown_output_format, "REQ-0055", "REQ-0056") {
     const char* argv[] = {"mcutrace", "validate", "--format", "xml"};
     const auto result = mcutrace::parse_cli(static_cast<int>(std::size(argv)), argv);
     ASSERT_FALSE(result.has_value());
 }
 
-TEST(cli, exposes_version_event) {
+TEST(cli, exposes_version_event, "REQ-0068") {
     const char* argv[] = {"mcutrace", "--version"};
     const auto result = mcutrace::parse_cli(static_cast<int>(std::size(argv)), argv);
     ASSERT_TRUE(result.has_value());
     ASSERT_EQ(result->action, mcutrace::CliAction::version);
 }
 
-TEST(cli, exposes_command_help) {
+TEST(cli, exposes_command_help, "REQ-0067") {
     const char* argv[] = {"mcutrace", "validate", "--help"};
     const auto result = mcutrace::parse_cli(static_cast<int>(std::size(argv)), argv);
     ASSERT_TRUE(result.has_value());
@@ -54,13 +54,13 @@ TEST(cli, exposes_command_help) {
     ASSERT_FALSE(result->help_text.empty());
 }
 
-TEST(cli, requires_validate_command_for_invocation) {
+TEST(cli, requires_validate_command_for_invocation, "REQ-0067") {
     const char* argv[] = {"mcutrace"};
     const auto result = mcutrace::parse_cli(static_cast<int>(std::size(argv)), argv);
     ASSERT_FALSE(result.has_value());
 }
 
 int main(int argc, char* argv[]) {
-    mcutest::Runner<mcutest::StdoutOutput> runner;
+    mcutest::Runner<mcutest::JsonOutput> runner;
     return mcutest::run_with_gtest_compat(argc, argv, runner);
 }

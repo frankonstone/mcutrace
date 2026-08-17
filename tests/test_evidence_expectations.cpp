@@ -6,7 +6,7 @@
 #include <array>
 #include <string>
 
-TEST(evidence_expectations, parses_build_and_none_annotations) {
+TEST(evidence_expectations, parses_build_and_none_annotations, "REQ-0084", "REQ-0086") {
     constexpr std::string_view markdown =
         "## REQ-0001 Build rule @evidence(build)\nBody\n"
         "## REQ-0002 Process rule @evidence(none)\nBody\n";
@@ -20,7 +20,7 @@ TEST(evidence_expectations, parses_build_and_none_annotations) {
     ASSERT_EQ(*parsed.requirements[1].expected_evidence, std::uint8_t{0});
 }
 
-TEST(evidence_expectations, build_expectation_requires_artifact_evidence) {
+TEST(evidence_expectations, build_expectation_requires_artifact_evidence, "REQ-0084") {
     mcutrace::TraceResult trace;
     ASSERT_TRUE(trace.graph.add_node(mcutrace::Node{
         .id = "REQ-0001", .kind = mcutrace::NodeKind::requirement, .label = "Build",
@@ -38,7 +38,7 @@ TEST(evidence_expectations, build_expectation_requires_artifact_evidence) {
     ASSERT_EQ(result.diagnostics.size(), std::size_t{0});
 }
 
-TEST(evidence_expectations, none_expectation_requires_no_test_or_implementation) {
+TEST(evidence_expectations, none_expectation_requires_no_test_or_implementation, "REQ-0086") {
     mcutrace::TraceResult trace;
     ASSERT_TRUE(trace.graph.add_node(mcutrace::Node{
         .id = "REQ-0001", .kind = mcutrace::NodeKind::requirement, .label = "Process",
@@ -48,6 +48,6 @@ TEST(evidence_expectations, none_expectation_requires_no_test_or_implementation)
 }
 
 int main(int argc, char* argv[]) {
-    mcutest::Runner<mcutest::StdoutOutput> runner;
+    mcutest::Runner<mcutest::JsonOutput> runner;
     return mcutest::run_with_gtest_compat(argc, argv, runner);
 }

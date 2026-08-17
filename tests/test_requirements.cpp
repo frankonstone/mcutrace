@@ -6,7 +6,7 @@
 
 namespace {
 
-TEST(requirements, validates_canonical_ids) {
+TEST(requirements, validates_canonical_ids, "REQ-0008") {
     ASSERT_TRUE(mcutrace::is_requirement_id("REQ-0001"));
     ASSERT_TRUE(mcutrace::is_requirement_id("REQ-9999"));
     ASSERT_FALSE(mcutrace::is_requirement_id("REQ-1"));
@@ -14,7 +14,7 @@ TEST(requirements, validates_canonical_ids) {
     ASSERT_FALSE(mcutrace::is_requirement_id("REQ-00A1"));
 }
 
-TEST(requirements, extracts_title_body_and_source) {
+TEST(requirements, extracts_title_body_and_source, "REQ-0007", "REQ-0010", "REQ-0011", "REQ-0012") {
     constexpr std::string_view markdown =
         "# Product\n"
         "\n"
@@ -40,7 +40,7 @@ TEST(requirements, extracts_title_body_and_source) {
     ASSERT_TRUE(parsed.requirements[0].body.find("Not requirement body") == std::string::npos);
 }
 
-TEST(requirements, supports_explicit_req_marker) {
+TEST(requirements, supports_explicit_req_marker, "REQ-0009") {
     constexpr std::string_view markdown = "### @req REQ-0042 Unsupported input version\nBody\n";
     const std::array documents{mcutrace::RequirementDocument{"req.md", markdown}};
 
@@ -50,7 +50,7 @@ TEST(requirements, supports_explicit_req_marker) {
     ASSERT_EQ(parsed.requirements[0].title, std::string{"Unsupported input version"});
 }
 
-TEST(requirements, ignores_headings_inside_fenced_code) {
+TEST(requirements, ignores_headings_inside_fenced_code, "REQ-0006", "REQ-0007") {
     constexpr std::string_view markdown =
         "```markdown\n"
         "## REQ-0099 Example only\n"
@@ -65,7 +65,7 @@ TEST(requirements, ignores_headings_inside_fenced_code) {
     ASSERT_EQ(parsed.requirements[0].id, std::string{"REQ-0001"});
 }
 
-TEST(requirements, diagnoses_malformed_ids_and_marker_without_id) {
+TEST(requirements, diagnoses_malformed_ids_and_marker_without_id, "REQ-0014") {
     constexpr std::string_view markdown =
         "## REQ-12 Malformed\n"
         "## @req Missing identifier\n";
@@ -80,7 +80,7 @@ TEST(requirements, diagnoses_malformed_ids_and_marker_without_id) {
     ASSERT_EQ(parsed.diagnostics[1].source->line, std::uint32_t{2});
 }
 
-TEST(requirements, diagnoses_invalid_evidence_annotations) {
+TEST(requirements, diagnoses_invalid_evidence_annotations, "REQ-0084", "REQ-0086") {
     constexpr std::string_view markdown =
         "## REQ-0001 Bad evidence @evidence(test,none)\n"
         "## REQ-0002 Unknown evidence @evidence(runtime)\n";
@@ -96,7 +96,7 @@ TEST(requirements, diagnoses_invalid_evidence_annotations) {
     ASSERT_EQ(parsed.diagnostics[1].source->line, std::uint32_t{2});
 }
 
-TEST(requirements, diagnoses_duplicates_across_documents) {
+TEST(requirements, diagnoses_duplicates_across_documents, "REQ-0013") {
     constexpr std::string_view first = "## REQ-0003 First\nBody\n";
     constexpr std::string_view second = "## REQ-0003 Second\nBody\n";
     const std::array documents{
@@ -112,7 +112,7 @@ TEST(requirements, diagnoses_duplicates_across_documents) {
     ASSERT_EQ(parsed.diagnostics[0].source->path, std::string{"b.md"});
 }
 
-TEST(requirements, preserves_document_order) {
+TEST(requirements, preserves_document_order, "REQ-0015") {
     constexpr std::string_view markdown =
         "## REQ-0040 Later numeric ID\n"
         "A\n"
@@ -127,7 +127,7 @@ TEST(requirements, preserves_document_order) {
     ASSERT_EQ(parsed.requirements[1].id, std::string{"REQ-0002"});
 }
 
-TEST(requirements, allocates_next_id_after_highest_existing_id) {
+TEST(requirements, allocates_next_id_after_highest_existing_id, "REQ-0017", "REQ-0018") {
     const std::array requirements{
         mcutrace::Requirement{.id = "REQ-0002"},
         mcutrace::Requirement{.id = "REQ-0040"},
@@ -140,7 +140,7 @@ TEST(requirements, allocates_next_id_after_highest_existing_id) {
     ASSERT_EQ(*next, std::string{"REQ-0041"});
 }
 
-TEST(requirements, reports_exhausted_id_space) {
+TEST(requirements, reports_exhausted_id_space, "REQ-0017") {
     const std::array requirements{mcutrace::Requirement{.id = "REQ-9999"}};
 
     const auto next = mcutrace::next_requirement_id(requirements);
@@ -149,7 +149,7 @@ TEST(requirements, reports_exhausted_id_space) {
     ASSERT_EQ(next.error().code, mcutrace::ErrorCode::requirement_id_space_exhausted);
 }
 
-TEST(requirements, converts_requirement_to_model_node) {
+TEST(requirements, converts_requirement_to_model_node, "REQ-0021") {
     const mcutrace::Requirement requirement{
         .id = "REQ-0001",
         .title = "Independent aggregation tool",
@@ -167,6 +167,6 @@ TEST(requirements, converts_requirement_to_model_node) {
 }  // namespace
 
 int main(int argc, char* argv[]) {
-    mcutest::Runner<mcutest::StdoutOutput> runner;
+    mcutest::Runner<mcutest::JsonOutput> runner;
     return mcutest::run_with_gtest_compat(argc, argv, runner);
 }

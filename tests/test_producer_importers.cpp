@@ -3,7 +3,7 @@
 
 #include <string>
 
-TEST(producer_importers, imports_mcutest_results) {
+TEST(producer_importers, imports_mcutest_results, "REQ-0037", "REQ-0050") {
     const mcutrace::ArtifactInput input{
         .path = "/tmp/tests.json",
         .base_directory = "/work/project",
@@ -18,7 +18,7 @@ TEST(producer_importers, imports_mcutest_results) {
     ASSERT_EQ(result->nodes[1].evidence_state, mcutrace::EvidenceState::failed);
 }
 
-TEST(producer_importers, imports_mcucov_report) {
+TEST(producer_importers, imports_mcucov_report, "REQ-0038", "REQ-0043", "REQ-0049") {
     const mcutrace::ArtifactInput input{
         .path = "/tmp/coverage.json",
         .base_directory = "/work/project",
@@ -34,7 +34,7 @@ TEST(producer_importers, imports_mcucov_report) {
     ASSERT_EQ(result->diagnostics[0].source->path, std::string("/work/project/src/foo.cpp"));
 }
 
-TEST(producer_importers, streams_mcucov_reports_larger_than_dom_string_capacity) {
+TEST(producer_importers, streams_mcucov_reports_larger_than_dom_string_capacity, "REQ-0038", "REQ-0073") {
     std::string content = R"({"format":"mcucov-report","version":1,"modules":[{"path":"src/foo.cpp","variant":"host","probes":[{"name":")";
     content.append(70000, 'x');
     content += R"("}],"skipped":[]}]})";
@@ -52,7 +52,7 @@ TEST(producer_importers, streams_mcucov_reports_larger_than_dom_string_capacity)
     ASSERT_EQ(result->edges.size(), static_cast<std::size_t>(1));
 }
 
-TEST(producer_importers, imports_mcucheck_results) {
+TEST(producer_importers, imports_mcucheck_results, "REQ-0039", "REQ-0051", "REQ-0087") {
     const mcutrace::ArtifactInput input{
         .path = "/tmp/check.json",
         .base_directory = "/work/project",
@@ -68,7 +68,7 @@ TEST(producer_importers, imports_mcucheck_results) {
     ASSERT_EQ(result->nodes[0].source->line, static_cast<std::uint32_t>(7));
 }
 
-TEST(producer_importers, rejects_unsupported_version) {
+TEST(producer_importers, rejects_unsupported_version, "REQ-0041", "REQ-0042") {
     const mcutrace::ArtifactInput input{
         .path = "coverage.json",
         .content = R"({"format":"mcucov-report","version":2,"modules":[]})",
@@ -78,7 +78,7 @@ TEST(producer_importers, rejects_unsupported_version) {
     ASSERT_EQ(result.error().code, mcutrace::ImportErrorCode::unsupported_version);
 }
 
-TEST(producer_importers, rejects_wrong_explicit_importer) {
+TEST(producer_importers, rejects_wrong_explicit_importer, "REQ-0034", "REQ-0035") {
     const mcutrace::ArtifactInput input{
         .path = "check.json",
         .content = R"({"format":"mcucheck-results","version":1,"diagnostics":[]})",
@@ -89,6 +89,6 @@ TEST(producer_importers, rejects_wrong_explicit_importer) {
 }
 
 int main(int argc, char* argv[]) {
-    mcutest::Runner<mcutest::StdoutOutput> runner;
+    mcutest::Runner<mcutest::JsonOutput> runner;
     return mcutest::run_with_gtest_compat(argc, argv, runner);
 }

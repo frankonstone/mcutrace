@@ -3,7 +3,7 @@
 
 #include <string>
 
-TEST(trace_import, imports_sidecar_relationships) {
+TEST(trace_import, imports_sidecar_relationships, "REQ-0079", "REQ-0081", "REQ-0032") {
     const mcutrace::ArtifactInput input{
         .path = "/tmp/links.json",
         .content = R"({"format":"mcutrace-links","version":1,"links":[{"source":"test:mcutest:math.adds","target":"REQ-0001","type":"verifies"},{"source":"source:/work/project/src/foo.cpp","target":"REQ-0001","type":"implements"},{"source":"finding:mcucheck:abc","target":"REQ-0002","type":"vendor-risk"}]})",
@@ -19,7 +19,7 @@ TEST(trace_import, imports_sidecar_relationships) {
     ASSERT_EQ(result->edges[2].type.name, std::string("vendor-risk"));
 }
 
-TEST(trace_import, imports_explicit_sidecar_nodes) {
+TEST(trace_import, imports_explicit_sidecar_nodes, "REQ-0081", "REQ-0084") {
     const mcutrace::ArtifactInput input{
         .path = "/tmp/build-links.json",
         .content = R"({"format":"mcutrace-links","version":1,"nodes":[{"id":"artifact:ci:macos","kind":"artifact","label":"macOS CI"}],"links":[{"source":"artifact:ci:macos","target":"REQ-0077","type":"verifies"}]})",
@@ -36,7 +36,7 @@ TEST(trace_import, imports_explicit_sidecar_nodes) {
     ASSERT_EQ(result->edges[0].target_id, std::string("REQ-0077"));
 }
 
-TEST(trace_import, canonicalizes_relative_source_sidecar_ids) {
+TEST(trace_import, canonicalizes_relative_source_sidecar_ids, "REQ-0043", "REQ-0044", "REQ-0081") {
     const mcutrace::ArtifactInput input{
         .path = "/work/project/dogfood/links.json",
         .base_directory = "/work/project",
@@ -53,7 +53,7 @@ TEST(trace_import, canonicalizes_relative_source_sidecar_ids) {
     ASSERT_EQ(result->edges[0].source_id, std::string("source:/work/project/src/foo.cpp"));
 }
 
-TEST(trace_import, augments_mcutest_requirement_links) {
+TEST(trace_import, augments_mcutest_requirement_links, "REQ-0037", "REQ-0079", "REQ-0080") {
     const mcutrace::ArtifactInput input{
         .path = "/tmp/tests.json",
         .content = R"({"format":"mcutest-results","version":1,"tests":[{"name":"math.adds","status":"passed","requirements":["REQ-0001","REQ-0002"]}]})",
@@ -67,7 +67,7 @@ TEST(trace_import, augments_mcutest_requirement_links) {
     ASSERT_EQ(result->edges[0].type.kind, mcutrace::RelationshipKind::verifies);
 }
 
-TEST(trace_import, augments_mcucov_requirement_links) {
+TEST(trace_import, augments_mcucov_requirement_links, "REQ-0038", "REQ-0079", "REQ-0080") {
     const mcutrace::ArtifactInput input{
         .path = "/tmp/coverage.json",
         .base_directory = "/work/project",
@@ -83,7 +83,7 @@ TEST(trace_import, augments_mcucov_requirement_links) {
     ASSERT_EQ(result->edges[2].type.kind, mcutrace::RelationshipKind::implements);
 }
 
-TEST(trace_import, augments_mcucheck_requirement_links_and_preserves_state) {
+TEST(trace_import, augments_mcucheck_requirement_links_and_preserves_state, "REQ-0039", "REQ-0079", "REQ-0080", "REQ-0087") {
     const mcutrace::ArtifactInput input{
         .path = "/tmp/check.json",
         .base_directory = "/work/project",
@@ -101,7 +101,7 @@ TEST(trace_import, augments_mcucheck_requirement_links_and_preserves_state) {
     ASSERT_EQ(result->edges[1].type.kind, mcutrace::RelationshipKind::reports);
 }
 
-TEST(trace_import, diagnoses_invalid_requirement_reference) {
+TEST(trace_import, diagnoses_invalid_requirement_reference, "REQ-0080") {
     const mcutrace::ArtifactInput input{
         .path = "/tmp/tests.json",
         .content = R"({"format":"mcutest-results","version":1,"tests":[{"name":"math.adds","status":"passed","requirements":["REQ-1"]}]})",
@@ -115,6 +115,6 @@ TEST(trace_import, diagnoses_invalid_requirement_reference) {
 }
 
 int main(int argc, char* argv[]) {
-    mcutest::Runner<mcutest::StdoutOutput> runner;
+    mcutest::Runner<mcutest::JsonOutput> runner;
     return mcutest::run_with_gtest_compat(argc, argv, runner);
 }

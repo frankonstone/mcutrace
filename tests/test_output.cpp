@@ -24,7 +24,7 @@ mcutrace::TraceResult sample_trace() {
 
 }  // namespace
 
-TEST(output, builds_summary_and_untraced_requirements) {
+TEST(output, builds_summary_and_untraced_requirements, "REQ-0059", "REQ-0060") {
     const auto trace = sample_trace();
     mcutrace::ValidationResult validation;
     validation.diagnostics.push_back({
@@ -48,7 +48,7 @@ TEST(output, builds_summary_and_untraced_requirements) {
     ASSERT_EQ(report.untraced_requirements[0], std::string("REQ-0002"));
 }
 
-TEST(output, renders_deterministic_versioned_json) {
+TEST(output, renders_deterministic_versioned_json, "REQ-0005", "REQ-0055", "REQ-0057", "REQ-0061") {
     const auto trace = sample_trace();
     const mcutrace::ValidationResult validation;
 
@@ -62,7 +62,7 @@ TEST(output, renders_deterministic_versioned_json) {
     ASSERT_NE(first->find("\"untraced_requirements\":[\"REQ-0002\"]"), std::string::npos);
 }
 
-TEST(output, renders_finding_state_in_json) {
+TEST(output, renders_finding_state_in_json, "REQ-0055", "REQ-0087") {
     mcutrace::TraceResult trace;
     ASSERT_TRUE(trace.graph.add_node(mcutrace::Node{
         .id = "finding:mcucheck:abc",
@@ -80,7 +80,7 @@ TEST(output, renders_finding_state_in_json) {
     ASSERT_NE(json->find("\"finding_state\":\"informational\""), std::string::npos);
 }
 
-TEST(output, renders_human_readable_summary) {
+TEST(output, renders_human_readable_summary, "REQ-0056", "REQ-0059", "REQ-0060") {
     const auto trace = sample_trace();
     const mcutrace::ValidationResult validation;
     const auto text = mcutrace::render_text_report(trace, validation);
@@ -90,6 +90,6 @@ TEST(output, renders_human_readable_summary) {
 }
 
 int main(int argc, char* argv[]) {
-    mcutest::Runner<mcutest::StdoutOutput> runner;
+    mcutest::Runner<mcutest::JsonOutput> runner;
     return mcutest::run_with_gtest_compat(argc, argv, runner);
 }
