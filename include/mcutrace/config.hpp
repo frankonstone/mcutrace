@@ -22,6 +22,7 @@ struct ArtifactConfig final {
 struct ProjectConfig final {
     std::string root;
     std::vector<std::string> requirement_files;
+    std::vector<std::string> source_files;
     std::vector<ArtifactConfig> artifacts;
     ValidationPolicy validation;
 };
