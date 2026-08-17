@@ -2,7 +2,7 @@ name: Dogfood
 
 on:
   pull_request:
-    branches: [main]
+    branches: [main, agent/dogfood-self-trace]
   workflow_dispatch:
 
 permissions:
