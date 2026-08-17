@@ -1,3 +1,4 @@
+// @req-file REQ-0045 REQ-0047 REQ-0048 REQ-0049 REQ-0050 REQ-0051 REQ-0052 REQ-0053 REQ-0054 REQ-0088
 #include <mcutrace/validation.hpp>
 
 #include <algorithm>
@@ -55,6 +56,12 @@ bool expects(const Node& node, EvidenceExpectation expectation) {
                               evidence_mask(EvidenceExpectation::implementation);
     const auto mask = node.expected_evidence.value_or(default_mask);
     return (mask & evidence_mask(expectation)) != 0;
+}
+
+bool is_header_source(const Node& node) noexcept {
+    const std::string_view id = node.id;
+    return id.ends_with(".h") || id.ends_with(".hh") || id.ends_with(".hpp") ||
+           id.ends_with(".hxx");
 }
 
 void append_diagnostic(std::vector<Diagnostic>& diagnostics, std::string code, Severity severity,
@@ -138,7 +145,8 @@ void validate_source(const Graph& graph,
                      const Node& node,
                      const ValidationPolicy& policy,
                      std::vector<Diagnostic>& diagnostics) {
-    if (!policy.missing_coverage.enabled || connected_to_kind(graph, node.id, NodeKind::coverage)) {
+    if (!policy.missing_coverage.enabled || is_header_source(node) ||
+        connected_to_kind(graph, node.id, NodeKind::coverage)) {
         return;
     }
     append_diagnostic(diagnostics, "validation.missing_coverage_evidence",

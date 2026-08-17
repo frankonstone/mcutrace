@@ -69,7 +69,7 @@ TEST(importer, normalizes_relative_paths_deterministically, "REQ-0043", "REQ-004
     ASSERT_EQ(*path, std::string("/project/out/result.json"));
 }
 
-TEST(importer, rejects_empty_artifact_paths, "REQ-0035", "REQ-0043") {
+TEST(importer, rejects_empty_artifact_paths, "REQ-0035", "REQ-0043", "REQ-0071") {
     const auto path = mcutrace::normalize_artifact_path("");
     ASSERT_FALSE(path.has_value());
     ASSERT_EQ(path.error().code, mcutrace::ImportErrorCode::invalid_artifact);
@@ -85,6 +85,20 @@ TEST(importer, reports_unsupported_versions_explicitly, "REQ-0041", "REQ-0042") 
     const auto result = mcutrace::require_supported_version(importer.info(), format);
     ASSERT_FALSE(result.has_value());
     ASSERT_EQ(result.error().code, mcutrace::ImportErrorCode::unsupported_version);
+}
+
+TEST(importer, ingests_external_json_artifacts, "REQ-0002", "REQ-0033", "REQ-0034") {
+    const ExampleImporter importer;
+    const mcutrace::ArtifactInput input{
+        .path = "result.json",
+        .base_directory = "/project/out",
+        .content = "{\"producer\":\"example\",\"version\":\"1\"}",
+    };
+    const auto result = importer.import(input);
+    ASSERT_TRUE(result.has_value());
+    ASSERT_EQ(result->format.schema, std::string("example-result"));
+    ASSERT_EQ(result->artifacts.size(), static_cast<std::size_t>(1));
+    ASSERT_EQ(result->artifacts.front().payload, input.content);
 }
 
 TEST(importer, keeps_partial_entry_failures_as_diagnostics, "REQ-0035", "REQ-0036", "REQ-0058") {

@@ -1,3 +1,4 @@
+// @req-file REQ-0004 REQ-0054 REQ-0062 REQ-0065
 #include <mcutrace/config.hpp>
 
 #include <filesystem>
@@ -47,6 +48,54 @@ ConfigError config_error(ConfigErrorCode code, std::string detail) {
     return ConfigError{.code = code, .detail = std::move(detail), .source = std::nullopt};
 }
 
+ConfigError rule_error(ConfigErrorCode code,
+                       std::string detail,
+                       std::string_view config_path) {
+    return ConfigError{
+        .code = code,
+        .detail = std::move(detail),
+        .source = SourceLocation{.path = std::string(config_path), .line = 0, .column = 0},
+    };
+}
+
+std::expected<void, ConfigError> read_rule_enabled(const mcutoml::TomlRef node,
+                                                   ValidationRule& rule,
+                                                   std::string_view config_path) {
+    const auto enabled = node["enabled"];
+    if (!enabled.valid()) {
+        return {};
+    }
+    if (!enabled.is_bool()) {
+        return std::unexpected(rule_error(ConfigErrorCode::invalid_type,
+                                          "validation rule enabled must be boolean",
+                                          config_path));
+    }
+    rule.enabled = enabled.get<bool>();
+    return {};
+}
+
+std::expected<void, ConfigError> read_rule_severity(const mcutoml::TomlRef node,
+                                                    ValidationRule& rule,
+                                                    std::string_view config_path) {
+    const auto severity = node["severity"];
+    if (!severity.valid()) {
+        return {};
+    }
+    if (!severity.is_string()) {
+        return std::unexpected(rule_error(ConfigErrorCode::invalid_type,
+                                          "validation rule severity must be a string",
+                                          config_path));
+    }
+    const auto parsed = parse_severity(severity.get<std::string_view>());
+    if (!parsed) {
+        return std::unexpected(rule_error(ConfigErrorCode::invalid_value,
+                                          "validation severity must be note, warning, or error",
+                                          config_path));
+    }
+    rule.severity = *parsed;
+    return {};
+}
+
 std::expected<void, ConfigError> read_rule(const mcutoml::TomlRef table,
                                            std::string_view name,
                                            ValidationRule& rule,
@@ -56,43 +105,14 @@ std::expected<void, ConfigError> read_rule(const mcutoml::TomlRef table,
         return {};
     }
     if (!node.is_table()) {
-        return std::unexpected(ConfigError{
-            .code = ConfigErrorCode::invalid_type,
-            .detail = "validation rule '" + std::string(name) + "' must be a table",
-            .source = SourceLocation{.path = std::string(config_path), .line = 0, .column = 0},
-        });
+        return std::unexpected(rule_error(ConfigErrorCode::invalid_type,
+                                          "validation rule '" + std::string(name) + "' must be a table",
+                                          config_path));
     }
-    const auto enabled = node["enabled"];
-    if (enabled.valid()) {
-        if (!enabled.is_bool()) {
-            return std::unexpected(ConfigError{
-                .code = ConfigErrorCode::invalid_type,
-                .detail = "validation rule enabled must be boolean",
-                .source = SourceLocation{.path = std::string(config_path), .line = 0, .column = 0},
-            });
-        }
-        rule.enabled = enabled.get<bool>();
+    if (auto status = read_rule_enabled(node, rule, config_path); !status) {
+        return std::unexpected(status.error());
     }
-    const auto severity = node["severity"];
-    if (severity.valid()) {
-        if (!severity.is_string()) {
-            return std::unexpected(ConfigError{
-                .code = ConfigErrorCode::invalid_type,
-                .detail = "validation rule severity must be a string",
-                .source = SourceLocation{.path = std::string(config_path), .line = 0, .column = 0},
-            });
-        }
-        const auto parsed = parse_severity(severity.get<std::string_view>());
-        if (!parsed) {
-            return std::unexpected(ConfigError{
-                .code = ConfigErrorCode::invalid_value,
-                .detail = "validation severity must be note, warning, or error",
-                .source = SourceLocation{.path = std::string(config_path), .line = 0, .column = 0},
-            });
-        }
-        rule.severity = *parsed;
-    }
-    return {};
+    return read_rule_severity(node, rule, config_path);
 }
 
 std::expected<void, ConfigError> read_path_array(const mcutoml::TomlRef values,

@@ -1,10 +1,10 @@
+// @req-file REQ-0089 REQ-0090 REQ-0091 REQ-0092 REQ-0093
 #include <mcutrace/source_annotations.hpp>
 
 #include <mcutrace/requirements.hpp>
 
 #include <algorithm>
 #include <cctype>
-#include <cstdint>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -24,6 +24,17 @@ struct DeclarationContext final {
     std::string symbol;
 };
 
+struct AnnotationTarget final {
+    std::uint32_t line = 0;
+    std::string scope;
+    std::string symbol;
+};
+
+struct ScannerState final {
+    std::optional<PendingAnnotation> pending;
+    std::string declaration;
+};
+
 std::string_view trim(std::string_view value) noexcept {
     while (!value.empty() && std::isspace(static_cast<unsigned char>(value.front())) != 0) {
         value.remove_prefix(1);
@@ -38,10 +49,8 @@ bool marker_is_in_comment(std::string_view line, std::size_t marker) noexcept {
     const auto prefix = line.substr(0, marker);
     const auto line_comment = prefix.rfind("//");
     const auto block_comment = prefix.rfind("/*");
-    if (line_comment != std::string_view::npos || block_comment != std::string_view::npos) {
-        return true;
-    }
-    return trim(prefix).starts_with('*');
+    return line_comment != std::string_view::npos || block_comment != std::string_view::npos ||
+           trim(prefix).starts_with('*');
 }
 
 std::string clean_token(std::string_view token) {
@@ -52,39 +61,44 @@ std::string clean_token(std::string_view token) {
     return std::string(token);
 }
 
+void append_invalid_requirement(ImportFragment& fragment,
+                                const ArtifactInput& input,
+                                std::uint32_t line,
+                                const std::string& token) {
+    fragment.diagnostics.push_back(Diagnostic{
+        .code = "source.annotation.invalid_requirement",
+        .severity = Severity::warning,
+        .message = "ignored malformed source requirement reference: " + token,
+        .source = SourceLocation{.path = input.path, .line = line},
+    });
+}
+
 std::vector<std::string> parse_requirement_ids(std::string_view text,
                                                ImportFragment& fragment,
                                                const ArtifactInput& input,
                                                std::uint32_t line) {
     std::vector<std::string> result;
-    while (!text.empty()) {
+    while (true) {
         text = trim(text);
         if (text.empty()) {
-            break;
+            return result;
         }
         const auto end = text.find_first_of(" \t\r\n");
         const auto raw = end == std::string_view::npos ? text : text.substr(0, end);
         const std::string token = clean_token(raw);
-        if (token.starts_with("REQ-")) {
-            if (is_requirement_id(token)) {
-                result.push_back(token);
-            } else {
-                fragment.diagnostics.push_back(Diagnostic{
-                    .code = "source.annotation.invalid_requirement",
-                    .severity = Severity::warning,
-                    .message = "ignored malformed source requirement reference: " + token,
-                    .source = SourceLocation{.path = input.path, .line = line},
-                });
-            }
+        if (!token.starts_with("REQ-")) {
+            return result;
+        }
+        if (is_requirement_id(token)) {
+            result.push_back(token);
         } else {
-            break;
+            append_invalid_requirement(fragment, input, line, token);
         }
         if (end == std::string_view::npos) {
-            break;
+            return result;
         }
         text.remove_prefix(end + 1);
     }
-    return result;
 }
 
 std::optional<PendingAnnotation> parse_marker(std::string_view line,
@@ -97,7 +111,7 @@ std::optional<PendingAnnotation> parse_marker(std::string_view line,
         return std::nullopt;
     }
     auto requirements = parse_requirement_ids(line.substr(position + marker.size()), fragment,
-                                              input, line_number);
+                                               input, line_number);
     if (requirements.empty()) {
         fragment.diagnostics.push_back(Diagnostic{
             .code = "source.annotation.missing_requirement",
@@ -124,45 +138,51 @@ std::string_view identifier_before(std::string_view value, std::size_t before) n
     return value.substr(before, end - before);
 }
 
-std::optional<DeclarationContext> declaration_context(std::string_view declaration) {
-    declaration = trim(declaration);
-    for (const auto keyword : {std::string_view("class "), std::string_view("struct ")}) {
-        if (declaration.starts_with(keyword)) {
-            auto rest = trim(declaration.substr(keyword.size()));
-            const auto end = rest.find_first_of(" :{;\t\r\n");
-            const auto name = end == std::string_view::npos ? rest : rest.substr(0, end);
-            if (!name.empty()) {
-                return DeclarationContext{
-                    .kind = keyword.starts_with("class") ? "class" : "struct",
-                    .symbol = std::string(name),
-                };
-            }
-        }
+std::optional<DeclarationContext> named_type_context(std::string_view declaration,
+                                                     std::string_view keyword,
+                                                     std::string_view kind) {
+    if (!declaration.starts_with(keyword)) {
+        return std::nullopt;
     }
-    if (declaration.starts_with("enum ")) {
-        auto rest = trim(declaration.substr(5));
-        if (rest.starts_with("class ")) {
-            rest = trim(rest.substr(6));
-        } else if (rest.starts_with("struct ")) {
-            rest = trim(rest.substr(7));
-        }
-        const auto end = rest.find_first_of(" :{;\t\r\n");
-        const auto name = end == std::string_view::npos ? rest : rest.substr(0, end);
-        if (!name.empty()) {
-            return DeclarationContext{.kind = "enum", .symbol = std::string(name)};
-        }
+    auto rest = trim(declaration.substr(keyword.size()));
+    const auto end = rest.find_first_of(" :{;\t\r\n");
+    const auto name = end == std::string_view::npos ? rest : rest.substr(0, end);
+    if (name.empty()) {
+        return std::nullopt;
     }
+    return DeclarationContext{.kind = std::string(kind), .symbol = std::string(name)};
+}
 
+std::optional<DeclarationContext> enum_context(std::string_view declaration) {
+    if (!declaration.starts_with("enum ")) {
+        return std::nullopt;
+    }
+    auto rest = trim(declaration.substr(5));
+    if (rest.starts_with("class ")) {
+        rest = trim(rest.substr(6));
+    } else if (rest.starts_with("struct ")) {
+        rest = trim(rest.substr(7));
+    }
+    const auto end = rest.find_first_of(" :{;\t\r\n");
+    const auto name = end == std::string_view::npos ? rest : rest.substr(0, end);
+    if (name.empty()) {
+        return std::nullopt;
+    }
+    return DeclarationContext{.kind = "enum", .symbol = std::string(name)};
+}
+
+bool is_control_keyword(std::string_view symbol) noexcept {
+    return symbol == "if" || symbol == "for" || symbol == "while" || symbol == "switch" ||
+           symbol == "catch" || symbol == "return" || symbol == "sizeof" || symbol == "alignof";
+}
+
+std::optional<DeclarationContext> callable_context(std::string_view declaration) {
     const auto open = declaration.find('(');
     if (open == std::string_view::npos) {
         return std::nullopt;
     }
     const auto symbol = identifier_before(declaration, open);
-    if (symbol.empty()) {
-        return std::nullopt;
-    }
-    if (symbol == "if" || symbol == "for" || symbol == "while" || symbol == "switch" ||
-        symbol == "catch" || symbol == "return" || symbol == "sizeof" || symbol == "alignof") {
+    if (symbol.empty() || is_control_keyword(symbol)) {
         return std::nullopt;
     }
     return DeclarationContext{
@@ -171,13 +191,25 @@ std::optional<DeclarationContext> declaration_context(std::string_view declarati
     };
 }
 
+std::optional<DeclarationContext> declaration_context(std::string_view declaration) {
+    declaration = trim(declaration);
+    if (auto context = named_type_context(declaration, "class ", "class")) {
+        return context;
+    }
+    if (auto context = named_type_context(declaration, "struct ", "struct")) {
+        return context;
+    }
+    if (auto context = enum_context(declaration)) {
+        return context;
+    }
+    return callable_context(declaration);
+}
+
 void append_edge(ImportFragment& fragment,
                  const ArtifactInput& input,
                  std::string_view source_id,
                  std::string requirement,
-                 std::uint32_t line,
-                 std::string scope,
-                 std::string symbol = {}) {
+                 const AnnotationTarget& target) {
     fragment.edges.push_back(Edge{
         .source_id = std::string(source_id),
         .target_id = std::move(requirement),
@@ -185,31 +217,21 @@ void append_edge(ImportFragment& fragment,
         .provenance = Provenance{
             .importer = "source-annotations",
             .artifact = input.path,
-            .source = SourceLocation{.path = input.path, .line = line},
-            .scope = std::move(scope),
-            .symbol = std::move(symbol),
+            .source = SourceLocation{.path = input.path, .line = target.line},
+            .scope = target.scope,
+            .symbol = target.symbol,
         },
-        .source = SourceLocation{.path = input.path, .line = line},
+        .source = SourceLocation{.path = input.path, .line = target.line},
     });
 }
 
-void append_file_annotation(ImportFragment& fragment,
-                            const ArtifactInput& input,
-                            std::string_view source_id,
-                            const PendingAnnotation& annotation) {
+void append_annotation(ImportFragment& fragment,
+                       const ArtifactInput& input,
+                       std::string_view source_id,
+                       const PendingAnnotation& annotation,
+                       const AnnotationTarget& target) {
     for (const auto& requirement : annotation.requirements) {
-        append_edge(fragment, input, source_id, requirement, annotation.line, "file");
-    }
-}
-
-void append_declaration_annotation(ImportFragment& fragment,
-                                   const ArtifactInput& input,
-                                   std::string_view source_id,
-                                   const PendingAnnotation& annotation,
-                                   const DeclarationContext& context) {
-    for (const auto& requirement : annotation.requirements) {
-        append_edge(fragment, input, source_id, requirement, annotation.line,
-                    context.kind, context.symbol);
+        append_edge(fragment, input, source_id, requirement, target);
     }
 }
 
@@ -218,6 +240,83 @@ bool ignorable_between_annotation_and_declaration(std::string_view line) noexcep
     return line.empty() || line.starts_with("//") || line.starts_with("/*") ||
            line.starts_with('*') || line.starts_with("*/") || line.starts_with("template") ||
            line.starts_with("[[");
+}
+
+bool declaration_complete(std::string_view declaration) noexcept {
+    return declaration.find('{') != std::string_view::npos ||
+           declaration.find(';') != std::string_view::npos;
+}
+
+void append_declaration_piece(ScannerState& state, std::string_view line) {
+    const auto piece = trim(line);
+    if (piece.empty() || piece.starts_with("//") || piece.starts_with("/*") ||
+        piece.starts_with('*') || piece.starts_with("*/")) {
+        return;
+    }
+    state.declaration += std::string(piece);
+    state.declaration += ' ';
+}
+
+bool handle_marker_line(std::string_view line,
+                        std::uint32_t line_number,
+                        ImportFragment& fragment,
+                        const ArtifactInput& input,
+                        std::string_view source_id,
+                        ScannerState& state) {
+    if (const auto file = parse_marker(line, "@req-file", fragment, input, line_number)) {
+        append_annotation(fragment, input, source_id, *file,
+                          AnnotationTarget{.line = file->line, .scope = "file"});
+        return true;
+    }
+    const auto local = parse_marker(line, "@req", fragment, input, line_number);
+    if (!local) {
+        return false;
+    }
+    if (state.pending && !state.pending->requirements.empty()) {
+        state.pending->requirements.insert(state.pending->requirements.end(),
+                                           local->requirements.begin(), local->requirements.end());
+    } else {
+        state.pending = *local;
+    }
+    return true;
+}
+
+void complete_pending_declaration(ImportFragment& fragment,
+                                  const ArtifactInput& input,
+                                  std::string_view source_id,
+                                  ScannerState& state) {
+    const auto context = declaration_context(state.declaration);
+    if (context) {
+        append_annotation(fragment, input, source_id, *state.pending,
+                          AnnotationTarget{.line = state.pending->line,
+                                           .scope = context->kind,
+                                           .symbol = context->symbol});
+    } else {
+        fragment.diagnostics.push_back(Diagnostic{
+            .code = "source.annotation.unsupported_target",
+            .severity = Severity::warning,
+            .message = "@req must immediately precede a supported class, struct, enum, function, or method declaration",
+            .source = SourceLocation{.path = input.path, .line = state.pending->line},
+        });
+    }
+    state.pending.reset();
+    state.declaration.clear();
+}
+
+void handle_pending_line(std::string_view line,
+                         ImportFragment& fragment,
+                         const ArtifactInput& input,
+                         std::string_view source_id,
+                         ScannerState& state) {
+    if (!state.pending) {
+        return;
+    }
+    if (!ignorable_between_annotation_and_declaration(line) || !trim(line).empty()) {
+        append_declaration_piece(state, line);
+    }
+    if (!state.declaration.empty() && declaration_complete(state.declaration)) {
+        complete_pending_declaration(fragment, input, source_id, state);
+    }
 }
 
 }  // namespace
@@ -241,11 +340,13 @@ import_source_annotations(const ArtifactInput& input) {
         .id = source_id,
         .kind = NodeKind::source,
         .label = *normalized,
+        .evidence_state = EvidenceState::unknown,
+        .finding_state = {},
         .source = SourceLocation{.path = *normalized},
+        .expected_evidence = std::nullopt,
     });
 
-    std::optional<PendingAnnotation> pending;
-    std::string declaration;
+    ScannerState state;
     std::uint32_t line_number = 0;
     std::size_t offset = 0;
     while (offset <= input.content.size()) {
@@ -254,43 +355,8 @@ import_source_annotations(const ArtifactInput& input) {
         const auto line = std::string_view(input.content).substr(
             offset, end == std::string::npos ? std::string::npos : end - offset);
 
-        if (const auto file = parse_marker(line, "@req-file", fragment, input, line_number)) {
-            append_file_annotation(fragment, input, source_id, *file);
-        } else if (const auto local = parse_marker(line, "@req", fragment, input, line_number)) {
-            if (pending && !pending->requirements.empty()) {
-                pending->requirements.insert(pending->requirements.end(),
-                                             local->requirements.begin(), local->requirements.end());
-            } else {
-                pending = *local;
-            }
-        } else if (pending) {
-            if (ignorable_between_annotation_and_declaration(line)) {
-                if (!trim(line).empty() && !trim(line).starts_with("//") &&
-                    !trim(line).starts_with("/*") && !trim(line).starts_with('*') &&
-                    !trim(line).starts_with("*/")) {
-                    declaration += std::string(trim(line));
-                    declaration += ' ';
-                }
-            } else {
-                declaration += std::string(trim(line));
-                declaration += ' ';
-            }
-
-            if (!declaration.empty() && (declaration.find('{') != std::string::npos ||
-                                         declaration.find(';') != std::string::npos)) {
-                if (const auto context = declaration_context(declaration)) {
-                    append_declaration_annotation(fragment, input, source_id, *pending, *context);
-                } else {
-                    fragment.diagnostics.push_back(Diagnostic{
-                        .code = "source.annotation.unsupported_target",
-                        .severity = Severity::warning,
-                        .message = "@req must immediately precede a supported class, struct, enum, function, or method declaration",
-                        .source = SourceLocation{.path = input.path, .line = pending->line},
-                    });
-                }
-                pending.reset();
-                declaration.clear();
-            }
+        if (!handle_marker_line(line, line_number, fragment, input, source_id, state)) {
+            handle_pending_line(line, fragment, input, source_id, state);
         }
 
         if (end == std::string::npos) {
@@ -299,12 +365,12 @@ import_source_annotations(const ArtifactInput& input) {
         offset = end + 1;
     }
 
-    if (pending) {
+    if (state.pending) {
         fragment.diagnostics.push_back(Diagnostic{
             .code = "source.annotation.missing_target",
             .severity = Severity::warning,
             .message = "@req has no following supported declaration",
-            .source = SourceLocation{.path = input.path, .line = pending->line},
+            .source = SourceLocation{.path = input.path, .line = state.pending->line},
         });
     }
     return fragment;

@@ -37,6 +37,34 @@ TEST(source_annotations, binds_to_class, "REQ-0089", "REQ-0091", "REQ-0092") {
     ASSERT_EQ(result->edges[0].source->line, static_cast<std::uint32_t>(1));
 }
 
+TEST(source_annotations, binds_to_struct, "REQ-0091", "REQ-0092") {
+    const mcutrace::ArtifactInput input{
+        .path = "/work/project/include/widget.hpp",
+        .base_directory = "/work/project",
+        .content = "// @req REQ-0003\nstruct WidgetData {\n};\n",
+    };
+
+    const auto result = mcutrace::import_source_annotations(input);
+    ASSERT_TRUE(result.has_value());
+    ASSERT_EQ(result->edges.size(), static_cast<std::size_t>(1));
+    ASSERT_EQ(result->edges[0].provenance.scope, std::string("struct"));
+    ASSERT_EQ(result->edges[0].provenance.symbol, std::string("WidgetData"));
+}
+
+TEST(source_annotations, binds_to_enum, "REQ-0091", "REQ-0092") {
+    const mcutrace::ArtifactInput input{
+        .path = "/work/project/include/widget.hpp",
+        .base_directory = "/work/project",
+        .content = "// @req REQ-0003\nenum class WidgetState { idle, running };\n",
+    };
+
+    const auto result = mcutrace::import_source_annotations(input);
+    ASSERT_TRUE(result.has_value());
+    ASSERT_EQ(result->edges.size(), static_cast<std::size_t>(1));
+    ASSERT_EQ(result->edges[0].provenance.scope, std::string("enum"));
+    ASSERT_EQ(result->edges[0].provenance.symbol, std::string("WidgetState"));
+}
+
 TEST(source_annotations, binds_to_method_definition, "REQ-0089", "REQ-0091", "REQ-0092") {
     const mcutrace::ArtifactInput input{
         .path = "/work/project/src/widget.cpp",

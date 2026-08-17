@@ -14,3 +14,6 @@ mcutrace shall preserve a producer-reported static-analysis finding state and ex
 
 ### REQ-0088 State-aware static-analysis validation
 mcutrace shall treat active or incomplete static-analysis states such as `violation`, `unavailable`, `failed`, and `limited` as actionable findings, while retaining but not reporting `informational`, `suppressed`, `deviated`, and `baselined` findings as active validation warnings.
+
+### REQ-0094 Clean static analysis @evidence(build)
+The mcutrace project shall produce no active mcucheck violations under the configured project ruleset in its dogfood CI workflow.

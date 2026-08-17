@@ -1,9 +1,9 @@
+// @req-file REQ-0001 REQ-0005 REQ-0013 REQ-0019 REQ-0020 REQ-0027 REQ-0029 REQ-0031 REQ-0046
 #include <mcutrace/assembly.hpp>
 
 #include <algorithm>
 #include <string_view>
 #include <tuple>
-#include <utility>
 
 namespace mcutrace {
 namespace {
