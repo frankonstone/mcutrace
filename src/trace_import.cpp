@@ -1,3 +1,4 @@
+// @req-file REQ-0002 REQ-0003 REQ-0033 REQ-0040 REQ-0079 REQ-0080 REQ-0081 REQ-0082 REQ-0083 REQ-0087
 #include <mcutrace/trace_import.hpp>
 
 #include <mcutrace/producer_importers.hpp>
@@ -5,7 +6,6 @@
 
 #include <algorithm>
 #include <cstddef>
-#include <cstdint>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -35,43 +35,21 @@ std::expected<mcujson::Json, ImportError> parse_json(const ArtifactInput& input)
 }
 
 RelationshipType relationship_type(std::string_view name) {
-    if (name == "satisfies") {
-        return RelationshipType::known(RelationshipKind::satisfies);
-    }
-    if (name == "verifies") {
-        return RelationshipType::known(RelationshipKind::verifies);
-    }
-    if (name == "implements") {
-        return RelationshipType::known(RelationshipKind::implements);
-    }
-    if (name == "covers") {
-        return RelationshipType::known(RelationshipKind::covers);
-    }
-    if (name == "reports") {
-        return RelationshipType::known(RelationshipKind::reports);
-    }
-    if (name == "relates") {
-        return RelationshipType::known(RelationshipKind::relates);
-    }
+    if (name == "satisfies") return RelationshipType::known(RelationshipKind::satisfies);
+    if (name == "verifies") return RelationshipType::known(RelationshipKind::verifies);
+    if (name == "implements") return RelationshipType::known(RelationshipKind::implements);
+    if (name == "covers") return RelationshipType::known(RelationshipKind::covers);
+    if (name == "reports") return RelationshipType::known(RelationshipKind::reports);
+    if (name == "relates") return RelationshipType::known(RelationshipKind::relates);
     return RelationshipType::custom(std::string(name));
 }
 
 std::optional<NodeKind> node_kind(std::string_view name) {
-    if (name == "source") {
-        return NodeKind::source;
-    }
-    if (name == "test") {
-        return NodeKind::test;
-    }
-    if (name == "coverage") {
-        return NodeKind::coverage;
-    }
-    if (name == "finding") {
-        return NodeKind::finding;
-    }
-    if (name == "artifact") {
-        return NodeKind::artifact;
-    }
+    if (name == "source") return NodeKind::source;
+    if (name == "test") return NodeKind::test;
+    if (name == "coverage") return NodeKind::coverage;
+    if (name == "finding") return NodeKind::finding;
+    if (name == "artifact") return NodeKind::artifact;
     return std::nullopt;
 }
 
