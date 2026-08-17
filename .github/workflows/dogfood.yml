@@ -234,38 +234,70 @@ jobs:
       - name: Run self trace
         shell: bash
         run: |
+          build_evidence="${RUNNER_TEMP}/mcutrace-build-evidence.json"
+          cat > "${build_evidence}" <<'JSON'
+          {
+            "format": "mcutrace-links",
+            "version": 1,
+            "nodes": [
+              {"id":"artifact:build:cmake","kind":"artifact","label":"CMake host build configuration"},
+              {"id":"artifact:ci:macos","kind":"artifact","label":"macOS GitHub Actions CI"},
+              {"id":"artifact:deps:mcujson","kind":"artifact","label":"mcujson build dependency"}
+            ],
+            "links": [
+              {"source":"artifact:deps:mcujson","target":"REQ-0063","type":"verifies"},
+              {"source":"artifact:build:cmake","target":"REQ-0069","type":"verifies"},
+              {"source":"artifact:build:cmake","target":"REQ-0070","type":"verifies"},
+              {"source":"artifact:build:cmake","target":"REQ-0072","type":"verifies"},
+              {"source":"artifact:build:cmake","target":"REQ-0073","type":"verifies"},
+              {"source":"artifact:build:cmake","target":"REQ-0074","type":"verifies"},
+              {"source":"artifact:build:cmake","target":"REQ-0075","type":"verifies"},
+              {"source":"artifact:build:cmake","target":"REQ-0076","type":"verifies"},
+              {"source":"artifact:ci:macos","target":"REQ-0077","type":"verifies"},
+              {"source":"artifact:ci:macos","target":"REQ-0094","type":"verifies"}
+            ]
+          }
+          JSON
+
+          sources=(
+            --source src/assembly.cpp
+            --source src/importer.cpp
+            --source src/model.cpp
+            --source src/trace_import.cpp
+            --source include/mcutrace/source_annotations.hpp
+            --source include/mcutrace/config.hpp
+            --source include/mcutrace/cli.hpp
+            --source include/mcutrace/requirements.hpp
+            --source include/mcutrace/producer_importers.hpp
+            --source include/mcutrace/validation.hpp
+            --source include/mcutrace/output.hpp
+          )
+          requirements=(
+            -r docs/requirements.md
+            -r docs/requirements-links.md
+            -r docs/requirements-hardening.md
+            -r docs/requirements-evidence.md
+            -r docs/requirements-source-annotations.md
+          )
+          artifacts=(
+            -a dogfood/tests.json
+            -a "${build_evidence}"
+            -a dogfood/coverage.json
+            -a dogfood/mcucheck.json
+          )
+
           set +e
           ./build/mcutrace validate \
-            -r docs/requirements.md \
-            -r docs/requirements-links.md \
-            -r docs/requirements-hardening.md \
-            -r docs/requirements-evidence.md \
-            -r docs/requirements-source-annotations.md \
-            --source include/mcutrace/source_annotations.hpp \
-            --source include/mcutrace/config.hpp \
-            --source include/mcutrace/cli.hpp \
-            -a dogfood/tests.json \
-            -a dogfood/build-evidence.json \
-            -a dogfood/implementation-evidence.json \
-            -a dogfood/coverage.json \
-            -a dogfood/mcucheck.json \
+            "${requirements[@]}" \
+            "${sources[@]}" \
+            "${artifacts[@]}" \
             --format text > dogfood/report.txt 2> dogfood/diagnostics.txt
           rc=$?
 
           ./build/mcutrace validate \
-            -r docs/requirements.md \
-            -r docs/requirements-links.md \
-            -r docs/requirements-hardening.md \
-            -r docs/requirements-evidence.md \
-            -r docs/requirements-source-annotations.md \
-            --source include/mcutrace/source_annotations.hpp \
-            --source include/mcutrace/config.hpp \
-            --source include/mcutrace/cli.hpp \
-            -a dogfood/tests.json \
-            -a dogfood/build-evidence.json \
-            -a dogfood/implementation-evidence.json \
-            -a dogfood/coverage.json \
-            -a dogfood/mcucheck.json \
+            "${requirements[@]}" \
+            "${sources[@]}" \
+            "${artifacts[@]}" \
             --format json > dogfood/report.json 2>> dogfood/diagnostics.txt
           json_rc=$?
 
