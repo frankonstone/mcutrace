@@ -38,6 +38,18 @@ bool has_any_link(const Graph& graph, std::string_view id) {
     });
 }
 
+bool finding_is_actionable(std::string_view state) noexcept {
+    if (state.empty() || state == "violation" || state == "unavailable" ||
+        state == "failed" || state == "limited") {
+        return true;
+    }
+    if (state == "informational" || state == "suppressed" || state == "deviated" ||
+        state == "baselined") {
+        return false;
+    }
+    return true;
+}
+
 bool expects(const Node& node, EvidenceExpectation expectation) {
     const auto default_mask = evidence_mask(EvidenceExpectation::test) |
                               evidence_mask(EvidenceExpectation::implementation);
@@ -148,7 +160,8 @@ void validate_finding(const Graph& graph,
                       const Node& node,
                       const ValidationPolicy& policy,
                       std::vector<Diagnostic>& diagnostics) {
-    if (!policy.static_finding.enabled || !has_any_link(graph, node.id)) {
+    if (!policy.static_finding.enabled || !has_any_link(graph, node.id) ||
+        !finding_is_actionable(node.finding_state)) {
         return;
     }
     append_diagnostic(diagnostics, "validation.static_analysis_finding",
