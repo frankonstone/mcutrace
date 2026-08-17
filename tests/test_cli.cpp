@@ -1,7 +1,34 @@
 #include <mcutrace/cli.hpp>
 #include <mcutest/mcutest.hpp>
 
+#include <iostream>
+#include <sstream>
 #include <string>
+
+namespace {
+
+class StreamCapture final {
+public:
+    StreamCapture()
+        : out_(std::cout.rdbuf(out_stream_.rdbuf())),
+          err_(std::cerr.rdbuf(err_stream_.rdbuf())) {}
+
+    ~StreamCapture() {
+        std::cout.rdbuf(out_);
+        std::cerr.rdbuf(err_);
+    }
+
+    StreamCapture(const StreamCapture&) = delete;
+    StreamCapture& operator=(const StreamCapture&) = delete;
+
+private:
+    std::ostringstream out_stream_;
+    std::ostringstream err_stream_;
+    std::streambuf* out_;
+    std::streambuf* err_;
+};
+
+}  // namespace
 
 TEST(cli, parses_validate_config_and_explicit_inputs, "REQ-0064", "REQ-0065", "REQ-0066", "REQ-0067", "REQ-0093") {
     const char* argv[] = {
@@ -47,6 +74,7 @@ TEST(cli, exposes_version_event, "REQ-0064", "REQ-0068") {
     const auto result = mcutrace::parse_cli(static_cast<int>(std::size(argv)), argv);
     ASSERT_TRUE(result.has_value());
     ASSERT_EQ(result->action, mcutrace::CliAction::version);
+    const StreamCapture capture;
     ASSERT_EQ(mcutrace::run_cli(*result), 0);
 }
 
@@ -57,6 +85,7 @@ TEST(cli, exposes_command_help, "REQ-0064", "REQ-0067", "REQ-0093") {
     ASSERT_EQ(result->action, mcutrace::CliAction::help);
     ASSERT_FALSE(result->help_text.empty());
     ASSERT_NE(result->help_text.find("--source"), std::string::npos);
+    const StreamCapture capture;
     ASSERT_EQ(mcutrace::run_cli(*result), 0);
 }
 
@@ -64,6 +93,7 @@ TEST(cli, validates_empty_explicit_project, "REQ-0053", "REQ-0064", "REQ-0067") 
     mcutrace::CliOptions options;
     options.action = mcutrace::CliAction::validate;
     options.output_format = mcutrace::OutputFormat::text;
+    const StreamCapture capture;
     ASSERT_EQ(mcutrace::run_cli(options), 0);
 }
 
@@ -71,6 +101,7 @@ TEST(cli, reports_missing_config_as_execution_error, "REQ-0053", "REQ-0064", "RE
     mcutrace::CliOptions options;
     options.action = mcutrace::CliAction::validate;
     options.config_path = "definitely-missing-mcutrace.toml";
+    const StreamCapture capture;
     ASSERT_EQ(mcutrace::run_cli(options), 2);
 }
 
