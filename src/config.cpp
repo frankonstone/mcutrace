@@ -43,6 +43,10 @@ std::optional<Severity> parse_severity(std::string_view value) noexcept {
     return std::nullopt;
 }
 
+ConfigError config_error(ConfigErrorCode code, std::string detail) {
+    return ConfigError{.code = code, .detail = std::move(detail), .source = std::nullopt};
+}
+
 std::expected<void, ConfigError> read_rule(const mcutoml::TomlRef table,
                                            std::string_view name,
                                            ValidationRule& rule,
@@ -98,23 +102,152 @@ std::expected<void, ConfigError> read_requirements(const mcutoml::TomlRef requir
         return {};
     }
     if (!requirements.is_array()) {
-        return std::unexpected(ConfigError{
-            .code = ConfigErrorCode::invalid_type,
-            .detail = "requirements must be an array",
-            .source = std::nullopt,
-        });
+        return std::unexpected(config_error(ConfigErrorCode::invalid_type,
+                                            "requirements must be an array"));
     }
     for (const auto entry : requirements) {
         if (!entry.is_string()) {
-            return std::unexpected(ConfigError{
-                .code = ConfigErrorCode::invalid_type,
-                .detail = "requirements entries must be strings",
-                .source = std::nullopt,
-            });
+            return std::unexpected(config_error(ConfigErrorCode::invalid_type,
+                                                "requirements entries must be strings"));
         }
         result.requirement_files.push_back(normalize_path(entry.get<std::string_view>(), root));
     }
     return {};
+}
+
+std::expected<void, ConfigError> read_project(const mcutoml::Toml& document,
+                                              std::string_view config_base,
+                                              ProjectConfig& result) {
+    const auto project = document["project"];
+    if (project.valid() && !project.is_table()) {
+        return std::unexpected(config_error(ConfigErrorCode::invalid_type,
+                                            "project must be a table"));
+    }
+    if (project.valid()) {
+        const auto root = project["root"];
+        if (root.valid() && !root.is_string()) {
+            return std::unexpected(config_error(ConfigErrorCode::invalid_type,
+                                                "project.root must be a string"));
+        }
+        if (root.valid()) {
+            result.root = normalize_path(root.get<std::string_view>(), config_base);
+        }
+    }
+    if (result.root.empty()) {
+        result.root = normalize_path(".", config_base);
+    }
+
+    const auto requirements = project.valid() && project["requirements"].valid()
+        ? project["requirements"] : document["requirements"];
+    return read_requirements(requirements, result.root, result);
+}
+
+std::expected<ArtifactConfig, ConfigError> read_artifact(const mcutoml::TomlRef entry,
+                                                         std::string_view root) {
+    if (!entry.is_table()) {
+        return std::unexpected(config_error(ConfigErrorCode::invalid_type,
+                                            "artifact entries must be tables"));
+    }
+    const auto path = entry["path"];
+    if (!path.is_string()) {
+        return std::unexpected(config_error(ConfigErrorCode::invalid_type,
+                                            "artifact.path must be a string"));
+    }
+
+    ArtifactConfig artifact;
+    artifact.path = normalize_path(path.get<std::string_view>(), root);
+    const auto importer = entry["importer"];
+    if (importer.valid() && !importer.is_string()) {
+        return std::unexpected(config_error(ConfigErrorCode::invalid_type,
+                                            "artifact.importer must be a string"));
+    }
+    if (importer.valid()) {
+        artifact.importer = std::string(importer.get<std::string_view>());
+    }
+    const auto base = entry["base"];
+    if (base.valid() && !base.is_string()) {
+        return std::unexpected(config_error(ConfigErrorCode::invalid_type,
+                                            "artifact.base must be a string"));
+    }
+    artifact.base_directory = base.valid()
+        ? normalize_path(base.get<std::string_view>(), root)
+        : std::string(root);
+    return artifact;
+}
+
+std::expected<void, ConfigError> read_artifacts(const mcutoml::TomlRef artifacts,
+                                                ProjectConfig& result) {
+    if (!artifacts.valid()) {
+        return {};
+    }
+    if (!artifacts.is_array()) {
+        return std::unexpected(config_error(ConfigErrorCode::invalid_type,
+                                            "artifacts must be an array of tables"));
+    }
+    for (const auto entry : artifacts) {
+        auto artifact = read_artifact(entry, result.root);
+        if (!artifact) {
+            return std::unexpected(artifact.error());
+        }
+        result.artifacts.push_back(std::move(*artifact));
+    }
+    return {};
+}
+
+std::expected<void, ConfigError> read_fail_threshold(const mcutoml::TomlRef validation,
+                                                     ValidationPolicy& policy) {
+    const auto fail_at = validation["fail_at_or_above"];
+    if (!fail_at.valid()) {
+        return {};
+    }
+    if (!fail_at.is_string()) {
+        return std::unexpected(config_error(ConfigErrorCode::invalid_type,
+                                            "validation.fail_at_or_above must be a string"));
+    }
+    const auto severity = parse_severity(fail_at.get<std::string_view>());
+    if (!severity) {
+        return std::unexpected(config_error(ConfigErrorCode::invalid_value,
+                                            "validation.fail_at_or_above is invalid"));
+    }
+    policy.fail_at_or_above = *severity;
+    return {};
+}
+
+std::expected<void, ConfigError> read_validation_rules(const mcutoml::TomlRef validation,
+                                                       ValidationPolicy& policy,
+                                                       std::string_view config_path) {
+    if (auto status = read_rule(validation, "dangling_reference", policy.dangling_reference, config_path); !status) {
+        return std::unexpected(status.error());
+    }
+    if (auto status = read_rule(validation, "missing_test", policy.missing_test, config_path); !status) {
+        return std::unexpected(status.error());
+    }
+    if (auto status = read_rule(validation, "missing_implementation", policy.missing_implementation, config_path); !status) {
+        return std::unexpected(status.error());
+    }
+    if (auto status = read_rule(validation, "missing_coverage", policy.missing_coverage, config_path); !status) {
+        return std::unexpected(status.error());
+    }
+    if (auto status = read_rule(validation, "failed_test", policy.failed_test, config_path); !status) {
+        return std::unexpected(status.error());
+    }
+    return read_rule(validation, "static_finding", policy.static_finding, config_path);
+}
+
+std::expected<void, ConfigError> read_validation(const mcutoml::TomlRef validation,
+                                                 ProjectConfig& result,
+                                                 std::string_view config_path) {
+    if (!validation.valid()) {
+        return {};
+    }
+    if (!validation.is_table()) {
+        return std::unexpected(config_error(ConfigErrorCode::invalid_type,
+                                            "validation must be a table"));
+    }
+    if (auto status = read_fail_threshold(validation, result.validation); !status) {
+        return std::unexpected(status.error());
+    }
+    return read_validation_rules(validation, result.validation, config_path);
 }
 
 }  // namespace
@@ -131,147 +264,16 @@ parse_project_config(std::string_view content, std::string_view config_path) {
     }
 
     const auto document = *parsed;
-    const std::string config_base = config_directory(config_path);
     ProjectConfig result;
-
-    const auto project = document["project"];
-    if (project.valid()) {
-        if (!project.is_table()) {
-            return std::unexpected(ConfigError{
-                .code = ConfigErrorCode::invalid_type,
-                .detail = "project must be a table",
-                .source = std::nullopt,
-            });
-        }
-        const auto root = project["root"];
-        if (root.valid()) {
-            if (!root.is_string()) {
-                return std::unexpected(ConfigError{
-                    .code = ConfigErrorCode::invalid_type,
-                    .detail = "project.root must be a string",
-                    .source = std::nullopt,
-                });
-            }
-            result.root = normalize_path(root.get<std::string_view>(), config_base);
-        }
-    }
-    if (result.root.empty()) {
-        result.root = normalize_path(".", config_base);
-    }
-
-    const auto requirements = project.valid() && project["requirements"].valid()
-        ? project["requirements"] : document["requirements"];
-    if (auto status = read_requirements(requirements, result.root, result); !status) {
+    if (auto status = read_project(document, config_directory(config_path), result); !status) {
         return std::unexpected(status.error());
     }
-
-    const auto artifacts = document["artifacts"];
-    if (artifacts.valid()) {
-        if (!artifacts.is_array()) {
-            return std::unexpected(ConfigError{
-                .code = ConfigErrorCode::invalid_type,
-                .detail = "artifacts must be an array of tables",
-                .source = std::nullopt,
-            });
-        }
-        for (const auto entry : artifacts) {
-            if (!entry.is_table()) {
-                return std::unexpected(ConfigError{
-                    .code = ConfigErrorCode::invalid_type,
-                    .detail = "artifact entries must be tables",
-                    .source = std::nullopt,
-                });
-            }
-            const auto path = entry["path"];
-            if (!path.is_string()) {
-                return std::unexpected(ConfigError{
-                    .code = ConfigErrorCode::invalid_type,
-                    .detail = "artifact.path must be a string",
-                    .source = std::nullopt,
-                });
-            }
-            ArtifactConfig artifact;
-            artifact.path = normalize_path(path.get<std::string_view>(), result.root);
-            const auto importer = entry["importer"];
-            if (importer.valid()) {
-                if (!importer.is_string()) {
-                    return std::unexpected(ConfigError{
-                        .code = ConfigErrorCode::invalid_type,
-                        .detail = "artifact.importer must be a string",
-                        .source = std::nullopt,
-                    });
-                }
-                artifact.importer = std::string(importer.get<std::string_view>());
-            }
-            const auto base = entry["base"];
-            if (base.valid() && !base.is_string()) {
-                return std::unexpected(ConfigError{
-                    .code = ConfigErrorCode::invalid_type,
-                    .detail = "artifact.base must be a string",
-                    .source = std::nullopt,
-                });
-            }
-            artifact.base_directory = base.valid()
-                ? normalize_path(base.get<std::string_view>(), result.root)
-                : result.root;
-            result.artifacts.push_back(std::move(artifact));
-        }
+    if (auto status = read_artifacts(document["artifacts"], result); !status) {
+        return std::unexpected(status.error());
     }
-
-    const auto validation = document["validation"];
-    if (validation.valid()) {
-        if (!validation.is_table()) {
-            return std::unexpected(ConfigError{
-                .code = ConfigErrorCode::invalid_type,
-                .detail = "validation must be a table",
-                .source = std::nullopt,
-            });
-        }
-        const auto fail_at = validation["fail_at_or_above"];
-        if (fail_at.valid()) {
-            if (!fail_at.is_string()) {
-                return std::unexpected(ConfigError{
-                    .code = ConfigErrorCode::invalid_type,
-                    .detail = "validation.fail_at_or_above must be a string",
-                    .source = std::nullopt,
-                });
-            }
-            const auto severity = parse_severity(fail_at.get<std::string_view>());
-            if (!severity) {
-                return std::unexpected(ConfigError{
-                    .code = ConfigErrorCode::invalid_value,
-                    .detail = "validation.fail_at_or_above is invalid",
-                    .source = std::nullopt,
-                });
-            }
-            result.validation.fail_at_or_above = *severity;
-        }
-        if (auto status = read_rule(validation, "dangling_reference",
-                                    result.validation.dangling_reference, config_path); !status) {
-            return std::unexpected(status.error());
-        }
-        if (auto status = read_rule(validation, "missing_test",
-                                    result.validation.missing_test, config_path); !status) {
-            return std::unexpected(status.error());
-        }
-        if (auto status = read_rule(validation, "missing_implementation",
-                                    result.validation.missing_implementation, config_path); !status) {
-            return std::unexpected(status.error());
-        }
-        if (auto status = read_rule(validation, "missing_coverage",
-                                    result.validation.missing_coverage, config_path); !status) {
-            return std::unexpected(status.error());
-        }
-        if (auto status = read_rule(validation, "failed_test",
-                                    result.validation.failed_test, config_path); !status) {
-            return std::unexpected(status.error());
-        }
-        if (auto status = read_rule(validation, "static_finding",
-                                    result.validation.static_finding, config_path); !status) {
-            return std::unexpected(status.error());
-        }
+    if (auto status = read_validation(document["validation"], result, config_path); !status) {
+        return std::unexpected(status.error());
     }
-
     return result;
 }
 
