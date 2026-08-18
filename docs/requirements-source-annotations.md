@@ -1,6 +1,8 @@
-# mcutrace Source Annotation Requirements
+# mcutrace Source Annotation and Reporting Requirements
 
-These requirements define source-local implementation traceability.
+These requirements define source-local implementation traceability and requirement-centric user reporting.
+
+## Source annotations
 
 ### REQ-0089 Source requirement annotations
 mcutrace shall discover canonical `REQ-NNNN` references from explicitly marked source-code comments and create `implements` relationships from the annotated source artifact to those requirements.
@@ -16,3 +18,17 @@ Relationships created from source annotations shall retain the source file and a
 
 ### REQ-0093 Source input configuration
 mcutrace shall accept annotated source and header files through project configuration and through repeatable explicit CLI source inputs without treating source files as JSON producer artifacts.
+
+## User-facing reporting
+
+### REQ-0095 Requirement health summary
+The human-readable report shall expose the overall validation result and counts of complete, incomplete, and failed requirements.
+
+### REQ-0096 Requirement trace matrix
+The human-readable report shall list every requirement with its title and counts of linked implementation, test, coverage, and build evidence.
+
+### REQ-0097 Missing evidence explanation
+The report shall identify the expected evidence classes that are missing for each incomplete requirement.
+
+### REQ-0098 Structured requirement reporting
+The machine-readable report shall expose deterministic requirement-centric status and evidence information and shall use a new output schema version when that structure changes.
