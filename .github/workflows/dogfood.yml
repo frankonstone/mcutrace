@@ -271,6 +271,8 @@ jobs:
             --source src/source_annotations.cpp
             --source src/trace_import.cpp
             --source src/validation.cpp
+            --source editors/vscode/extension.js
+            --source editors/vscode/requirements.js
           )
           requirements=(
             -r docs/requirements.md
@@ -278,6 +280,7 @@ jobs:
             -r docs/requirements-hardening.md
             -r docs/requirements-evidence.md
             -r docs/requirements-source-annotations.md
+            -r docs/requirements-vscode.md
           )
           artifacts=(
             -a dogfood/tests.json

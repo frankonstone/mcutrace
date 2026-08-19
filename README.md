@@ -24,6 +24,18 @@ Multiple canonical `REQ-NNNN` identifiers may be listed on either annotation. So
 
 Annotated files can be configured with `sources = ["src/foo.cpp", "include/foo.hpp"]` in the project configuration or supplied explicitly with repeatable `--source FILE` options.
 
+## VS Code integration
+
+The extension in `editors/vscode` shows the title and body of a `REQ-NNNN` requirement on hover and provides native Go to Definition navigation with Cmd-click on macOS, Ctrl-click on Windows/Linux, or `F12`.
+
+Install the packaged extension locally with:
+
+```sh
+code --install-extension editors/vscode/mcutrace-requirements-0.1.0.vsix
+```
+
+Requirement documents are discovered with `**/requirements*.md` by default. The `mcutrace.requirementFiles` workspace setting accepts explicit glob patterns when a project uses different filenames.
+
 ## Initial host stack
 
 - C++23

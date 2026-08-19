@@ -1,0 +1,64 @@
+{
+  "name": "mcutrace-requirements",
+  "displayName": "mcutrace Requirements",
+  "description": "Hover and navigation support for mcutrace REQ-NNNN requirement references.",
+  "version": "0.1.0",
+  "publisher": "mcutrace",
+  "license": "UNLICENSED",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/frankonstone/mcutrace.git",
+    "directory": "editors/vscode"
+  },
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Programming Languages",
+    "Other"
+  ],
+  "keywords": [
+    "requirements",
+    "traceability",
+    "mcutrace"
+  ],
+  "main": "./extension.js",
+  "extensionKind": [
+    "workspace"
+  ],
+  "activationEvents": [
+    "onStartupFinished",
+    "onCommand:mcutrace.refreshRequirements"
+  ],
+  "contributes": {
+    "commands": [
+      {
+        "command": "mcutrace.refreshRequirements",
+        "title": "mcutrace: Refresh Requirements"
+      }
+    ],
+    "configuration": {
+      "title": "mcutrace",
+      "properties": {
+        "mcutrace.requirementFiles": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [
+            "**/requirements*.md"
+          ],
+          "description": "Workspace glob patterns used to discover Markdown requirement documents."
+        },
+        "mcutrace.exclude": {
+          "type": "string",
+          "default": "**/{.git,build,node_modules}/**",
+          "description": "Glob pattern excluded while discovering requirement documents."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "test": "node --test test/*.test.js"
+  }
+}
