@@ -1,0 +1,64 @@
+{
+  "version": 6,
+  "cmakeMinimumRequired": {
+    "major": 3,
+    "minor": 25,
+    "patch": 0
+  },
+  "configurePresets": [
+    {
+      "name": "host",
+      "displayName": "Host (release)",
+      "description": "Build and test mcutrace on the native host.",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build/host",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "CMAKE_EXPORT_COMPILE_COMMANDS": "ON",
+        "MCUTRACE_BUILD_TESTS": "ON",
+        "MCUTRACE_DISABLE_EXCEPTIONS_RTTI": "ON",
+        "MCUTRACE_ENABLE_MCUCOV": "OFF"
+      }
+    },
+    {
+      "name": "host-debug",
+      "displayName": "Host (debug)",
+      "description": "Debug build with the complete mcutest suite.",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build/host-debug",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "CMAKE_EXPORT_COMPILE_COMMANDS": "ON",
+        "MCUTRACE_BUILD_TESTS": "ON",
+        "MCUTRACE_DISABLE_EXCEPTIONS_RTTI": "ON",
+        "MCUTRACE_ENABLE_MCUCOV": "OFF"
+      }
+    }
+  ],
+  "buildPresets": [
+    {
+      "name": "host",
+      "configurePreset": "host"
+    },
+    {
+      "name": "host-debug",
+      "configurePreset": "host-debug"
+    }
+  ],
+  "testPresets": [
+    {
+      "name": "host",
+      "configurePreset": "host",
+      "output": {
+        "outputOnFailure": true
+      }
+    },
+    {
+      "name": "host-debug",
+      "configurePreset": "host-debug",
+      "output": {
+        "outputOnFailure": true
+      }
+    }
+  ]
+}

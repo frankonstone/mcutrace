@@ -1,4 +1,3 @@
-// @req-file REQ-0055 REQ-0056 REQ-0057 REQ-0058 REQ-0059 REQ-0060 REQ-0061 REQ-0087
 #pragma once
 
 #include <cstddef>
@@ -11,7 +10,7 @@
 
 namespace mcutrace {
 
-inline constexpr unsigned kOutputSchemaVersion = 1;
+inline constexpr unsigned kOutputSchemaVersion = 2;
 
 struct SummaryCounts final {
     std::size_t requirements = 0;

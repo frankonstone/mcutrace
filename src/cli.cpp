@@ -230,6 +230,7 @@ int render_validation_result(const CliOptions& options,
 
 }  // namespace
 
+// @req REQ-0053 REQ-0064 REQ-0065 REQ-0066 REQ-0067 REQ-0068 REQ-0093
 std::expected<CliOptions, CliError> parse_cli(int argc, const char* const* argv) {
     CliOptions options;
     std::string format = "text";
@@ -309,6 +310,7 @@ std::expected<CliOptions, CliError> parse_cli(int argc, const char* const* argv)
     return options;
 }
 
+// @req REQ-0001 REQ-0002 REQ-0067 REQ-0093
 int run_cli(const CliOptions& options) {
     if (options.action == CliAction::version) {
         std::cout << "mcutrace " << kVersion << '\n';

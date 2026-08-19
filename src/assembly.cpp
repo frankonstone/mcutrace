@@ -1,4 +1,3 @@
-// @req-file REQ-0001 REQ-0005 REQ-0013 REQ-0019 REQ-0020 REQ-0027 REQ-0029 REQ-0031 REQ-0046
 #include <mcutrace/assembly.hpp>
 
 #include <algorithm>
@@ -20,6 +19,7 @@ bool location_less(const std::optional<SourceLocation>& lhs,
            std::tie(rhs->path, rhs->line, rhs->column);
 }
 
+// @req REQ-0020
 void canonicalize_node(Node& node) {
     if (node.kind != NodeKind::source) {
         return;
@@ -116,6 +116,7 @@ std::vector<Node> collect_nodes(std::span<const Requirement> requirements,
     return nodes;
 }
 
+// @req REQ-0046
 void insert_nodes(Graph& graph,
                   std::vector<Diagnostic>& diagnostics,
                   std::span<const Node> nodes) {
@@ -179,6 +180,7 @@ void deduplicate_artifacts_and_diagnostics(TraceResult& result) {
 
 }  // namespace
 
+// @req REQ-0005 REQ-0019 REQ-0027 REQ-0029 REQ-0031
 TraceResult assemble_trace(std::span<const Requirement> requirements,
                            std::span<const ImportFragment> fragments) {
     TraceResult result;

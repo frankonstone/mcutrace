@@ -8,6 +8,8 @@ TEST(model, exposes_stable_node_kind_and_severity_names, "REQ-0019", "REQ-0021",
               std::string("requirement"));
     ASSERT_EQ(std::string(mcutrace::node_kind_name(mcutrace::NodeKind::source)),
               std::string("source"));
+    ASSERT_EQ(std::string(mcutrace::node_kind_name(mcutrace::NodeKind::implementation)),
+              std::string("implementation"));
     ASSERT_EQ(std::string(mcutrace::node_kind_name(mcutrace::NodeKind::test)),
               std::string("test"));
     ASSERT_EQ(std::string(mcutrace::node_kind_name(mcutrace::NodeKind::coverage)),

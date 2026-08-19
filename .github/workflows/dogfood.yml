@@ -261,16 +261,16 @@ jobs:
 
           sources=(
             --source src/assembly.cpp
+            --source src/cli.cpp
+            --source src/config.cpp
             --source src/importer.cpp
             --source src/model.cpp
+            --source src/output.cpp
+            --source src/producer_importers.cpp
+            --source src/requirements.cpp
+            --source src/source_annotations.cpp
             --source src/trace_import.cpp
-            --source include/mcutrace/source_annotations.hpp
-            --source include/mcutrace/config.hpp
-            --source include/mcutrace/cli.hpp
-            --source include/mcutrace/requirements.hpp
-            --source include/mcutrace/producer_importers.hpp
-            --source include/mcutrace/validation.hpp
-            --source include/mcutrace/output.hpp
+            --source src/validation.cpp
           )
           requirements=(
             -r docs/requirements.md

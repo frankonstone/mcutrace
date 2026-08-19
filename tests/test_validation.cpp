@@ -78,7 +78,10 @@ TEST(validation, distinguishes_missing_from_failed_test_evidence, "REQ-0047", "R
 
 TEST(validation, reports_missing_implementation_without_requiring_test_node_coverage, "REQ-0048", "REQ-0049") {
     mcutrace::TraceResult trace;
-    ASSERT_TRUE(trace.graph.add_node(node("REQ-0001", mcutrace::NodeKind::requirement)).has_value());
+    auto requirement = node("REQ-0001", mcutrace::NodeKind::requirement);
+    requirement.expected_evidence =
+        mcutrace::evidence_mask(mcutrace::EvidenceExpectation::implementation);
+    ASSERT_TRUE(trace.graph.add_node(std::move(requirement)).has_value());
     ASSERT_TRUE(trace.graph.add_node(node("test:unit", mcutrace::NodeKind::test,
                                          mcutrace::EvidenceState::passed)).has_value());
     ASSERT_TRUE(trace.graph.add_edge(edge("test:unit", "REQ-0001", mcutrace::RelationshipKind::verifies)).has_value());
@@ -90,6 +93,41 @@ TEST(validation, reports_missing_implementation_without_requiring_test_node_cove
     ASSERT_TRUE(has_code(result, "validation.missing_implementation_evidence"));
     ASSERT_FALSE(has_code(result, "validation.missing_coverage_evidence"));
     ASSERT_FALSE(result.failed);
+}
+
+TEST(validation, requires_typed_implementation_evidence, "REQ-0048", "REQ-0096") {
+    mcutrace::TraceResult trace;
+    auto requirement = node("REQ-0001", mcutrace::NodeKind::requirement);
+    requirement.expected_evidence =
+        mcutrace::evidence_mask(mcutrace::EvidenceExpectation::implementation);
+    ASSERT_TRUE(trace.graph.add_node(std::move(requirement)).has_value());
+    ASSERT_TRUE(trace.graph.add_node(
+        node("source:control.cpp", mcutrace::NodeKind::source)).has_value());
+    ASSERT_TRUE(trace.graph.add_edge(edge("source:control.cpp", "REQ-0001",
+                                         mcutrace::RelationshipKind::implements)).has_value());
+
+    mcutrace::ValidationPolicy policy;
+    policy.missing_test.enabled = false;
+    policy.missing_coverage.enabled = false;
+    policy.failed_test.enabled = false;
+    policy.static_finding.enabled = false;
+
+    auto result = mcutrace::validate_trace(trace, policy);
+    ASSERT_TRUE(has_code(result, "validation.missing_implementation_evidence"));
+
+    constexpr std::string_view implementation_id =
+        "implementation:control.cpp#function:control";
+    ASSERT_TRUE(trace.graph.add_node(
+        node(std::string(implementation_id), mcutrace::NodeKind::implementation)).has_value());
+    ASSERT_TRUE(trace.graph.add_edge(edge(std::string(implementation_id), "REQ-0001",
+                                         mcutrace::RelationshipKind::relates)).has_value());
+    result = mcutrace::validate_trace(trace, policy);
+    ASSERT_TRUE(has_code(result, "validation.missing_implementation_evidence"));
+
+    ASSERT_TRUE(trace.graph.add_edge(edge(std::string(implementation_id), "REQ-0001",
+                                         mcutrace::RelationshipKind::implements)).has_value());
+    result = mcutrace::validate_trace(trace, policy);
+    ASSERT_FALSE(has_code(result, "validation.missing_implementation_evidence"));
 }
 
 TEST(validation, coverage_link_satisfies_coverage_policy, "REQ-0049") {

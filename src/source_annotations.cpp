@@ -1,10 +1,11 @@
-// @req-file REQ-0089 REQ-0090 REQ-0091 REQ-0092 REQ-0093
 #include <mcutrace/source_annotations.hpp>
 
 #include <mcutrace/requirements.hpp>
 
 #include <algorithm>
+#include <array>
 #include <cctype>
+#include <cstdint>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -28,6 +29,7 @@ struct AnnotationTarget final {
     std::uint32_t line = 0;
     std::string scope;
     std::string symbol;
+    std::string identity;
 };
 
 struct ScannerState final {
@@ -205,13 +207,65 @@ std::optional<DeclarationContext> declaration_context(std::string_view declarati
     return callable_context(declaration);
 }
 
+std::string stable_hash(std::string_view value) {
+    constexpr std::uint64_t kOffset = 14695981039346656037ULL;
+    constexpr std::uint64_t kPrime = 1099511628211ULL;
+    std::uint64_t hash = kOffset;
+    for (const char ch : value) {
+        hash ^= static_cast<unsigned char>(ch);
+        hash *= kPrime;
+    }
+
+    constexpr std::string_view digits = "0123456789abcdef";
+    std::array<char, 16> encoded{};
+    for (std::size_t index = 0; index < encoded.size(); ++index) {
+        const auto shift = static_cast<unsigned>((encoded.size() - index - 1U) * 4U);
+        encoded[index] = digits[(hash >> shift) & 0x0fU];
+    }
+    return std::string(encoded.data(), encoded.size());
+}
+
+std::string implementation_id(std::string_view normalized_path,
+                              const AnnotationTarget& target) {
+    std::string id = "implementation:" + std::string(normalized_path) + "#" + target.scope;
+    if (!target.symbol.empty()) {
+        id += ":" + target.symbol;
+    }
+    if (!target.identity.empty()) {
+        id += "@" + stable_hash(target.identity);
+    }
+    return id;
+}
+
+void append_implementation_node(ImportFragment& fragment,
+                                std::string id,
+                                std::string_view normalized_path,
+                                const AnnotationTarget& target) {
+    const auto existing = std::find_if(fragment.nodes.begin(), fragment.nodes.end(),
+        [&id](const Node& node) { return node.id == id; });
+    if (existing != fragment.nodes.end()) {
+        return;
+    }
+    fragment.nodes.push_back(Node{
+        .id = std::move(id),
+        .kind = NodeKind::implementation,
+        .label = target.symbol.empty()
+            ? std::string(normalized_path)
+            : target.scope + " " + target.symbol,
+        .evidence_state = EvidenceState::unknown,
+        .finding_state = {},
+        .source = SourceLocation{.path = std::string(normalized_path), .line = target.line},
+        .expected_evidence = std::nullopt,
+    });
+}
+
 void append_edge(ImportFragment& fragment,
                  const ArtifactInput& input,
-                 std::string_view source_id,
+                 std::string implementation_id,
                  std::string requirement,
                  const AnnotationTarget& target) {
     fragment.edges.push_back(Edge{
-        .source_id = std::string(source_id),
+        .source_id = std::move(implementation_id),
         .target_id = std::move(requirement),
         .type = RelationshipType::known(RelationshipKind::implements),
         .provenance = Provenance{
@@ -227,11 +281,13 @@ void append_edge(ImportFragment& fragment,
 
 void append_annotation(ImportFragment& fragment,
                        const ArtifactInput& input,
-                       std::string_view source_id,
+                       std::string_view normalized_path,
                        const PendingAnnotation& annotation,
                        const AnnotationTarget& target) {
+    const std::string id = implementation_id(normalized_path, target);
+    append_implementation_node(fragment, id, normalized_path, target);
     for (const auto& requirement : annotation.requirements) {
-        append_edge(fragment, input, source_id, requirement, target);
+        append_edge(fragment, input, id, requirement, target);
     }
 }
 
@@ -261,10 +317,10 @@ bool handle_marker_line(std::string_view line,
                         std::uint32_t line_number,
                         ImportFragment& fragment,
                         const ArtifactInput& input,
-                        std::string_view source_id,
+                        std::string_view normalized_path,
                         ScannerState& state) {
     if (const auto file = parse_marker(line, "@req-file", fragment, input, line_number)) {
-        append_annotation(fragment, input, source_id, *file,
+        append_annotation(fragment, input, normalized_path, *file,
                           AnnotationTarget{.line = file->line, .scope = "file"});
         return true;
     }
@@ -283,14 +339,15 @@ bool handle_marker_line(std::string_view line,
 
 void complete_pending_declaration(ImportFragment& fragment,
                                   const ArtifactInput& input,
-                                  std::string_view source_id,
+                                  std::string_view normalized_path,
                                   ScannerState& state) {
     const auto context = declaration_context(state.declaration);
     if (context) {
-        append_annotation(fragment, input, source_id, *state.pending,
+        append_annotation(fragment, input, normalized_path, *state.pending,
                           AnnotationTarget{.line = state.pending->line,
                                            .scope = context->kind,
-                                           .symbol = context->symbol});
+                                           .symbol = context->symbol,
+                                           .identity = state.declaration});
     } else {
         fragment.diagnostics.push_back(Diagnostic{
             .code = "source.annotation.unsupported_target",
@@ -306,7 +363,7 @@ void complete_pending_declaration(ImportFragment& fragment,
 void handle_pending_line(std::string_view line,
                          ImportFragment& fragment,
                          const ArtifactInput& input,
-                         std::string_view source_id,
+                         std::string_view normalized_path,
                          ScannerState& state) {
     if (!state.pending) {
         return;
@@ -315,12 +372,13 @@ void handle_pending_line(std::string_view line,
         append_declaration_piece(state, line);
     }
     if (!state.declaration.empty() && declaration_complete(state.declaration)) {
-        complete_pending_declaration(fragment, input, source_id, state);
+        complete_pending_declaration(fragment, input, normalized_path, state);
     }
 }
 
 }  // namespace
 
+// @req REQ-0089 REQ-0090 REQ-0091 REQ-0092 REQ-0093 REQ-0095
 std::expected<ImportFragment, ImportError>
 import_source_annotations(const ArtifactInput& input) {
     auto normalized = normalize_artifact_path(input.path, input.base_directory);
@@ -355,8 +413,8 @@ import_source_annotations(const ArtifactInput& input) {
         const auto line = std::string_view(input.content).substr(
             offset, end == std::string::npos ? std::string::npos : end - offset);
 
-        if (!handle_marker_line(line, line_number, fragment, input, source_id, state)) {
-            handle_pending_line(line, fragment, input, source_id, state);
+        if (!handle_marker_line(line, line_number, fragment, input, *normalized, state)) {
+            handle_pending_line(line, fragment, input, *normalized, state);
         }
 
         if (end == std::string::npos) {

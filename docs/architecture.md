@@ -49,10 +49,13 @@ Initial node kinds are:
 
 - requirement
 - source
+- implementation
 - test
 - coverage
 - finding
 - artifact
+
+Source nodes identify source artifacts for coverage and finding correlation. Implementation nodes identify the file or declaration scope that claims to implement a requirement. Declaration identities are derived deterministically from the normalized path, scope, symbol, and declaration signature so overloaded C++ declarations remain distinct.
 
 ### Validation
 

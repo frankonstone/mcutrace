@@ -76,11 +76,9 @@ TEST(trace_import, augments_mcucov_requirement_links, "REQ-0038", "REQ-0079", "R
 
     const auto result = mcutrace::import_trace_artifact(input);
     ASSERT_TRUE(result.has_value());
-    ASSERT_EQ(result->edges.size(), static_cast<std::size_t>(3));
+    ASSERT_EQ(result->edges.size(), static_cast<std::size_t>(2));
     ASSERT_EQ(result->edges[1].target_id, std::string("REQ-0003"));
     ASSERT_EQ(result->edges[1].type.kind, mcutrace::RelationshipKind::covers);
-    ASSERT_EQ(result->edges[2].source_id, std::string("source:/work/project/src/foo.cpp"));
-    ASSERT_EQ(result->edges[2].type.kind, mcutrace::RelationshipKind::implements);
 }
 
 TEST(trace_import, augments_mcucheck_requirement_links_and_preserves_state, "REQ-0039", "REQ-0079", "REQ-0080", "REQ-0087") {

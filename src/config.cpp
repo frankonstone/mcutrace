@@ -1,4 +1,3 @@
-// @req-file REQ-0004 REQ-0054 REQ-0062 REQ-0065
 #include <mcutrace/config.hpp>
 
 #include <filesystem>
@@ -279,6 +278,7 @@ std::expected<void, ConfigError> read_validation(const mcutoml::TomlRef validati
 
 }  // namespace
 
+// @req REQ-0004 REQ-0054 REQ-0062 REQ-0065 REQ-0093
 std::expected<ProjectConfig, ConfigError>
 parse_project_config(std::string_view content, std::string_view config_path) {
     const auto parsed = mcutoml::Toml::parse(content);

@@ -57,7 +57,7 @@ TEST(output, renders_deterministic_versioned_json, "REQ-0005", "REQ-0055", "REQ-
     ASSERT_TRUE(first.has_value());
     ASSERT_TRUE(second.has_value());
     ASSERT_EQ(*first, *second);
-    ASSERT_NE(first->find("\"schema_version\":1"), std::string::npos);
+    ASSERT_NE(first->find("\"schema_version\":2"), std::string::npos);
     ASSERT_LT(first->find("REQ-0001"), first->find("REQ-0002"));
     ASSERT_NE(first->find("\"untraced_requirements\":[\"REQ-0002\"]"), std::string::npos);
 }
@@ -78,6 +78,45 @@ TEST(output, renders_finding_state_in_json, "REQ-0055", "REQ-0087") {
     const auto json = mcutrace::render_json_report(trace, validation);
     ASSERT_TRUE(json.has_value());
     ASSERT_NE(json->find("\"finding_state\":\"informational\""), std::string::npos);
+}
+
+TEST(output, exposes_implementation_links_and_provenance, "REQ-0055", "REQ-0056", "REQ-0097") {
+    mcutrace::TraceResult trace;
+    ASSERT_TRUE(trace.graph.add_node(mcutrace::Node{
+        .id = "REQ-0001",
+        .kind = mcutrace::NodeKind::requirement,
+        .label = "Detect duplicates",
+    }).has_value());
+    ASSERT_TRUE(trace.graph.add_node(mcutrace::Node{
+        .id = "implementation:src/model.cpp#function:add_node@abc",
+        .kind = mcutrace::NodeKind::implementation,
+        .label = "function Graph::add_node",
+        .source = mcutrace::SourceLocation{.path = "src/model.cpp", .line = 146},
+    }).has_value());
+    ASSERT_TRUE(trace.graph.add_edge(mcutrace::Edge{
+        .source_id = "implementation:src/model.cpp#function:add_node@abc",
+        .target_id = "REQ-0001",
+        .type = mcutrace::RelationshipType::known(mcutrace::RelationshipKind::implements),
+        .provenance = {
+            .importer = "source-annotations",
+            .artifact = "src/model.cpp",
+            .source = mcutrace::SourceLocation{.path = "src/model.cpp", .line = 146},
+            .scope = "function",
+            .symbol = "Graph::add_node",
+        },
+    }).has_value());
+
+    const mcutrace::ValidationResult validation;
+    const auto json = mcutrace::render_json_report(trace, validation);
+    ASSERT_TRUE(json.has_value());
+    ASSERT_NE(json->find("\"kind\":\"implementation\""), std::string::npos);
+    ASSERT_NE(json->find("\"scope\":\"function\""), std::string::npos);
+    ASSERT_NE(json->find("\"symbol\":\"Graph::add_node\""), std::string::npos);
+
+    const auto text = mcutrace::render_text_report(trace, validation);
+    ASSERT_NE(text.find("implementation links:"), std::string::npos);
+    ASSERT_NE(text.find("REQ-0001 <- function Graph::add_node (src/model.cpp:146)"),
+              std::string::npos);
 }
 
 TEST(output, renders_human_readable_summary, "REQ-0056", "REQ-0059", "REQ-0060") {

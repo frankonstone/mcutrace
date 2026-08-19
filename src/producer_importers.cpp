@@ -415,7 +415,6 @@ private:
 void append_mcucov_requirement_links(ImportFragment& fragment,
                                      const ParsedMcucovModule& module,
                                      std::string_view coverage_id,
-                                     std::string_view source_id,
                                      const ArtifactInput& input) {
     for (const auto& requirement : module.requirements) {
         if (!is_requirement_id(requirement)) {
@@ -429,8 +428,6 @@ void append_mcucov_requirement_links(ImportFragment& fragment,
         }
         add_requirement_edge(fragment, std::string(coverage_id), requirement,
                              RelationshipKind::covers, input);
-        add_requirement_edge(fragment, std::string(source_id), requirement,
-                             RelationshipKind::implements, input);
     }
 }
 
@@ -472,7 +469,6 @@ std::expected<void, ImportError> append_mcucov_module(ImportFragment& fragment,
     }
 
     const std::string coverage_id = "coverage:mcucov:" + *normalized + ":" + module.variant;
-    const std::string source_id = "source:" + *normalized;
     add_node_once(fragment.nodes, Node{
         .id = coverage_id,
         .kind = NodeKind::coverage,
@@ -484,7 +480,7 @@ std::expected<void, ImportError> append_mcucov_module(ImportFragment& fragment,
     });
     add_source_and_edge(fragment, coverage_id, RelationshipKind::covers, input,
                         SourceLocation{.path = *normalized});
-    append_mcucov_requirement_links(fragment, module, coverage_id, source_id, input);
+    append_mcucov_requirement_links(fragment, module, coverage_id, input);
     append_mcucov_skipped(fragment, module, *normalized);
     return {};
 }
@@ -601,6 +597,7 @@ std::vector<ImporterInfo> producer_importer_info() {
     return {info_for(kMcutest), info_for(kMcucov), info_for(kMcucheck)};
 }
 
+// @req REQ-0037 REQ-0038 REQ-0039 REQ-0041 REQ-0042 REQ-0080
 std::expected<ImportFragment, ImportError>
 import_producer_artifact(const ArtifactInput& input, std::string_view requested_importer) {
     auto format = identify_json(input);

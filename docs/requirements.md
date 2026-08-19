@@ -152,7 +152,7 @@ mcutrace shall diagnose conflicting duplicate node identities.
 mcutrace shall be able to report requirements with no linked test evidence.
 
 ### REQ-0048 Missing implementation evidence
-mcutrace shall be able to report requirements with no linked implementation/source evidence.
+mcutrace shall report a requirement that expects implementation evidence when it has no typed `implements` relationship from a first-class implementation node.
 
 ### REQ-0049 Missing coverage evidence
 mcutrace shall be able to report traceable implementation or test nodes that lack configured coverage evidence.

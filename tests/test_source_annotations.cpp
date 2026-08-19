@@ -12,9 +12,13 @@ TEST(source_annotations, imports_file_scope, "REQ-0089", "REQ-0090") {
 
     const auto result = mcutrace::import_source_annotations(input);
     ASSERT_TRUE(result.has_value());
-    ASSERT_EQ(result->nodes.size(), static_cast<std::size_t>(1));
+    ASSERT_EQ(result->nodes.size(), static_cast<std::size_t>(2));
     ASSERT_EQ(result->nodes[0].id, std::string("source:/work/project/include/widget.hpp"));
+    ASSERT_EQ(result->nodes[1].kind, mcutrace::NodeKind::implementation);
+    ASSERT_EQ(result->nodes[1].id,
+              std::string("implementation:/work/project/include/widget.hpp#file"));
     ASSERT_EQ(result->edges.size(), static_cast<std::size_t>(2));
+    ASSERT_EQ(result->edges[0].source_id, result->nodes[1].id);
     ASSERT_EQ(result->edges[0].type.kind, mcutrace::RelationshipKind::implements);
     ASSERT_EQ(result->edges[0].provenance.scope, std::string("file"));
     ASSERT_EQ(result->edges[0].target_id, std::string("REQ-0001"));
@@ -29,7 +33,11 @@ TEST(source_annotations, binds_to_class, "REQ-0089", "REQ-0091", "REQ-0092") {
 
     const auto result = mcutrace::import_source_annotations(input);
     ASSERT_TRUE(result.has_value());
+    ASSERT_EQ(result->nodes.size(), static_cast<std::size_t>(2));
+    ASSERT_EQ(result->nodes[1].kind, mcutrace::NodeKind::implementation);
+    ASSERT_NE(result->nodes[1].id.find("#class:Widget@"), std::string::npos);
     ASSERT_EQ(result->edges.size(), static_cast<std::size_t>(1));
+    ASSERT_EQ(result->edges[0].source_id, result->nodes[1].id);
     ASSERT_EQ(result->edges[0].target_id, std::string("REQ-0003"));
     ASSERT_EQ(result->edges[0].provenance.scope, std::string("class"));
     ASSERT_EQ(result->edges[0].provenance.symbol, std::string("Widget"));
@@ -91,6 +99,32 @@ TEST(source_annotations, binds_to_function_declaration_in_header, "REQ-0089", "R
     ASSERT_EQ(result->edges.size(), static_cast<std::size_t>(1));
     ASSERT_EQ(result->edges[0].provenance.scope, std::string("function"));
     ASSERT_EQ(result->edges[0].provenance.symbol, std::string("parse_value"));
+}
+
+TEST(source_annotations, gives_overloads_distinct_implementation_identities, "REQ-0095") {
+    const mcutrace::ArtifactInput input{
+        .path = "/work/project/src/widget.cpp",
+        .base_directory = "/work/project",
+        .content =
+            "// @req REQ-0001\n"
+            "void configure(int value);\n"
+            "// @req REQ-0002\n"
+            "void configure(std::string_view value);\n",
+    };
+
+    const auto result = mcutrace::import_source_annotations(input);
+    ASSERT_TRUE(result.has_value());
+    ASSERT_EQ(result->nodes.size(), static_cast<std::size_t>(3));
+    ASSERT_EQ(result->nodes[1].kind, mcutrace::NodeKind::implementation);
+    ASSERT_EQ(result->nodes[2].kind, mcutrace::NodeKind::implementation);
+    ASSERT_NE(result->nodes[1].id, result->nodes[2].id);
+    ASSERT_EQ(result->nodes[1].label, std::string("function configure"));
+    ASSERT_EQ(result->nodes[2].label, std::string("function configure"));
+
+    const auto repeated = mcutrace::import_source_annotations(input);
+    ASSERT_TRUE(repeated.has_value());
+    ASSERT_EQ(repeated->nodes[1].id, result->nodes[1].id);
+    ASSERT_EQ(repeated->nodes[2].id, result->nodes[2].id);
 }
 
 TEST(source_annotations, diagnoses_malformed_requirement, "REQ-0089") {

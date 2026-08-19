@@ -14,6 +14,7 @@ namespace mcutrace {
 enum class NodeKind : std::uint8_t {
     requirement,
     source,
+    implementation,
     test,
     coverage,
     finding,

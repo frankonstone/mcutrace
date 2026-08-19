@@ -1,4 +1,3 @@
-// @req-file REQ-0045 REQ-0047 REQ-0048 REQ-0049 REQ-0050 REQ-0051 REQ-0052 REQ-0053 REQ-0054 REQ-0088
 #include <mcutrace/validation.hpp>
 
 #include <algorithm>
@@ -15,8 +14,14 @@ std::optional<SourceLocation> edge_location(const Edge& edge) {
     return edge.provenance.source;
 }
 
-bool connected_to_kind(const Graph& graph, std::string_view id, NodeKind kind) {
+bool connected_to_evidence(const Graph& graph,
+                           std::string_view id,
+                           NodeKind kind,
+                           RelationshipKind relationship) {
     for (const auto& edge : graph.edges()) {
+        if (edge.type.kind != relationship) {
+            continue;
+        }
         std::string_view other;
         if (edge.source_id == id) {
             other = edge.target_id;
@@ -52,8 +57,7 @@ bool finding_is_actionable(std::string_view state) noexcept {
 }
 
 bool expects(const Node& node, EvidenceExpectation expectation) {
-    const auto default_mask = evidence_mask(EvidenceExpectation::test) |
-                              evidence_mask(EvidenceExpectation::implementation);
+    const auto default_mask = evidence_mask(EvidenceExpectation::test);
     const auto mask = node.expected_evidence.value_or(default_mask);
     return (mask & evidence_mask(expectation)) != 0;
 }
@@ -111,30 +115,32 @@ void validate_dangling_edges(const TraceResult& trace,
     }
 }
 
+// @req REQ-0047 REQ-0048 REQ-0049 REQ-0096
 void validate_requirement(const Graph& graph,
                           const Node& node,
                           const ValidationPolicy& policy,
                           std::vector<Diagnostic>& diagnostics) {
     if (policy.missing_test.enabled && expects(node, EvidenceExpectation::test) &&
-        !connected_to_kind(graph, node.id, NodeKind::test)) {
+        !connected_to_evidence(graph, node.id, NodeKind::test, RelationshipKind::verifies)) {
         append_diagnostic(diagnostics, "validation.missing_test_evidence",
             policy.missing_test.severity,
             "requirement has no linked test evidence: " + node.id, node.source);
     }
     if (policy.missing_implementation.enabled && expects(node, EvidenceExpectation::implementation) &&
-        !connected_to_kind(graph, node.id, NodeKind::source)) {
+        !connected_to_evidence(graph, node.id, NodeKind::implementation,
+                               RelationshipKind::implements)) {
         append_diagnostic(diagnostics, "validation.missing_implementation_evidence",
             policy.missing_implementation.severity,
             "requirement has no linked implementation evidence: " + node.id, node.source);
     }
     if (policy.missing_coverage.enabled && expects(node, EvidenceExpectation::coverage) &&
-        !connected_to_kind(graph, node.id, NodeKind::coverage)) {
+        !connected_to_evidence(graph, node.id, NodeKind::coverage, RelationshipKind::covers)) {
         append_diagnostic(diagnostics, "validation.missing_requirement_coverage_evidence",
             policy.missing_coverage.severity,
             "requirement has no linked coverage evidence: " + node.id, node.source);
     }
     if (policy.missing_implementation.enabled && expects(node, EvidenceExpectation::build) &&
-        !connected_to_kind(graph, node.id, NodeKind::artifact)) {
+        !connected_to_evidence(graph, node.id, NodeKind::artifact, RelationshipKind::verifies)) {
         append_diagnostic(diagnostics, "validation.missing_build_evidence",
             policy.missing_implementation.severity,
             "requirement has no linked build/CI evidence: " + node.id, node.source);
@@ -146,7 +152,7 @@ void validate_source(const Graph& graph,
                      const ValidationPolicy& policy,
                      std::vector<Diagnostic>& diagnostics) {
     if (!policy.missing_coverage.enabled || is_header_source(node) ||
-        connected_to_kind(graph, node.id, NodeKind::coverage)) {
+        connected_to_evidence(graph, node.id, NodeKind::coverage, RelationshipKind::covers)) {
         return;
     }
     append_diagnostic(diagnostics, "validation.missing_coverage_evidence",
@@ -187,6 +193,8 @@ void validate_node(const Graph& graph,
     case NodeKind::source:
         validate_source(graph, node, policy, diagnostics);
         break;
+    case NodeKind::implementation:
+        break;
     case NodeKind::test:
         validate_test(node, policy, diagnostics);
         break;
@@ -205,6 +213,7 @@ bool severity_at_least(Severity value, Severity threshold) noexcept {
     return static_cast<unsigned>(value) >= static_cast<unsigned>(threshold);
 }
 
+// @req REQ-0045 REQ-0050 REQ-0051 REQ-0052 REQ-0053 REQ-0054 REQ-0088
 ValidationResult validate_trace(const TraceResult& trace, const ValidationPolicy& policy) {
     ValidationResult result;
     result.diagnostics = trace.diagnostics;

@@ -306,6 +306,7 @@ void append_requirement(RequirementParseResult& result, Requirement requirement)
 
 }  // namespace
 
+// @req REQ-0008 REQ-0014
 bool is_requirement_id(std::string_view text) noexcept {
     if (text.size() != 8 || text.substr(0, 4) != "REQ-") {
         return false;
@@ -330,6 +331,7 @@ Node Requirement::as_node() const {
     };
 }
 
+// @req REQ-0006 REQ-0007 REQ-0009 REQ-0010 REQ-0011 REQ-0012 REQ-0013 REQ-0015 REQ-0084 REQ-0086
 RequirementParseResult parse_requirements(std::span<const RequirementDocument> documents) {
     RequirementParseResult result;
     for (const auto& document : documents) {
@@ -344,6 +346,7 @@ RequirementParseResult parse_requirements(std::span<const RequirementDocument> d
     return result;
 }
 
+// @req REQ-0017 REQ-0018
 std::expected<std::string, Error> next_requirement_id(std::span<const Requirement> requirements) {
     std::uint32_t maximum = 0;
     for (const auto& requirement : requirements) {

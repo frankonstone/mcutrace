@@ -1,4 +1,3 @@
-// @req-file REQ-0019 REQ-0020 REQ-0021 REQ-0022 REQ-0023 REQ-0024 REQ-0025 REQ-0026 REQ-0027 REQ-0028 REQ-0029 REQ-0030 REQ-0031 REQ-0032 REQ-0078 REQ-0087
 #include <mcutrace/model.hpp>
 
 #include <algorithm>
@@ -84,6 +83,8 @@ std::string_view node_kind_name(NodeKind kind) noexcept {
         return "requirement";
     case NodeKind::source:
         return "source";
+    case NodeKind::implementation:
+        return "implementation";
     case NodeKind::test:
         return "test";
     case NodeKind::coverage:
@@ -143,6 +144,7 @@ std::string_view RelationshipType::display_name() const noexcept {
     return relationship_kind_name(kind);
 }
 
+// @req REQ-0020 REQ-0046
 std::expected<void, Error> Graph::add_node(Node node) {
     if (node.id.empty()) {
         return std::unexpected(Error{
@@ -169,6 +171,7 @@ std::expected<void, Error> Graph::add_node(Node node) {
     return {};
 }
 
+// @req REQ-0027 REQ-0028 REQ-0029 REQ-0030 REQ-0031 REQ-0032
 std::expected<void, Error> Graph::add_edge(Edge edge) {
     if (edge.source_id.empty() || edge.target_id.empty() ||
         (edge.type.kind == RelationshipKind::custom && edge.type.name.empty())) {

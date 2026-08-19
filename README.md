@@ -6,20 +6,21 @@ It reads requirements, annotated source files, and machine-readable outputs from
 
 ## Source requirement annotations
 
-Implementation links can live next to the code they describe:
+Implementation links can live next to the declaration or definition they describe:
 
 ```cpp
-// @req-file REQ-0043 REQ-0044
+// @req REQ-0043 REQ-0044
+std::expected<std::string, ImportError>
+normalize_artifact_path(...);
 ```
 
-associates requirements with the complete source or header file, while:
+This creates a first-class implementation node for the declaration and connects it to both requirements with `implements` relationships. File-level annotations remain available as an explicit fallback when a requirement genuinely applies to a complete source or header file:
 
 ```cpp
-// @req REQ-0006
-std::expected<Requirement, Error> parse_requirement(...);
+// @req-file REQ-0078
 ```
 
-associates requirements with the immediately following class, struct, enum, function, or method declaration/definition. Multiple canonical `REQ-NNNN` identifiers may be listed on one annotation.
+Multiple canonical `REQ-NNNN` identifiers may be listed on either annotation. Source links identify where a requirement is implemented; tests and other evidence independently establish whether it is verified.
 
 Annotated files can be configured with `sources = ["src/foo.cpp", "include/foo.hpp"]` in the project configuration or supplied explicitly with repeatable `--source FILE` options.
 

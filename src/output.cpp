@@ -30,6 +30,7 @@ std::size_t diagnostic_count(const ValidationResult& validation, Severity severi
 
 }  // namespace
 
+// @req REQ-0059 REQ-0060
 TraceReport build_report(const TraceResult& trace, const ValidationResult& validation) {
     TraceReport report;
     report.summary.trace_nodes = trace.graph.nodes().size();
@@ -49,6 +50,7 @@ TraceReport build_report(const TraceResult& trace, const ValidationResult& valid
     return report;
 }
 
+// @req REQ-0056 REQ-0059 REQ-0060 REQ-0097
 std::string render_text_report(const TraceResult& trace, const ValidationResult& validation) {
     const TraceReport report = build_report(trace, validation);
     std::ostringstream output;
@@ -64,15 +66,39 @@ std::string render_text_report(const TraceResult& trace, const ValidationResult&
             output << "  " << id << '\n';
         }
     }
+    bool wrote_heading = false;
+    for (const auto& edge : trace.graph.edges()) {
+        if (edge.type.kind != RelationshipKind::implements) {
+            continue;
+        }
+        const auto* implementation = trace.graph.find_node(edge.source_id);
+        if (implementation == nullptr || implementation->kind != NodeKind::implementation) {
+            continue;
+        }
+        if (!wrote_heading) {
+            output << "implementation links:\n";
+            wrote_heading = true;
+        }
+        output << "  " << edge.target_id << " <- " << implementation->label;
+        if (implementation->source) {
+            output << " (" << implementation->source->path;
+            if (implementation->source->line != 0U) {
+                output << ':' << implementation->source->line;
+            }
+            output << ')';
+        }
+        output << '\n';
+    }
     return output.str();
 }
 
+// @req REQ-0055 REQ-0057 REQ-0058 REQ-0061 REQ-0087 REQ-0097
 std::expected<std::string, OutputError>
 render_json_report(const TraceResult& trace, const ValidationResult& validation) {
     const TraceReport report = build_report(trace, validation);
 
     std::vector<char> buffer(4096U + trace.graph.nodes().size() * 384U +
-                             trace.graph.edges().size() * 512U +
+                             trace.graph.edges().size() * 1024U +
                              validation.diagnostics.size() * 384U);
     mcujson::JsonWriter writer(std::span<char>(buffer.data(), buffer.size()));
     writer.object([&](mcujson::JsonWriter::Object& root) {
@@ -109,6 +135,23 @@ render_json_report(const TraceResult& trace, const ValidationResult& validation)
                     object("source", edge.source_id)
                         ("target", edge.target_id)
                         ("type", edge.type.display_name());
+                    object.object("provenance", [&](mcujson::JsonWriter::Object& provenance) {
+                        provenance("importer", edge.provenance.importer)
+                            ("artifact", edge.provenance.artifact);
+                        if (!edge.provenance.scope.empty()) {
+                            provenance("scope", edge.provenance.scope);
+                        }
+                        if (!edge.provenance.symbol.empty()) {
+                            provenance("symbol", edge.provenance.symbol);
+                        }
+                        if (edge.provenance.source) {
+                            provenance.object("source", [&](mcujson::JsonWriter::Object& source) {
+                                source("path", edge.provenance.source->path)
+                                    ("line", edge.provenance.source->line)
+                                    ("column", edge.provenance.source->column);
+                            });
+                        }
+                    });
                 });
             }
         });

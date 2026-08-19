@@ -1,4 +1,3 @@
-// @req-file REQ-0002 REQ-0003 REQ-0033 REQ-0040 REQ-0079 REQ-0080 REQ-0081 REQ-0082 REQ-0083 REQ-0087
 #include <mcutrace/trace_import.hpp>
 
 #include <mcutrace/producer_importers.hpp>
@@ -46,6 +45,7 @@ RelationshipType relationship_type(std::string_view name) {
 
 std::optional<NodeKind> node_kind(std::string_view name) {
     if (name == "source") return NodeKind::source;
+    if (name == "implementation") return NodeKind::implementation;
     if (name == "test") return NodeKind::test;
     if (name == "coverage") return NodeKind::coverage;
     if (name == "finding") return NodeKind::finding;
@@ -328,6 +328,7 @@ void augment_mcucheck(ImportFragment& fragment, const mcujson::Json& root,
 
 }  // namespace
 
+// @req REQ-0002 REQ-0003 REQ-0033 REQ-0040 REQ-0079 REQ-0080 REQ-0081 REQ-0082
 std::expected<ImportFragment, ImportError> import_trace_artifact(
     const ArtifactInput& input,
     std::string_view requested_importer) {

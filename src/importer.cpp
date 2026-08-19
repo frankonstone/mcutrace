@@ -1,4 +1,3 @@
-// @req-file REQ-0002 REQ-0003 REQ-0033 REQ-0034 REQ-0035 REQ-0036 REQ-0040 REQ-0041 REQ-0042 REQ-0043 REQ-0044 REQ-0071
 #include <mcutrace/importer.hpp>
 
 #include <algorithm>
@@ -24,6 +23,7 @@ bool supports_version(const ImporterInfo& info, std::string_view version) noexce
            info.supported_versions.end();
 }
 
+// @req REQ-0035 REQ-0041 REQ-0042 REQ-0071
 std::expected<void, ImportError>
 require_supported_version(const ImporterInfo& info,
                           const InputFormat& format,
@@ -46,6 +46,7 @@ require_supported_version(const ImporterInfo& info,
     return {};
 }
 
+// @req REQ-0043 REQ-0044 REQ-0071
 std::expected<std::string, ImportError>
 normalize_artifact_path(std::string_view path, std::string_view base_directory) {
     if (path.empty()) {
@@ -64,6 +65,7 @@ normalize_artifact_path(std::string_view path, std::string_view base_directory) 
     return normalized.generic_string();
 }
 
+// @req REQ-0026 REQ-0032 REQ-0040
 GenericArtifact preserve_json_artifact(std::string id,
                                        std::string type,
                                        std::string payload,
