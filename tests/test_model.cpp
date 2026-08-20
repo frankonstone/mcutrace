@@ -1,6 +1,8 @@
 #include <mcutrace/model.hpp>
 #include <mcutest/mcutest.hpp>
 
+#include "test_runner.hpp"
+
 #include <string>
 
 TEST(model, exposes_stable_node_kind_and_severity_names, "REQ-0019", "REQ-0021", "REQ-0022", "REQ-0023", "REQ-0024", "REQ-0025", "REQ-0052") {
@@ -139,5 +141,5 @@ TEST(model, rejects_invalid_edges_without_throwing, "REQ-0027", "REQ-0028", "REQ
 
 int main(int argc, char* argv[]) {
     mcutest::Runner<mcutest::JsonOutput> runner;
-    return mcutest::run_with_gtest_compat(argc, argv, runner);
+    return mcutrace::test::run(argc, argv, runner);
 }

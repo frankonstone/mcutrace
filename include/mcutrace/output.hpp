@@ -2,7 +2,9 @@
 
 #include <cstddef>
 #include <expected>
+#include <optional>
 #include <string>
+#include <string_view>
 #include <vector>
 
 #include <mcutrace/assembly.hpp>
@@ -25,6 +27,15 @@ struct TraceReport final {
     std::vector<std::string> untraced_requirements;
 };
 
+struct RequirementTraceReport final {
+    Node requirement;
+    std::vector<Node> implementations;
+    std::vector<Node> sources;
+    std::vector<Node> tests;
+    std::vector<Node> coverage;
+    std::vector<Node> findings;
+};
+
 enum class OutputErrorCode { serialize_failed };
 
 struct OutputError final {
@@ -35,10 +46,18 @@ struct OutputError final {
 [[nodiscard]] TraceReport build_report(const TraceResult& trace,
                                        const ValidationResult& validation);
 
+[[nodiscard]] std::optional<RequirementTraceReport>
+build_requirement_trace_report(const TraceResult& trace, std::string_view requirement_id);
+
 [[nodiscard]] std::string render_text_report(const TraceResult& trace,
                                              const ValidationResult& validation);
 
+[[nodiscard]] std::string render_requirement_text_report(const RequirementTraceReport& report);
+
 [[nodiscard]] std::expected<std::string, OutputError>
 render_json_report(const TraceResult& trace, const ValidationResult& validation);
+
+[[nodiscard]] std::expected<std::string, OutputError>
+render_requirement_json_report(const RequirementTraceReport& report);
 
 }  // namespace mcutrace

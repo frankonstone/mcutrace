@@ -1,6 +1,8 @@
 #include <mcutrace/producer_importers.hpp>
 #include <mcutest/mcutest.hpp>
 
+#include "test_runner.hpp"
+
 #include <string>
 
 TEST(producer_importers, imports_mcutest_results, "REQ-0037", "REQ-0050") {
@@ -22,12 +24,13 @@ TEST(producer_importers, imports_mcucov_report, "REQ-0038", "REQ-0043", "REQ-004
     const mcutrace::ArtifactInput input{
         .path = "/tmp/coverage.json",
         .base_directory = "/work/project",
-        .content = R"({"format":"mcucov-report","version":1,"modules":[{"id":1,"path":"src/foo.cpp","variant":"host","skipped":[{"state":"not-instrumented","severity":"warning","line":12,"column":3,"detail":"unsupported construct"}]}]})",
+        .content = R"({"format":"mcucov-report","version":1,"modules":[{"id":1,"path":"src/foo.cpp","variant":"host","probes":[{"covered":true},{"covered":false},{"covered":true}],"skipped":[{"state":"not-instrumented","severity":"warning","line":12,"column":3,"detail":"unsupported construct"}]}]})",
     };
     const auto result = mcutrace::import_producer_artifact(input, "mcucov");
     ASSERT_TRUE(result.has_value());
     ASSERT_EQ(result->format.schema, std::string("mcucov-report"));
     ASSERT_EQ(result->nodes.size(), static_cast<std::size_t>(2));
+    ASSERT_EQ(result->nodes[0].evidence_detail, std::string("2/3 probes covered (66.7%)"));
     ASSERT_EQ(result->edges.size(), static_cast<std::size_t>(1));
     ASSERT_EQ(result->edges[0].type.kind, mcutrace::RelationshipKind::covers);
     ASSERT_EQ(result->diagnostics.size(), static_cast<std::size_t>(1));
@@ -90,5 +93,5 @@ TEST(producer_importers, rejects_wrong_explicit_importer, "REQ-0034", "REQ-0035"
 
 int main(int argc, char* argv[]) {
     mcutest::Runner<mcutest::JsonOutput> runner;
-    return mcutest::run_with_gtest_compat(argc, argv, runner);
+    return mcutrace::test::run(argc, argv, runner);
 }

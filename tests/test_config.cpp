@@ -1,6 +1,8 @@
 #include <mcutrace/config.hpp>
 #include <mcutest/mcutest.hpp>
 
+#include "test_runner.hpp"
+
 #include <string>
 
 TEST(config, parses_project_inputs_and_normalizes_paths, "REQ-0004", "REQ-0044", "REQ-0054", "REQ-0062", "REQ-0065", "REQ-0093") {
@@ -75,5 +77,5 @@ TEST(config, reports_toml_parse_failure, "REQ-0004", "REQ-0035", "REQ-0062") {
 
 int main(int argc, char* argv[]) {
     mcutest::Runner<mcutest::JsonOutput> runner;
-    return mcutest::run_with_gtest_compat(argc, argv, runner);
+    return mcutrace::test::run(argc, argv, runner);
 }

@@ -17,6 +17,19 @@ Relationships created from source annotations shall retain the source file and a
 ### REQ-0093 Source input configuration @evidence(implementation,test)
 mcutrace shall accept annotated source and header files through project configuration and through repeatable explicit CLI source inputs without treating source files as JSON producer artifacts.
 
+For example, configure source inputs in TOML under `[project]`:
+
+```toml
+[project]
+sources = ["src/controller.cpp", "include/controller.hpp"]
+```
+
+Or provide them directly when validating, repeating `--source` for each file:
+
+```sh
+mcutrace validate --source src/controller.cpp --source include/controller.hpp
+```
+
 ### REQ-0095 Stable implementation identity @evidence(implementation,test)
 Every implementation node created from a source annotation shall have a deterministic identity derived from its normalized source path and its file or declaration scope. Overloaded declarations in one source file shall receive distinct identities.
 

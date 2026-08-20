@@ -126,11 +126,12 @@ std::expected<ProjectConfig, CliError> load_project_config(const CliOptions& opt
         return config;
     }
 
-    auto content = read_text_file(options.config_path);
+    const std::string config_path = normalize_explicit_path(options.config_path);
+    auto content = read_text_file(config_path);
     if (!content) {
         return std::unexpected(content.error());
     }
-    auto parsed = parse_project_config(*content, options.config_path);
+    auto parsed = parse_project_config(*content, config_path);
     if (!parsed) {
         return std::unexpected(CliError{
             .message = "configuration error: " + parsed.error().detail,
@@ -241,36 +242,40 @@ std::expected<CliOptions, CliError> parse_cli(int argc, const char* const* argv)
     if (!validate) {
         return std::unexpected(CliError{.message = cli_error_text(validate.error())});
     }
+    auto show = app.add_command("show", "Show trace evidence for one requirement");
+    if (!show) {
+        return std::unexpected(CliError{.message = cli_error_text(show.error())});
+    }
 
-    const auto configure = [&]() -> std::expected<void, CliError> {
-        auto config = app.add_option("-c, --config", "TOML configuration file", options.config_path);
-        if (!config) {
-            return std::unexpected(CliError{.message = cli_error_text(config.error())});
-        }
-        (*config)->metavar("FILE");
+    auto config = app.add_option("-c, --config", "TOML configuration file", options.config_path);
+    if (!config) {
+        return std::unexpected(CliError{.message = cli_error_text(config.error())});
+    }
+    (*config)->metavar("FILE");
 
-        auto requirements = (*validate)->add_option(
+    const auto configure_inputs = [&](mcucli::Command* command) -> std::expected<void, CliError> {
+        auto requirements = command->add_option(
             "-r, --requirement", "Additional requirement Markdown file", options.requirement_files);
         if (!requirements) {
             return std::unexpected(CliError{.message = cli_error_text(requirements.error())});
         }
         (*requirements)->metavar("FILE").repeatable();
 
-        auto sources = (*validate)->add_option(
+        auto sources = command->add_option(
             "-s, --source", "Additional annotated source or header file", options.source_files);
         if (!sources) {
             return std::unexpected(CliError{.message = cli_error_text(sources.error())});
         }
         (*sources)->metavar("FILE").repeatable();
 
-        auto artifacts = (*validate)->add_option(
+        auto artifacts = command->add_option(
             "-a, --artifact", "Additional producer artifact file (auto-detected)", options.artifact_files);
         if (!artifacts) {
             return std::unexpected(CliError{.message = cli_error_text(artifacts.error())});
         }
         (*artifacts)->metavar("FILE").repeatable();
 
-        auto output = (*validate)->add_option(
+        auto output = command->add_option(
             "-f, --format", "Report format: text or json", format);
         if (!output) {
             return std::unexpected(CliError{.message = cli_error_text(output.error())});
@@ -279,8 +284,15 @@ std::expected<CliOptions, CliError> parse_cli(int argc, const char* const* argv)
         return {};
     };
 
-    if (auto status = configure(); !status) {
+    if (auto status = configure_inputs(*validate); !status) {
         return std::unexpected(status.error());
+    }
+    if (auto status = configure_inputs(*show); !status) {
+        return std::unexpected(status.error());
+    }
+    if (auto requirement = (*show)->add_positional("REQ-NNNN", "Requirement identifier",
+                                                    options.requirement_id); !requirement) {
+        return std::unexpected(CliError{.message = cli_error_text(requirement.error())});
     }
     auto parsed = app.parse(argc, argv);
     if (!parsed) {
@@ -300,14 +312,18 @@ std::expected<CliOptions, CliError> parse_cli(int argc, const char* const* argv)
         options.help_text = std::move(*help);
         return options;
     }
-    if (parsed->command() != (*validate)->id()) {
-        return std::unexpected(CliError{.message = "a command is required; use 'mcutrace validate'"});
-    }
     if (auto status = parse_output_format(format, options.output_format); !status) {
         return std::unexpected(status.error());
     }
-    options.action = CliAction::validate;
-    return options;
+    if (parsed->command() == (*validate)->id()) {
+        options.action = CliAction::validate;
+        return options;
+    }
+    if (parsed->command() == (*show)->id()) {
+        options.action = CliAction::show;
+        return options;
+    }
+    return std::unexpected(CliError{.message = "a command is required; use 'mcutrace validate' or 'mcutrace show REQ-NNNN'"});
 }
 
 // @req REQ-0001 REQ-0002 REQ-0067 REQ-0093
@@ -343,6 +359,24 @@ int run_cli(const CliOptions& options) {
 
     const TraceResult trace = assemble_trace(requirements->requirements, *fragments);
     const ValidationResult validation = validate_trace(trace, config->validation);
+    if (options.action == CliAction::show) {
+        const auto report = build_requirement_trace_report(trace, options.requirement_id);
+        if (!report) {
+            std::cerr << "unknown requirement: " << options.requirement_id << '\n';
+            return 2;
+        }
+        if (options.output_format == OutputFormat::json) {
+            const auto json = render_requirement_json_report(*report);
+            if (!json) {
+                std::cerr << json.error().detail << '\n';
+                return 2;
+            }
+            std::cout << *json << '\n';
+        } else {
+            std::cout << render_requirement_text_report(*report);
+        }
+        return 0;
+    }
     return render_validation_result(options, trace, validation);
 }
 

@@ -47,6 +47,7 @@ struct Node final {
     NodeKind kind = NodeKind::artifact;
     std::string label;
     EvidenceState evidence_state = EvidenceState::unknown;
+    std::string evidence_detail;
     std::string finding_state;
     std::optional<SourceLocation> source;
     std::optional<std::uint8_t> expected_evidence;

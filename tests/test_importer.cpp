@@ -1,6 +1,8 @@
 #include <mcutrace/importer.hpp>
 #include <mcutest/mcutest.hpp>
 
+#include "test_runner.hpp"
+
 #include <string>
 #include <utility>
 
@@ -126,5 +128,5 @@ TEST(importer, preserves_unknown_json_payload_without_loss, "REQ-0026", "REQ-003
 
 int main(int argc, char* argv[]) {
     mcutest::Runner<mcutest::JsonOutput> runner;
-    return mcutest::run_with_gtest_compat(argc, argv, runner);
+    return mcutrace::test::run(argc, argv, runner);
 }

@@ -1,6 +1,8 @@
 #include <mcutrace/source_annotations.hpp>
 #include <mcutest/mcutest.hpp>
 
+#include "test_runner.hpp"
+
 #include <string>
 
 TEST(source_annotations, imports_file_scope, "REQ-0089", "REQ-0090") {
@@ -155,5 +157,5 @@ TEST(source_annotations, diagnoses_unsupported_variable_target, "REQ-0091") {
 
 int main(int argc, char* argv[]) {
     mcutest::Runner<mcutest::JsonOutput> runner;
-    return mcutest::run_with_gtest_compat(argc, argv, runner);
+    return mcutrace::test::run(argc, argv, runner);
 }

@@ -3,6 +3,8 @@
 #include <mcutrace/validation.hpp>
 #include <mcutest/mcutest.hpp>
 
+#include "test_runner.hpp"
+
 #include <cstddef>
 #include <expected>
 #include <fstream>
@@ -156,5 +158,5 @@ TEST(hardening, assembles_large_graph_deterministically, "REQ-0005", "REQ-0046",
 
 int main(int argc, char* argv[]) {
     mcutest::Runner<mcutest::JsonOutput> runner;
-    return mcutest::run_with_gtest_compat(argc, argv, runner);
+    return mcutrace::test::run(argc, argv, runner);
 }

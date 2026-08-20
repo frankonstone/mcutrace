@@ -1,6 +1,8 @@
 #include <mcutrace/assembly.hpp>
 #include <mcutest/mcutest.hpp>
 
+#include "test_runner.hpp"
+
 #include <array>
 #include <string>
 
@@ -163,5 +165,5 @@ TEST(assembly, carries_importer_artifacts_and_diagnostics_deterministically, "RE
 
 int main(int argc, char* argv[]) {
     mcutest::Runner<mcutest::JsonOutput> runner;
-    return mcutest::run_with_gtest_compat(argc, argv, runner);
+    return mcutrace::test::run(argc, argv, runner);
 }

@@ -11,3 +11,6 @@ The mcutrace VS Code extension shall discover requirement Markdown files through
 
 ### REQ-0101 Duplicate requirement definitions @evidence(implementation)
 When a requirement identifier has multiple definitions, the mcutrace VS Code extension shall warn in hover content and return every definition as a navigation target.
+
+### REQ-0102 Requirement references @evidence(implementation)
+The mcutrace VS Code extension shall provide native Find All References navigation from a canonical `REQ-NNNN` reference and return every matching canonical reference in workspace files.

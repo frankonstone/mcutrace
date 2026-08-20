@@ -3,6 +3,7 @@
 #include <mcutrace/requirements.hpp>
 
 #include <algorithm>
+#include <cstdint>
 #include <optional>
 #include <span>
 #include <string>
@@ -70,6 +71,7 @@ void add_source_and_edge(ImportFragment& fragment,
         .kind = NodeKind::source,
         .label = source.path,
         .evidence_state = EvidenceState::unknown,
+        .evidence_detail = {},
         .finding_state = {},
         .source = source,
         .expected_evidence = std::nullopt,
@@ -203,6 +205,7 @@ void append_mcutest_test(ImportFragment& fragment,
         .kind = NodeKind::test,
         .label = name,
         .evidence_state = evidence,
+        .evidence_detail = {},
         .finding_state = {},
         .source = std::nullopt,
         .expected_evidence = std::nullopt,
@@ -256,6 +259,8 @@ struct ParsedMcucovModule final {
     std::string variant;
     std::vector<std::string> requirements;
     std::vector<ParsedSkipped> skipped;
+    std::uint32_t probes = 0;
+    std::uint32_t covered_probes = 0;
 };
 
 class McucovSaxHandler final : public mcujson::SaxHandler {
@@ -265,6 +270,9 @@ public:
         if (in_modules_ && depth_ == 3) {
             current_module_ = ParsedMcucovModule{};
             in_module_ = true;
+        } else if (in_probes_ && depth_ == 5) {
+            in_probe_object_ = true;
+            current_probe_covered_ = false;
         } else if (in_skipped_ && depth_ == 5) {
             current_skipped_ = ParsedSkipped{};
             in_skipped_object_ = true;
@@ -273,7 +281,13 @@ public:
     }
 
     bool on_object_end() noexcept override {
-        if (in_skipped_object_ && depth_ == 5) {
+        if (in_probe_object_ && depth_ == 5) {
+            ++current_module_.probes;
+            if (current_probe_covered_) {
+                ++current_module_.covered_probes;
+            }
+            in_probe_object_ = false;
+        } else if (in_skipped_object_ && depth_ == 5) {
             current_module_.skipped.push_back(std::move(current_skipped_));
             in_skipped_object_ = false;
         } else if (in_module_ && depth_ == 3) {
@@ -289,6 +303,8 @@ public:
         if (depth_ == 2 && key_ == "modules") {
             saw_modules = true;
             in_modules_ = true;
+        } else if (in_module_ && depth_ == 4 && key_ == "probes") {
+            in_probes_ = true;
         } else if (in_module_ && depth_ == 4 && key_ == "requirements") {
             in_requirements_ = true;
         } else if (in_module_ && depth_ == 4 && key_ == "skipped") {
@@ -298,6 +314,9 @@ public:
     }
 
     bool on_array_end() noexcept override {
+        if (depth_ == 4 && in_probes_) {
+            in_probes_ = false;
+        }
         if (depth_ == 4 && in_requirements_) {
             in_requirements_ = false;
         }
@@ -335,6 +354,13 @@ public:
             current_skipped_.line = static_cast<std::uint32_t>(value);
         } else if (key_ == "column") {
             current_skipped_.column = static_cast<std::uint32_t>(value);
+        }
+        return true;
+    }
+
+    bool on_bool(bool value) noexcept override {
+        if (in_probe_object_ && depth_ == 5 && key_ == "covered") {
+            current_probe_covered_ = value;
         }
         return true;
     }
@@ -405,12 +431,27 @@ private:
     bool failed_ = false;
     bool in_modules_ = false;
     bool in_module_ = false;
+    bool in_probes_ = false;
+    bool in_probe_object_ = false;
     bool in_requirements_ = false;
     bool in_skipped_ = false;
     bool in_skipped_object_ = false;
     ParsedMcucovModule current_module_;
     ParsedSkipped current_skipped_;
+    bool current_probe_covered_ = false;
 };
+
+std::string coverage_detail(const ParsedMcucovModule& module) {
+    if (module.probes == 0U) {
+        return "no instrumented probes";
+    }
+    const auto percent_tenths = static_cast<std::uint32_t>(
+        (static_cast<std::uint64_t>(module.covered_probes) * 1000U + module.probes / 2U) /
+        module.probes);
+    return std::to_string(module.covered_probes) + "/" + std::to_string(module.probes) +
+           " probes covered (" + std::to_string(percent_tenths / 10U) + "." +
+           std::to_string(percent_tenths % 10U) + "%)";
+}
 
 void append_mcucov_requirement_links(ImportFragment& fragment,
                                      const ParsedMcucovModule& module,
@@ -474,6 +515,7 @@ std::expected<void, ImportError> append_mcucov_module(ImportFragment& fragment,
         .kind = NodeKind::coverage,
         .label = module.path,
         .evidence_state = EvidenceState::unknown,
+        .evidence_detail = coverage_detail(module),
         .finding_state = {},
         .source = SourceLocation{.path = *normalized},
         .expected_evidence = std::nullopt,
@@ -551,6 +593,7 @@ std::expected<void, ImportError> append_mcucheck_diagnostic(ImportFragment& frag
         .kind = NodeKind::finding,
         .label = rule + ": " + message,
         .evidence_state = EvidenceState::unknown,
+        .evidence_detail = {},
         .finding_state = {},
         .source = SourceLocation{.path = *normalized, .line = line, .column = column},
         .expected_evidence = std::nullopt,

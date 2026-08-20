@@ -1,0 +1,52 @@
+# Traceability inputs for the mcutrace repository itself.
+#
+# `./make.sh` generates every artifact declared below before it validates the
+# graph and writes the VS Code hover report.
+
+[project]
+root = "."
+requirements = [
+  "docs/requirements.md",
+  "docs/requirements-evidence.md",
+  "docs/requirements-hardening.md",
+  "docs/requirements-links.md",
+  "docs/requirements-source-annotations.md",
+  "docs/requirements-vscode.md",
+]
+sources = [
+  "src/assembly.cpp",
+  "src/cli.cpp",
+  "src/config.cpp",
+  "src/importer.cpp",
+  "src/model.cpp",
+  "src/output.cpp",
+  "src/producer_importers.cpp",
+  "src/requirements.cpp",
+  "src/source_annotations.cpp",
+  "src/trace_import.cpp",
+  "src/validation.cpp",
+  "editors/vscode/extension.js",
+  "editors/vscode/requirements.js",
+]
+
+# make.sh merges each independently runnable mcutest binary into one artifact.
+[[artifacts]]
+path = "build/trace/artifacts/mcutest.json"
+importer = "mcutest"
+
+[[artifacts]]
+path = "build/trace/artifacts/mcucov.json"
+importer = "mcucov"
+
+[[artifacts]]
+path = "build/trace/artifacts/mcucheck.json"
+importer = "mcucheck"
+
+[validation]
+fail_at_or_above = "error"
+
+[validation.dangling_reference]
+severity = "error"
+
+[validation.failed_test]
+severity = "error"

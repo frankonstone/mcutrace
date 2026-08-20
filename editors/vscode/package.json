@@ -2,7 +2,7 @@
   "name": "mcutrace-requirements",
   "displayName": "mcutrace Requirements",
   "description": "Hover and navigation support for mcutrace REQ-NNNN requirement references.",
-  "version": "0.1.0",
+  "version": "0.1.2",
   "publisher": "mcutrace",
   "license": "UNLICENSED",
   "repository": {
@@ -28,13 +28,18 @@
   ],
   "activationEvents": [
     "onStartupFinished",
-    "onCommand:mcutrace.refreshRequirements"
+    "onCommand:mcutrace.refreshRequirements",
+    "onCommand:mcutrace.refreshTraceData"
   ],
   "contributes": {
     "commands": [
       {
         "command": "mcutrace.refreshRequirements",
         "title": "mcutrace: Refresh Requirements"
+      },
+      {
+        "command": "mcutrace.refreshTraceData",
+        "title": "mcutrace: Refresh Trace Data"
       }
     ],
     "configuration": {
@@ -54,6 +59,11 @@
           "type": "string",
           "default": "**/{.git,build,node_modules}/**",
           "description": "Glob pattern excluded while discovering requirement documents."
+        },
+        "mcutrace.traceReport": {
+          "type": "string",
+          "default": "build/mcutrace-report.json",
+          "description": "Workspace-relative JSON report written by `mcutrace validate --format json`; its evidence is shown in requirement hovers."
         }
       }
     }

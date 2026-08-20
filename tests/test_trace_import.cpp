@@ -1,6 +1,8 @@
 #include <mcutrace/trace_import.hpp>
 #include <mcutest/mcutest.hpp>
 
+#include "test_runner.hpp"
+
 #include <string>
 
 TEST(trace_import, imports_sidecar_relationships, "REQ-0079", "REQ-0081", "REQ-0032") {
@@ -114,5 +116,5 @@ TEST(trace_import, diagnoses_invalid_requirement_reference, "REQ-0080") {
 
 int main(int argc, char* argv[]) {
     mcutest::Runner<mcutest::JsonOutput> runner;
-    return mcutest::run_with_gtest_compat(argc, argv, runner);
+    return mcutrace::test::run(argc, argv, runner);
 }

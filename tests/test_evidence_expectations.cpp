@@ -3,6 +3,8 @@
 #include <mcutrace/validation.hpp>
 #include <mcutest/mcutest.hpp>
 
+#include "test_runner.hpp"
+
 #include <array>
 #include <string>
 
@@ -63,5 +65,5 @@ TEST(evidence_expectations, none_expectation_requires_no_test_or_implementation,
 
 int main(int argc, char* argv[]) {
     mcutest::Runner<mcutest::JsonOutput> runner;
-    return mcutest::run_with_gtest_compat(argc, argv, runner);
+    return mcutrace::test::run(argc, argv, runner);
 }

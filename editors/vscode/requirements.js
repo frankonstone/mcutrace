@@ -122,7 +122,38 @@ function requirementAtPosition(line, character) {
   return undefined;
 }
 
+function requirementRanges(content, id) {
+  if (!CANONICAL_REQUIREMENT.test(id)) {
+    return [];
+  }
+
+  const lines = sourceLines(content);
+  const ranges = [];
+  const pattern = /REQ-\d{4}/g;
+  let lineIndex = 0;
+  let match;
+  while ((match = pattern.exec(content)) !== null) {
+    while (lineIndex + 1 < lines.length && match.index >= lines[lineIndex].nextOffset) {
+      lineIndex += 1;
+    }
+    const before = match.index === 0 ? '' : content[match.index - 1];
+    const afterIndex = match.index + match[0].length;
+    const after = afterIndex === content.length ? '' : content[afterIndex];
+    const bounded = !/[A-Za-z0-9]/.test(before) && !/[A-Za-z0-9]/.test(after);
+    if (match[0] !== id || !bounded) {
+      continue;
+    }
+    const character = match.index - lines[lineIndex].offset;
+    ranges.push({
+      start: { line: lines[lineIndex].line, character },
+      end: { line: lines[lineIndex].line, character: character + match[0].length },
+    });
+  }
+  return ranges;
+}
+
 module.exports = {
   parseRequirementDocument,
   requirementAtPosition,
+  requirementRanges,
 };

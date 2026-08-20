@@ -1,6 +1,8 @@
 #include <mcutrace/cli.hpp>
 #include <mcutest/mcutest.hpp>
 
+#include "test_runner.hpp"
+
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -63,6 +65,15 @@ TEST(cli, defaults_to_text_output, "REQ-0056", "REQ-0064", "REQ-0067") {
     ASSERT_EQ(result->output_format, mcutrace::OutputFormat::text);
 }
 
+TEST(cli, parses_requirement_evidence_query, "REQ-0055", "REQ-0064") {
+    const char* argv[] = {"mcutrace", "--config", "mcutrace.toml", "show", "REQ-0001", "--format", "json"};
+    const auto result = mcutrace::parse_cli(static_cast<int>(std::size(argv)), argv);
+    ASSERT_TRUE(result.has_value());
+    ASSERT_EQ(result->action, mcutrace::CliAction::show);
+    ASSERT_EQ(result->requirement_id, std::string("REQ-0001"));
+    ASSERT_EQ(result->output_format, mcutrace::OutputFormat::json);
+}
+
 TEST(cli, rejects_unknown_output_format, "REQ-0055", "REQ-0056", "REQ-0064") {
     const char* argv[] = {"mcutrace", "validate", "--format", "xml"};
     const auto result = mcutrace::parse_cli(static_cast<int>(std::size(argv)), argv);
@@ -89,6 +100,14 @@ TEST(cli, exposes_command_help, "REQ-0064", "REQ-0067", "REQ-0093") {
     ASSERT_EQ(mcutrace::run_cli(*result), 0);
 }
 
+TEST(cli, exposes_evidence_query_help, "REQ-0055", "REQ-0064") {
+    const char* argv[] = {"mcutrace", "show", "--help"};
+    const auto result = mcutrace::parse_cli(static_cast<int>(std::size(argv)), argv);
+    ASSERT_TRUE(result.has_value());
+    ASSERT_EQ(result->action, mcutrace::CliAction::help);
+    ASSERT_NE(result->help_text.find("REQ-NNNN"), std::string::npos);
+}
+
 TEST(cli, validates_empty_explicit_project, "REQ-0053", "REQ-0064", "REQ-0067") {
     mcutrace::CliOptions options;
     options.action = mcutrace::CliAction::validate;
@@ -113,5 +132,5 @@ TEST(cli, requires_validate_command_for_invocation, "REQ-0064", "REQ-0067") {
 
 int main(int argc, char* argv[]) {
     mcutest::Runner<mcutest::JsonOutput> runner;
-    return mcutest::run_with_gtest_compat(argc, argv, runner);
+    return mcutrace::test::run(argc, argv, runner);
 }

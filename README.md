@@ -24,17 +24,36 @@ Multiple canonical `REQ-NNNN` identifiers may be listed on either annotation. So
 
 Annotated files can be configured with `sources = ["src/foo.cpp", "include/foo.hpp"]` in the project configuration or supplied explicitly with repeatable `--source FILE` options.
 
-## VS Code integration
+## Project traceability
 
-The extension in `editors/vscode` shows the title and body of a `REQ-NNNN` requirement on hover and provides native Go to Definition navigation with Cmd-click on macOS, Ctrl-click on Windows/Linux, or `F12`.
-
-Install the packaged extension locally with:
+This repository includes [`mcutrace.toml`](mcutrace.toml), which indexes its requirement documents and annotated production sources. [`make.sh`](make.sh) builds with mcucov instrumentation, runs every test, generates mcutest/mcucov/mcucheck artifacts, validates the graph, and writes the hover report:
 
 ```sh
-code --install-extension editors/vscode/mcutrace-requirements-0.1.0.vsix
+./make.sh
+build/trace/mcutrace --config mcutrace.toml show REQ-0097
+```
+
+`show` prints the requirement's implementations, sources, tests, coverage, and static-analysis findings. The JSON report at `build/mcutrace-report.json` supplies the optional evidence sections in the VS Code hover. mcucov's host tools need `nlohmann_json` and `CLI11`; set `MCUCOV_FETCH_DEPENDENCIES=ON` when running the script if CMake should obtain missing copies.
+
+## VS Code integration
+
+The extension in `editors/vscode` shows the title, body, and available trace evidence for a `REQ-NNNN` requirement on hover. It provides native Go to Definition navigation with Cmd-click on macOS, Ctrl-click on Windows/Linux, or `F12`.
+
+Test, package, and install the extension locally with:
+
+```sh
+./make.sh vscode
+```
+
+To install an already packaged extension manually:
+
+```sh
+code --install-extension editors/vscode/mcutrace-requirements-0.1.2.vsix --force
 ```
 
 Requirement documents are discovered with `**/requirements*.md` by default. The `mcutrace.requirementFiles` workspace setting accepts explicit glob patterns when a project uses different filenames.
+
+Install the separate mcucov Coverage extension to display `mcucov.lcov` files in VS Code's native Test Coverage view and editor gutter.
 
 ## Initial host stack
 

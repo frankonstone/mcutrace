@@ -325,6 +325,7 @@ Node Requirement::as_node() const {
         .kind = NodeKind::requirement,
         .label = title,
         .evidence_state = EvidenceState::unknown,
+        .evidence_detail = {},
         .finding_state = {},
         .source = source,
         .expected_evidence = expected_evidence,

@@ -1,6 +1,8 @@
 #include <mcutrace/requirements.hpp>
 #include <mcutest/mcutest.hpp>
 
+#include "test_runner.hpp"
+
 #include <array>
 #include <string>
 
@@ -168,5 +170,5 @@ TEST(requirements, converts_requirement_to_model_node, "REQ-0021") {
 
 int main(int argc, char* argv[]) {
     mcutest::Runner<mcutest::JsonOutput> runner;
-    return mcutest::run_with_gtest_compat(argc, argv, runner);
+    return mcutrace::test::run(argc, argv, runner);
 }
