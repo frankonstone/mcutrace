@@ -1,5 +1,6 @@
 #pragma once
 
+#include <string>
 #include <vector>
 
 #include <mcutrace/assembly.hpp>
@@ -10,15 +11,22 @@ namespace mcutrace {
 struct ValidationRule final {
     bool enabled = true;
     Severity severity = Severity::warning;
+    std::vector<std::string> excluded_paths;
 };
 
 struct ValidationPolicy final {
-    ValidationRule dangling_reference{.enabled = true, .severity = Severity::error};
-    ValidationRule missing_test{.enabled = true, .severity = Severity::warning};
-    ValidationRule missing_implementation{.enabled = true, .severity = Severity::warning};
-    ValidationRule missing_coverage{.enabled = true, .severity = Severity::warning};
-    ValidationRule failed_test{.enabled = true, .severity = Severity::error};
-    ValidationRule static_finding{.enabled = true, .severity = Severity::warning};
+    ValidationRule dangling_reference{.enabled = true, .severity = Severity::error,
+                                     .excluded_paths = {}};
+    ValidationRule missing_test{.enabled = true, .severity = Severity::warning,
+                                .excluded_paths = {}};
+    ValidationRule missing_implementation{.enabled = true, .severity = Severity::warning,
+                                          .excluded_paths = {}};
+    ValidationRule missing_coverage{.enabled = true, .severity = Severity::warning,
+                                    .excluded_paths = {}};
+    ValidationRule failed_test{.enabled = true, .severity = Severity::error,
+                                .excluded_paths = {}};
+    ValidationRule static_finding{.enabled = true, .severity = Severity::warning,
+                                  .excluded_paths = {}};
     Severity fail_at_or_above = Severity::error;
 };
 

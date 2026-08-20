@@ -186,6 +186,58 @@ load_requirements(const ProjectConfig& config, const CliOptions& options) {
     return parse_requirements(documents);
 }
 
+using FragmentLoader = std::expected<ImportFragment, CliError> (*)(const std::string&,
+                                                                     const std::string&);
+
+std::expected<void, CliError> append_path_fragments(std::vector<ImportFragment>& fragments,
+                                                     const std::vector<std::string>& paths,
+                                                     const std::string& base_directory,
+                                                     FragmentLoader loader) {
+    for (const auto& path : paths) {
+        auto fragment = loader(path, base_directory);
+        if (!fragment) {
+            return std::unexpected(fragment.error());
+        }
+        fragments.push_back(std::move(*fragment));
+    }
+    return {};
+}
+
+std::vector<std::string> normalized_paths(const std::vector<std::string>& paths) {
+    std::vector<std::string> result;
+    result.reserve(paths.size());
+    for (const auto& path : paths) {
+        result.push_back(normalize_explicit_path(path));
+    }
+    return result;
+}
+
+std::expected<void, CliError> append_config_artifacts(std::vector<ImportFragment>& fragments,
+                                                       const std::vector<ArtifactConfig>& artifacts) {
+    for (const auto& artifact : artifacts) {
+        auto fragment = load_artifact(artifact.path, artifact.base_directory, artifact.importer);
+        if (!fragment) {
+            return std::unexpected(fragment.error());
+        }
+        fragments.push_back(std::move(*fragment));
+    }
+    return {};
+}
+
+std::expected<void, CliError> append_explicit_artifacts(
+    std::vector<ImportFragment>& fragments,
+    const std::vector<std::string>& paths,
+    const std::string& base_directory) {
+    for (const auto& path : paths) {
+        auto fragment = load_artifact(normalize_explicit_path(path), base_directory, {});
+        if (!fragment) {
+            return std::unexpected(fragment.error());
+        }
+        fragments.push_back(std::move(*fragment));
+    }
+    return {};
+}
+
 std::expected<std::vector<ImportFragment>, CliError>
 load_fragments(const ProjectConfig& config, const CliOptions& options) {
     std::vector<ImportFragment> fragments;
@@ -193,57 +245,30 @@ load_fragments(const ProjectConfig& config, const CliOptions& options) {
                       config.build_files.size() + options.build_files.size() +
                       config.artifacts.size() + options.artifact_files.size());
 
-    for (const auto& source : config.source_files) {
-        auto fragment = load_source(source, config.root);
-        if (!fragment) {
-            return std::unexpected(fragment.error());
-        }
-        fragments.push_back(std::move(*fragment));
-    }
-
-    for (const auto& build : config.build_files) {
-        auto fragment = load_build(build, config.root);
-        if (!fragment) {
-            return std::unexpected(fragment.error());
-        }
-        fragments.push_back(std::move(*fragment));
-    }
-
     const std::string explicit_base =
         std::filesystem::current_path().lexically_normal().generic_string();
-    for (const auto& source : options.source_files) {
-        const std::string normalized = normalize_explicit_path(source);
-        auto fragment = load_source(normalized, explicit_base);
-        if (!fragment) {
-            return std::unexpected(fragment.error());
-        }
-        fragments.push_back(std::move(*fragment));
+    if (auto status = append_path_fragments(fragments, config.source_files, config.root, load_source);
+        !status) {
+        return std::unexpected(status.error());
     }
-
-    for (const auto& build : options.build_files) {
-        const std::string normalized = normalize_explicit_path(build);
-        auto fragment = load_build(normalized, explicit_base);
-        if (!fragment) {
-            return std::unexpected(fragment.error());
-        }
-        fragments.push_back(std::move(*fragment));
+    if (auto status = append_path_fragments(fragments, config.build_files, config.root, load_build);
+        !status) {
+        return std::unexpected(status.error());
     }
-
-    for (const auto& artifact : config.artifacts) {
-        auto fragment = load_artifact(artifact.path, artifact.base_directory, artifact.importer);
-        if (!fragment) {
-            return std::unexpected(fragment.error());
-        }
-        fragments.push_back(std::move(*fragment));
+    if (auto status = append_path_fragments(fragments, normalized_paths(options.source_files),
+                                            explicit_base, load_source); !status) {
+        return std::unexpected(status.error());
     }
-
-    for (const auto& artifact : options.artifact_files) {
-        const std::string normalized = normalize_explicit_path(artifact);
-        auto fragment = load_artifact(normalized, explicit_base, {});
-        if (!fragment) {
-            return std::unexpected(fragment.error());
-        }
-        fragments.push_back(std::move(*fragment));
+    if (auto status = append_path_fragments(fragments, normalized_paths(options.build_files),
+                                            explicit_base, load_build); !status) {
+        return std::unexpected(status.error());
+    }
+    if (auto status = append_config_artifacts(fragments, config.artifacts); !status) {
+        return std::unexpected(status.error());
+    }
+    if (auto status = append_explicit_artifacts(fragments, options.artifact_files, explicit_base);
+        !status) {
+        return std::unexpected(status.error());
     }
     return fragments;
 }
@@ -267,6 +292,102 @@ int render_validation_result(const CliOptions& options,
     return validation.failed ? 1 : 0;
 }
 
+std::expected<void, CliError> add_file_input_option(mcucli::Command* command,
+                                                    std::string_view names,
+                                                    std::string_view description,
+                                                    std::vector<std::string>& values) {
+    auto option = command->add_option(names, description, values);
+    if (!option) {
+        return std::unexpected(CliError{.message = cli_error_text(option.error())});
+    }
+    (*option)->metavar("FILE").repeatable();
+    return {};
+}
+
+std::expected<void, CliError> configure_inputs(mcucli::Command* command,
+                                                CliOptions& options,
+                                                std::string& format) {
+    if (auto status = add_file_input_option(command, "-r, --requirement",
+                                            "Additional requirement Markdown file",
+                                            options.requirement_files); !status) {
+        return std::unexpected(status.error());
+    }
+    if (auto status = add_file_input_option(command, "-s, --source",
+                                            "Additional annotated source or header file",
+                                            options.source_files); !status) {
+        return std::unexpected(status.error());
+    }
+    if (auto status = add_file_input_option(command, "-b, --build",
+                                            "Additional annotated CMake build-definition file",
+                                            options.build_files); !status) {
+        return std::unexpected(status.error());
+    }
+    if (auto status = add_file_input_option(command, "-a, --artifact",
+                                            "Additional producer artifact file (auto-detected)",
+                                            options.artifact_files); !status) {
+        return std::unexpected(status.error());
+    }
+    auto output = command->add_option("-f, --format", "Report format: text or json", format);
+    if (!output) {
+        return std::unexpected(CliError{.message = cli_error_text(output.error())});
+    }
+    (*output)->metavar("FORMAT");
+    return {};
+}
+
+struct CliCommands final {
+    mcucli::Command* validate = nullptr;
+    mcucli::Command* show = nullptr;
+};
+
+std::expected<CliCommands, CliError> configure_commands(mcucli::Application& app,
+                                                         CliOptions& options,
+                                                         std::string& format) {
+    auto validate = app.add_command("validate", "Validate the configured traceability graph");
+    if (!validate) {
+        return std::unexpected(CliError{.message = cli_error_text(validate.error())});
+    }
+    auto show = app.add_command("show", "Show trace evidence for one requirement");
+    if (!show) {
+        return std::unexpected(CliError{.message = cli_error_text(show.error())});
+    }
+    auto config = app.add_option("-c, --config", "TOML configuration file", options.config_path);
+    if (!config) {
+        return std::unexpected(CliError{.message = cli_error_text(config.error())});
+    }
+    (*config)->metavar("FILE");
+    if (auto status = configure_inputs(*validate, options, format); !status) {
+        return std::unexpected(status.error());
+    }
+    if (auto status = configure_inputs(*show, options, format); !status) {
+        return std::unexpected(status.error());
+    }
+    if (auto requirement = (*show)->add_positional("REQ-NNNN", "Requirement identifier",
+                                                    options.requirement_id); !requirement) {
+        return std::unexpected(CliError{.message = cli_error_text(requirement.error())});
+    }
+    return CliCommands{.validate = *validate, .show = *show};
+}
+
+int render_requirement_result(const CliOptions& options, const TraceResult& trace) {
+    const auto report = build_requirement_trace_report(trace, options.requirement_id);
+    if (!report) {
+        std::cerr << "unknown requirement: " << options.requirement_id << '\n';
+        return 2;
+    }
+    if (options.output_format == OutputFormat::json) {
+        const auto json = render_requirement_json_report(*report);
+        if (!json) {
+            std::cerr << json.error().detail << '\n';
+            return 2;
+        }
+        std::cout << *json << '\n';
+        return 0;
+    }
+    std::cout << render_requirement_text_report(*report);
+    return 0;
+}
+
 }  // namespace
 
 // @req REQ-0053 REQ-0064 REQ-0065 REQ-0066 REQ-0067 REQ-0068 REQ-0093
@@ -276,68 +397,9 @@ std::expected<CliOptions, CliError> parse_cli(int argc, const char* const* argv)
     mcucli::Application app("mcutrace", "Traceability aggregation and validation");
     app.set_version(kVersion);
 
-    auto validate = app.add_command("validate", "Validate the configured traceability graph");
-    if (!validate) {
-        return std::unexpected(CliError{.message = cli_error_text(validate.error())});
-    }
-    auto show = app.add_command("show", "Show trace evidence for one requirement");
-    if (!show) {
-        return std::unexpected(CliError{.message = cli_error_text(show.error())});
-    }
-
-    auto config = app.add_option("-c, --config", "TOML configuration file", options.config_path);
-    if (!config) {
-        return std::unexpected(CliError{.message = cli_error_text(config.error())});
-    }
-    (*config)->metavar("FILE");
-
-    const auto configure_inputs = [&](mcucli::Command* command) -> std::expected<void, CliError> {
-        auto requirements = command->add_option(
-            "-r, --requirement", "Additional requirement Markdown file", options.requirement_files);
-        if (!requirements) {
-            return std::unexpected(CliError{.message = cli_error_text(requirements.error())});
-        }
-        (*requirements)->metavar("FILE").repeatable();
-
-        auto sources = command->add_option(
-            "-s, --source", "Additional annotated source or header file", options.source_files);
-        if (!sources) {
-            return std::unexpected(CliError{.message = cli_error_text(sources.error())});
-        }
-        (*sources)->metavar("FILE").repeatable();
-
-        auto builds = command->add_option(
-            "-b, --build", "Additional annotated CMake build-definition file", options.build_files);
-        if (!builds) {
-            return std::unexpected(CliError{.message = cli_error_text(builds.error())});
-        }
-        (*builds)->metavar("FILE").repeatable();
-
-        auto artifacts = command->add_option(
-            "-a, --artifact", "Additional producer artifact file (auto-detected)", options.artifact_files);
-        if (!artifacts) {
-            return std::unexpected(CliError{.message = cli_error_text(artifacts.error())});
-        }
-        (*artifacts)->metavar("FILE").repeatable();
-
-        auto output = command->add_option(
-            "-f, --format", "Report format: text or json", format);
-        if (!output) {
-            return std::unexpected(CliError{.message = cli_error_text(output.error())});
-        }
-        (*output)->metavar("FORMAT");
-        return {};
-    };
-
-    if (auto status = configure_inputs(*validate); !status) {
-        return std::unexpected(status.error());
-    }
-    if (auto status = configure_inputs(*show); !status) {
-        return std::unexpected(status.error());
-    }
-    if (auto requirement = (*show)->add_positional("REQ-NNNN", "Requirement identifier",
-                                                    options.requirement_id); !requirement) {
-        return std::unexpected(CliError{.message = cli_error_text(requirement.error())});
+    auto commands = configure_commands(app, options, format);
+    if (!commands) {
+        return std::unexpected(commands.error());
     }
     auto parsed = app.parse(argc, argv);
     if (!parsed) {
@@ -360,11 +422,11 @@ std::expected<CliOptions, CliError> parse_cli(int argc, const char* const* argv)
     if (auto status = parse_output_format(format, options.output_format); !status) {
         return std::unexpected(status.error());
     }
-    if (parsed->command() == (*validate)->id()) {
+    if (parsed->command() == commands->validate->id()) {
         options.action = CliAction::validate;
         return options;
     }
-    if (parsed->command() == (*show)->id()) {
+    if (parsed->command() == commands->show->id()) {
         options.action = CliAction::show;
         return options;
     }
@@ -405,22 +467,7 @@ int run_cli(const CliOptions& options) {
     const TraceResult trace = assemble_trace(requirements->requirements, *fragments);
     const ValidationResult validation = validate_trace(trace, config->validation);
     if (options.action == CliAction::show) {
-        const auto report = build_requirement_trace_report(trace, options.requirement_id);
-        if (!report) {
-            std::cerr << "unknown requirement: " << options.requirement_id << '\n';
-            return 2;
-        }
-        if (options.output_format == OutputFormat::json) {
-            const auto json = render_requirement_json_report(*report);
-            if (!json) {
-                std::cerr << json.error().detail << '\n';
-                return 2;
-            }
-            std::cout << *json << '\n';
-        } else {
-            std::cout << render_requirement_text_report(*report);
-        }
-        return 0;
+        return render_requirement_result(options, trace);
     }
     return render_validation_result(options, trace, validation);
 }

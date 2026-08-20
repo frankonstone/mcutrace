@@ -3,7 +3,6 @@
 #include <mcutrace/requirements.hpp>
 
 #include <cctype>
-#include <cstdint>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -100,6 +99,8 @@ void append_evidence(ImportFragment& fragment,
                 .importer = "cmake-annotations",
                 .artifact = std::string(path),
                 .source = SourceLocation{.path = std::string(path), .line = line},
+                .scope = {},
+                .symbol = {},
             },
             .source = SourceLocation{.path = std::string(path), .line = line},
         });

@@ -52,15 +52,21 @@ severity = "error"
 
 [validation.failed_test]
 severity = "warning"
+
+[validation.missing_coverage]
+excluded_paths = ["src/main.cpp"]
 )toml";
 
-    const auto config = mcutrace::parse_project_config(text, "mcutrace.toml");
+    const auto config = mcutrace::parse_project_config(text, "/work/project/mcutrace.toml");
     ASSERT_TRUE(config.has_value());
     ASSERT_EQ(config->validation.fail_at_or_above, mcutrace::Severity::warning);
     ASSERT_FALSE(config->validation.missing_test.enabled);
     ASSERT_EQ(config->validation.missing_test.severity, mcutrace::Severity::error);
     ASSERT_TRUE(config->validation.failed_test.enabled);
     ASSERT_EQ(config->validation.failed_test.severity, mcutrace::Severity::warning);
+    ASSERT_EQ(config->validation.missing_coverage.excluded_paths.size(), static_cast<std::size_t>(1));
+    ASSERT_EQ(config->validation.missing_coverage.excluded_paths[0],
+              std::string("/work/project/src/main.cpp"));
 }
 
 TEST(config, rejects_invalid_validation_severity, "REQ-0052", "REQ-0054") {

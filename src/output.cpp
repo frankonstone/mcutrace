@@ -136,6 +136,65 @@ std::size_t diagnostic_count(const ValidationResult& validation, Severity severi
         [severity](const Diagnostic& diagnostic) { return diagnostic.severity == severity; }));
 }
 
+std::optional<std::string_view> related_node_id(const Edge& edge,
+                                                std::string_view requirement_id) {
+    if (edge.source_id == requirement_id) {
+        return edge.target_id;
+    }
+    if (edge.target_id == requirement_id) {
+        return edge.source_id;
+    }
+    return std::nullopt;
+}
+
+void append_directly_related_nodes(const TraceResult& trace,
+                                   std::string_view requirement_id,
+                                   RequirementTraceReport& report,
+                                   std::vector<std::string>& source_paths) {
+    for (const auto& edge : trace.graph.edges()) {
+        const auto other_id = related_node_id(edge, requirement_id);
+        if (!other_id) {
+            continue;
+        }
+        const Node* node = trace.graph.find_node(*other_id);
+        if (node != nullptr) {
+            append_related_node(report, *node);
+            append_source_path(source_paths, *node);
+        }
+    }
+}
+
+void append_implementation_source_paths(const RequirementTraceReport& report,
+                                        std::vector<std::string>& source_paths) {
+    for (const auto& implementation : report.implementations) {
+        append_source_path(source_paths, implementation);
+    }
+}
+
+void append_source_nodes(const TraceResult& trace,
+                         const std::vector<std::string>& source_paths,
+                         RequirementTraceReport& report) {
+    for (const auto& path : source_paths) {
+        const Node* source = trace.graph.find_node("source:" + path);
+        if (source != nullptr && source->kind == NodeKind::source) {
+            append_node_once(report.sources, *source);
+        }
+    }
+}
+
+void append_source_evidence(const TraceResult& trace,
+                            const std::vector<std::string>& source_paths,
+                            RequirementTraceReport& report) {
+    for (const auto& node : trace.graph.nodes()) {
+        if (!node.source || !has_source_path(source_paths, node.source->path)) {
+            continue;
+        }
+        if (node.kind == NodeKind::coverage || node.kind == NodeKind::finding) {
+            append_related_node(report, node);
+        }
+    }
+}
+
 }  // namespace
 
 // @req REQ-0059 REQ-0060
@@ -165,42 +224,13 @@ build_requirement_trace_report(const TraceResult& trace, const std::string_view 
         return std::nullopt;
     }
 
-    RequirementTraceReport report{.requirement = *requirement};
+    RequirementTraceReport report;
+    report.requirement = *requirement;
     std::vector<std::string> source_paths;
-    for (const auto& edge : trace.graph.edges()) {
-        std::string_view other_id;
-        if (edge.source_id == requirement_id) {
-            other_id = edge.target_id;
-        } else if (edge.target_id == requirement_id) {
-            other_id = edge.source_id;
-        } else {
-            continue;
-        }
-        const Node* node = trace.graph.find_node(other_id);
-        if (node == nullptr) {
-            continue;
-        }
-        append_related_node(report, *node);
-        append_source_path(source_paths, *node);
-    }
-
-    for (const auto& implementation : report.implementations) {
-        append_source_path(source_paths, implementation);
-    }
-    for (const auto& path : source_paths) {
-        const Node* source = trace.graph.find_node("source:" + path);
-        if (source != nullptr && source->kind == NodeKind::source) {
-            append_node_once(report.sources, *source);
-        }
-    }
-    for (const auto& node : trace.graph.nodes()) {
-        if (!node.source || !has_source_path(source_paths, node.source->path)) {
-            continue;
-        }
-        if (node.kind == NodeKind::coverage || node.kind == NodeKind::finding) {
-            append_related_node(report, node);
-        }
-    }
+    append_directly_related_nodes(trace, requirement_id, report, source_paths);
+    append_implementation_source_paths(report, source_paths);
+    append_source_nodes(trace, source_paths, report);
+    append_source_evidence(trace, source_paths, report);
     return report;
 }
 

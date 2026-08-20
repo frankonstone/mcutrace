@@ -68,6 +68,14 @@ bool is_header_source(const Node& node) noexcept {
            id.ends_with(".hxx");
 }
 
+bool is_excluded_source(const Node& node, const ValidationRule& rule) {
+    if (!node.source) {
+        return false;
+    }
+    return std::any_of(rule.excluded_paths.begin(), rule.excluded_paths.end(),
+                       [&node](const std::string& path) { return path == node.source->path; });
+}
+
 void append_diagnostic(std::vector<Diagnostic>& diagnostics, std::string code, Severity severity,
                        std::string message, std::optional<SourceLocation> source) {
     diagnostics.push_back(Diagnostic{.code = std::move(code), .severity = severity,
@@ -115,36 +123,65 @@ void validate_dangling_edges(const TraceResult& trace,
     }
 }
 
+struct ExpectedEvidence final {
+    const ValidationRule& rule;
+    EvidenceExpectation expectation;
+    NodeKind kind;
+    RelationshipKind relationship;
+    std::string_view code;
+    std::string_view name;
+};
+
+void validate_expected_evidence(const Graph& graph,
+                                const Node& node,
+                                const ExpectedEvidence& expected,
+                                std::vector<Diagnostic>& diagnostics) {
+    if (!expected.rule.enabled || !expects(node, expected.expectation) ||
+        connected_to_evidence(graph, node.id, expected.kind, expected.relationship)) {
+        return;
+    }
+    append_diagnostic(diagnostics, std::string(expected.code), expected.rule.severity,
+                      "requirement has no linked " + std::string(expected.name) + ": " + node.id,
+                      node.source);
+}
+
 // @req REQ-0047 REQ-0048 REQ-0049 REQ-0096
 void validate_requirement(const Graph& graph,
                           const Node& node,
                           const ValidationPolicy& policy,
                           std::vector<Diagnostic>& diagnostics) {
-    if (policy.missing_test.enabled && expects(node, EvidenceExpectation::test) &&
-        !connected_to_evidence(graph, node.id, NodeKind::test, RelationshipKind::verifies)) {
-        append_diagnostic(diagnostics, "validation.missing_test_evidence",
-            policy.missing_test.severity,
-            "requirement has no linked test evidence: " + node.id, node.source);
-    }
-    if (policy.missing_implementation.enabled && expects(node, EvidenceExpectation::implementation) &&
-        !connected_to_evidence(graph, node.id, NodeKind::implementation,
-                               RelationshipKind::implements)) {
-        append_diagnostic(diagnostics, "validation.missing_implementation_evidence",
-            policy.missing_implementation.severity,
-            "requirement has no linked implementation evidence: " + node.id, node.source);
-    }
-    if (policy.missing_coverage.enabled && expects(node, EvidenceExpectation::coverage) &&
-        !connected_to_evidence(graph, node.id, NodeKind::coverage, RelationshipKind::covers)) {
-        append_diagnostic(diagnostics, "validation.missing_requirement_coverage_evidence",
-            policy.missing_coverage.severity,
-            "requirement has no linked coverage evidence: " + node.id, node.source);
-    }
-    if (policy.missing_implementation.enabled && expects(node, EvidenceExpectation::build) &&
-        !connected_to_evidence(graph, node.id, NodeKind::artifact, RelationshipKind::verifies)) {
-        append_diagnostic(diagnostics, "validation.missing_build_evidence",
-            policy.missing_implementation.severity,
-            "requirement has no linked build/CI evidence: " + node.id, node.source);
-    }
+    validate_expected_evidence(graph, node, ExpectedEvidence{
+        .rule = policy.missing_test,
+        .expectation = EvidenceExpectation::test,
+        .kind = NodeKind::test,
+        .relationship = RelationshipKind::verifies,
+        .code = "validation.missing_test_evidence",
+        .name = "test evidence",
+    }, diagnostics);
+    validate_expected_evidence(graph, node, ExpectedEvidence{
+        .rule = policy.missing_implementation,
+        .expectation = EvidenceExpectation::implementation,
+        .kind = NodeKind::implementation,
+        .relationship = RelationshipKind::implements,
+        .code = "validation.missing_implementation_evidence",
+        .name = "implementation evidence",
+    }, diagnostics);
+    validate_expected_evidence(graph, node, ExpectedEvidence{
+        .rule = policy.missing_coverage,
+        .expectation = EvidenceExpectation::coverage,
+        .kind = NodeKind::coverage,
+        .relationship = RelationshipKind::covers,
+        .code = "validation.missing_requirement_coverage_evidence",
+        .name = "coverage evidence",
+    }, diagnostics);
+    validate_expected_evidence(graph, node, ExpectedEvidence{
+        .rule = policy.missing_implementation,
+        .expectation = EvidenceExpectation::build,
+        .kind = NodeKind::artifact,
+        .relationship = RelationshipKind::verifies,
+        .code = "validation.missing_build_evidence",
+        .name = "build/CI evidence",
+    }, diagnostics);
 }
 
 void validate_source(const Graph& graph,
@@ -152,6 +189,7 @@ void validate_source(const Graph& graph,
                      const ValidationPolicy& policy,
                      std::vector<Diagnostic>& diagnostics) {
     if (!policy.missing_coverage.enabled || is_header_source(node) ||
+        is_excluded_source(node, policy.missing_coverage) ||
         connected_to_evidence(graph, node.id, NodeKind::coverage, RelationshipKind::covers)) {
         return;
     }

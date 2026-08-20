@@ -3,7 +3,6 @@
 #include <mcutrace/requirements.hpp>
 
 #include <algorithm>
-#include <cstdint>
 #include <optional>
 #include <span>
 #include <string>
@@ -84,6 +83,8 @@ void add_source_and_edge(ImportFragment& fragment,
             .importer = fragment.format.producer,
             .artifact = input.path,
             .source = std::nullopt,
+            .scope = {},
+            .symbol = {},
         },
         .source = std::nullopt,
     });
@@ -102,6 +103,8 @@ void add_requirement_edge(ImportFragment& fragment,
             .importer = fragment.format.schema,
             .artifact = input.path,
             .source = SourceLocation{.path = input.path},
+            .scope = {},
+            .symbol = {},
         },
         .source = SourceLocation{.path = input.path},
     });
@@ -303,12 +306,10 @@ public:
         if (depth_ == 2 && key_ == "modules") {
             saw_modules = true;
             in_modules_ = true;
-        } else if (in_module_ && depth_ == 4 && key_ == "probes") {
-            in_probes_ = true;
-        } else if (in_module_ && depth_ == 4 && key_ == "requirements") {
-            in_requirements_ = true;
-        } else if (in_module_ && depth_ == 4 && key_ == "skipped") {
-            in_skipped_ = true;
+        } else if (in_module_ && depth_ == 4) {
+            in_probes_ = key_ == "probes";
+            in_requirements_ = key_ == "requirements";
+            in_skipped_ = key_ == "skipped";
         }
         return !failed_;
     }
@@ -342,7 +343,7 @@ public:
         if (decode_requirement(value)) {
             return !failed_;
         }
-        (void)decode_skipped_string(value);
+        static_cast<void>(decode_skipped_string(value));
         return !failed_;
     }
 
@@ -386,11 +387,11 @@ private:
             return false;
         }
         if (key_ == "path") {
-            (void)decode(value, current_module_.path);
+            static_cast<void>(decode(value, current_module_.path));
             return true;
         }
         if (key_ == "variant") {
-            (void)decode(value, current_module_.variant);
+            static_cast<void>(decode(value, current_module_.variant));
             return true;
         }
         return false;
@@ -412,15 +413,15 @@ private:
             return false;
         }
         if (key_ == "state") {
-            (void)decode(value, current_skipped_.state);
+            static_cast<void>(decode(value, current_skipped_.state));
             return true;
         }
         if (key_ == "severity") {
-            (void)decode(value, current_skipped_.severity);
+            static_cast<void>(decode(value, current_skipped_.severity));
             return true;
         }
         if (key_ == "detail") {
-            (void)decode(value, current_skipped_.detail);
+            static_cast<void>(decode(value, current_skipped_.detail));
             return true;
         }
         return false;
@@ -556,14 +557,36 @@ import_mcucov(const ArtifactInput& input, InputFormat format) {
     return fragment;
 }
 
+bool is_mcucheck_diagnostic(const mcujson::JsonRef& diagnostic,
+                            const mcujson::JsonRef& location) {
+    return diagnostic.is_object() && diagnostic["rule_id"].is_string() &&
+           diagnostic["message"].is_string() && location.is_object() &&
+           location["path"].is_string();
+}
+
+std::uint32_t location_coordinate(const mcujson::JsonRef& location,
+                                  std::string_view name) {
+    const auto value = location[name];
+    return value.is_number() ? static_cast<std::uint32_t>(value.get<long long>()) : 0U;
+}
+
+SourceLocation diagnostic_source_location(const mcujson::JsonRef& location,
+                                          std::string path) {
+    return SourceLocation{
+        .path = std::move(path),
+        .line = location_coordinate(location, "line"),
+        .column = location_coordinate(location, "column"),
+        .end_line = location_coordinate(location, "end_line"),
+        .end_column = location_coordinate(location, "end_column"),
+    };
+}
+
 std::expected<void, ImportError> append_mcucheck_diagnostic(ImportFragment& fragment,
                                                             const mcujson::JsonRef& diagnostic,
                                                             const ArtifactInput& input,
                                                             std::size_t fallback_index) {
     const auto location = diagnostic["location"];
-    if (!diagnostic.is_object() || !diagnostic["rule_id"].is_string() ||
-        !diagnostic["message"].is_string() || !location.is_object() ||
-        !location["path"].is_string()) {
+    if (!is_mcucheck_diagnostic(diagnostic, location)) {
         fragment.diagnostics.push_back(Diagnostic{
             .code = "import.mcucheck.invalid_diagnostic",
             .severity = Severity::warning,
@@ -577,19 +600,12 @@ std::expected<void, ImportError> append_mcucheck_diagnostic(ImportFragment& frag
     if (!normalized) {
         return std::unexpected(normalized.error());
     }
-    const auto line = location["line"].is_number()
-        ? static_cast<std::uint32_t>(location["line"].get<long long>()) : 0U;
-    const auto column = location["column"].is_number()
-        ? static_cast<std::uint32_t>(location["column"].get<long long>()) : 0U;
-    const auto end_line = location["end_line"].is_number()
-        ? static_cast<std::uint32_t>(location["end_line"].get<long long>()) : 0U;
-    const auto end_column = location["end_column"].is_number()
-        ? static_cast<std::uint32_t>(location["end_column"].get<long long>()) : 0U;
+    const SourceLocation source = diagnostic_source_location(location, *normalized);
     const std::string rule = diagnostic["rule_id"].get<std::string>();
     const std::string message = diagnostic["message"].get<std::string>();
     const std::string stable = diagnostic["id"].is_string()
         ? diagnostic["id"].get<std::string>()
-        : rule + ":" + *normalized + ":" + std::to_string(line) + ":" +
+        : rule + ":" + *normalized + ":" + std::to_string(source.line) + ":" +
           std::to_string(fallback_index);
     const std::string finding_id = "finding:mcucheck:" + stable;
     add_node_once(fragment.nodes, Node{
@@ -599,13 +615,10 @@ std::expected<void, ImportError> append_mcucheck_diagnostic(ImportFragment& frag
         .evidence_state = EvidenceState::unknown,
         .evidence_detail = {},
         .finding_state = {},
-        .source = SourceLocation{.path = *normalized, .line = line, .column = column,
-                                 .end_line = end_line, .end_column = end_column},
+        .source = source,
         .expected_evidence = std::nullopt,
     });
-    add_source_and_edge(fragment, finding_id, RelationshipKind::reports, input,
-                        SourceLocation{.path = *normalized, .line = line, .column = column,
-                                       .end_line = end_line, .end_column = end_column});
+    add_source_and_edge(fragment, finding_id, RelationshipKind::reports, input, source);
     return {};
 }
 

@@ -5,7 +5,6 @@
 #include <algorithm>
 #include <array>
 #include <cctype>
-#include <cstdint>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -35,6 +34,7 @@ struct AnnotationTarget final {
 struct ScannerState final {
     std::optional<PendingAnnotation> pending;
     std::string declaration;
+    std::string_view normalized_path;
 };
 
 std::string_view trim(std::string_view value) noexcept {
@@ -318,11 +318,11 @@ bool handle_marker_line(std::string_view line,
                         std::uint32_t line_number,
                         ImportFragment& fragment,
                         const ArtifactInput& input,
-                        std::string_view normalized_path,
                         ScannerState& state) {
     if (const auto file = parse_marker(line, "@req-file", fragment, input, line_number)) {
-        append_annotation(fragment, input, normalized_path, *file,
-                          AnnotationTarget{.line = file->line, .scope = "file"});
+        append_annotation(fragment, input, state.normalized_path, *file,
+                          AnnotationTarget{.line = file->line, .scope = "file",
+                                           .symbol = {}, .identity = {}});
         return true;
     }
     const auto local = parse_marker(line, "@req", fragment, input, line_number);
@@ -340,11 +340,10 @@ bool handle_marker_line(std::string_view line,
 
 void complete_pending_declaration(ImportFragment& fragment,
                                   const ArtifactInput& input,
-                                  std::string_view normalized_path,
                                   ScannerState& state) {
     const auto context = declaration_context(state.declaration);
     if (context) {
-        append_annotation(fragment, input, normalized_path, *state.pending,
+        append_annotation(fragment, input, state.normalized_path, *state.pending,
                           AnnotationTarget{.line = state.pending->line,
                                            .scope = context->kind,
                                            .symbol = context->symbol,
@@ -364,7 +363,6 @@ void complete_pending_declaration(ImportFragment& fragment,
 void handle_pending_line(std::string_view line,
                          ImportFragment& fragment,
                          const ArtifactInput& input,
-                         std::string_view normalized_path,
                          ScannerState& state) {
     if (!state.pending) {
         return;
@@ -373,7 +371,7 @@ void handle_pending_line(std::string_view line,
         append_declaration_piece(state, line);
     }
     if (!state.declaration.empty() && declaration_complete(state.declaration)) {
-        complete_pending_declaration(fragment, input, normalized_path, state);
+        complete_pending_declaration(fragment, input, state);
     }
 }
 
@@ -406,7 +404,11 @@ import_source_annotations(const ArtifactInput& input) {
         .expected_evidence = std::nullopt,
     });
 
-    ScannerState state;
+    ScannerState state{
+        .pending = std::nullopt,
+        .declaration = {},
+        .normalized_path = *normalized,
+    };
     std::uint32_t line_number = 0;
     std::size_t offset = 0;
     while (offset <= input.content.size()) {
@@ -415,8 +417,8 @@ import_source_annotations(const ArtifactInput& input) {
         const auto line = std::string_view(input.content).substr(
             offset, end == std::string::npos ? std::string::npos : end - offset);
 
-        if (!handle_marker_line(line, line_number, fragment, input, *normalized, state)) {
-            handle_pending_line(line, fragment, input, *normalized, state);
+        if (!handle_marker_line(line, line_number, fragment, input, state)) {
+            handle_pending_line(line, fragment, input, state);
         }
 
         if (end == std::string::npos) {

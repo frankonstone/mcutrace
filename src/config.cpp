@@ -135,6 +135,46 @@ std::expected<void, ConfigError> read_path_array(const mcutoml::TomlRef values,
     return {};
 }
 
+std::expected<void, ConfigError> read_project_root(const mcutoml::TomlRef project,
+                                                   std::string_view config_base,
+                                                   ProjectConfig& result) {
+    const auto root = project["root"];
+    if (root.valid() && !root.is_string()) {
+        return std::unexpected(config_error(ConfigErrorCode::invalid_type,
+                                            "project.root must be a string"));
+    }
+    if (root.valid()) {
+        result.root = normalize_path(root.get<std::string_view>(), config_base);
+    }
+    if (result.root.empty()) {
+        result.root = normalize_path(".", config_base);
+    }
+    return {};
+}
+
+[[nodiscard]] mcutoml::TomlRef project_or_document_value(const mcutoml::TomlRef project,
+                                                          const mcutoml::Toml& document,
+                                                          std::string_view name) {
+    const auto value = project[name];
+    return value.valid() ? value : document[name];
+}
+
+std::expected<void, ConfigError> read_project_paths(const mcutoml::TomlRef project,
+                                                    const mcutoml::Toml& document,
+                                                    ProjectConfig& result) {
+    const auto requirements = project_or_document_value(project, document, "requirements");
+    if (auto status = read_path_array(requirements, "requirements", result.root,
+                                      result.requirement_files); !status) {
+        return std::unexpected(status.error());
+    }
+    const auto sources = project_or_document_value(project, document, "sources");
+    if (auto status = read_path_array(sources, "sources", result.root, result.source_files); !status) {
+        return std::unexpected(status.error());
+    }
+    const auto builds = project_or_document_value(project, document, "build_files");
+    return read_path_array(builds, "build_files", result.root, result.build_files);
+}
+
 std::expected<void, ConfigError> read_project(const mcutoml::Toml& document,
                                               std::string_view config_base,
                                               ProjectConfig& result) {
@@ -143,34 +183,10 @@ std::expected<void, ConfigError> read_project(const mcutoml::Toml& document,
         return std::unexpected(config_error(ConfigErrorCode::invalid_type,
                                             "project must be a table"));
     }
-    if (project.valid()) {
-        const auto root = project["root"];
-        if (root.valid() && !root.is_string()) {
-            return std::unexpected(config_error(ConfigErrorCode::invalid_type,
-                                                "project.root must be a string"));
-        }
-        if (root.valid()) {
-            result.root = normalize_path(root.get<std::string_view>(), config_base);
-        }
-    }
-    if (result.root.empty()) {
-        result.root = normalize_path(".", config_base);
-    }
-
-    const auto requirements = project.valid() && project["requirements"].valid()
-        ? project["requirements"] : document["requirements"];
-    if (auto status = read_path_array(requirements, "requirements", result.root,
-                                      result.requirement_files); !status) {
+    if (auto status = read_project_root(project, config_base, result); !status) {
         return std::unexpected(status.error());
     }
-    const auto sources = project.valid() && project["sources"].valid()
-        ? project["sources"] : document["sources"];
-    if (auto status = read_path_array(sources, "sources", result.root, result.source_files); !status) {
-        return std::unexpected(status.error());
-    }
-    const auto builds = project.valid() && project["build_files"].valid()
-        ? project["build_files"] : document["build_files"];
-    return read_path_array(builds, "build_files", result.root, result.build_files);
+    return read_project_paths(project, document, result);
 }
 
 std::expected<ArtifactConfig, ConfigError> read_artifact(const mcutoml::TomlRef entry,
@@ -246,7 +262,8 @@ std::expected<void, ConfigError> read_fail_threshold(const mcutoml::TomlRef vali
 
 std::expected<void, ConfigError> read_validation_rules(const mcutoml::TomlRef validation,
                                                        ValidationPolicy& policy,
-                                                       std::string_view config_path) {
+                                                       std::string_view config_path,
+                                                       std::string_view root) {
     if (auto status = read_rule(validation, "dangling_reference", policy.dangling_reference, config_path); !status) {
         return std::unexpected(status.error());
     }
@@ -257,6 +274,11 @@ std::expected<void, ConfigError> read_validation_rules(const mcutoml::TomlRef va
         return std::unexpected(status.error());
     }
     if (auto status = read_rule(validation, "missing_coverage", policy.missing_coverage, config_path); !status) {
+        return std::unexpected(status.error());
+    }
+    if (auto status = read_path_array(validation["missing_coverage"]["excluded_paths"],
+                                      "validation.missing_coverage.excluded_paths", root,
+                                      policy.missing_coverage.excluded_paths); !status) {
         return std::unexpected(status.error());
     }
     if (auto status = read_rule(validation, "failed_test", policy.failed_test, config_path); !status) {
@@ -278,7 +300,7 @@ std::expected<void, ConfigError> read_validation(const mcutoml::TomlRef validati
     if (auto status = read_fail_threshold(validation, result.validation); !status) {
         return std::unexpected(status.error());
     }
-    return read_validation_rules(validation, result.validation, config_path);
+    return read_validation_rules(validation, result.validation, config_path, result.root);
 }
 
 }  // namespace

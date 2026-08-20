@@ -43,6 +43,8 @@ void append_link(ImportFragment& fragment, std::string source_id, std::string ta
             .importer = fragment.format.schema,
             .artifact = input.path,
             .source = SourceLocation{.path = input.path},
+            .scope = {},
+            .symbol = {},
         },
         .source = SourceLocation{.path = input.path},
     });
@@ -69,12 +71,15 @@ void append_requirement_links(ImportFragment& fragment, const mcujson::JsonRef& 
                 .code = "import.requirements.invalid_id",
                 .severity = Severity::warning,
                 .message = "ignored invalid requirement reference",
-                .source = SourceLocation{.path = input.path}
+                .source = SourceLocation{.path = input.path},
             });
             continue;
         }
-        append_link(fragment, std::string(evidence_id), value.get<std::string>(),
-                    RelationshipType::known(kind), input);
+        append_link(fragment,
+                    std::string(evidence_id),
+                    value.get<std::string>(),
+                    RelationshipType::known(kind),
+                    input);
     }
 }
 

@@ -163,6 +163,23 @@ TEST(validation, declaration_headers_do_not_require_runtime_coverage, "REQ-0049"
     ASSERT_FALSE(has_code(result, "validation.missing_coverage_evidence"));
 }
 
+TEST(validation, skips_coverage_validation_for_an_excluded_source_path, "REQ-0049") {
+    mcutrace::TraceResult trace;
+    auto source = node("source:/work/project/src/main.cpp", mcutrace::NodeKind::source);
+    source.source = mcutrace::SourceLocation{.path = "/work/project/src/main.cpp"};
+    ASSERT_TRUE(trace.graph.add_node(std::move(source)).has_value());
+
+    mcutrace::ValidationPolicy policy;
+    policy.missing_test.enabled = false;
+    policy.missing_implementation.enabled = false;
+    policy.failed_test.enabled = false;
+    policy.static_finding.enabled = false;
+    policy.missing_coverage.excluded_paths = {"/work/project/src/main.cpp"};
+
+    const auto result = mcutrace::validate_trace(trace, policy);
+    ASSERT_FALSE(has_code(result, "validation.missing_coverage_evidence"));
+}
+
 TEST(validation, reports_linked_static_analysis_findings, "REQ-0051", "REQ-0088") {
     mcutrace::TraceResult trace;
     ASSERT_TRUE(trace.graph.add_node(node("source:control.cpp", mcutrace::NodeKind::source)).has_value());

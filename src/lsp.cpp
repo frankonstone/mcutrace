@@ -397,6 +397,51 @@ std::optional<std::string> identifier_at(std::string_view content, const Positio
     return std::nullopt;
 }
 
+Range empty_range(std::uint32_t line) {
+    return Range{.start = Position{.line = line}, .end = Position{.line = line}};
+}
+
+std::optional<Range> reference_range(std::string_view line_text,
+                                     std::uint32_t line,
+                                     std::string_view identifier) {
+    if (identifier.empty()) {
+        return std::nullopt;
+    }
+    const auto references = find_references(line_text, identifier);
+    if (references.empty()) {
+        return std::nullopt;
+    }
+    auto result = references.front();
+    result.start.line = line;
+    result.end.line = line;
+    return result;
+}
+
+Range source_location_range(const SourceLocation& source,
+                            std::string_view content,
+                            std::uint32_t line,
+                            std::string_view line_text) {
+    const auto start = source.column == 0U ? 0U : source.column - 1U;
+    const auto character = std::min(start, utf16_units(line_text, line_text.size()));
+    if (source.end_line == 0U && source.end_column == 0U) {
+        return Range{
+            .start = Position{.line = line, .character = character},
+            .end = Position{.line = line, .character = utf16_units(line_text, line_text.size())},
+        };
+    }
+    const auto end_line = source.end_line == 0U ? line : source.end_line - 1U;
+    const auto end_text = line_at(content, end_line);
+    const auto end_start = source.end_column == 0U || !end_text
+        ? 0U : source.end_column - 1U;
+    const auto end_character = end_text
+        ? std::min(end_start, utf16_units(*end_text, end_text->size()))
+        : 0U;
+    return Range{
+        .start = Position{.line = line, .character = character},
+        .end = Position{.line = end_line, .character = end_character},
+    };
+}
+
 }  // namespace
 
 struct LanguageServer::State final {
@@ -424,41 +469,16 @@ struct LanguageServer::State final {
         const auto text = text_for(source.path);
         const auto line = source.line == 0U ? 0U : source.line - 1U;
         if (!text) {
-            return Range{.start = Position{.line = line}, .end = Position{.line = line}};
+            return empty_range(line);
         }
         const auto line_text = line_at(*text, line);
         if (!line_text) {
-            return Range{.start = Position{.line = line}, .end = Position{.line = line}};
+            return empty_range(line);
         }
-        if (!identifier.empty()) {
-            const auto references = find_references(*line_text, identifier);
-            if (!references.empty()) {
-                auto result = references.front();
-                result.start.line = line;
-                result.end.line = line;
-                return result;
-            }
+        if (const auto reference = reference_range(*line_text, line, identifier)) {
+            return *reference;
         }
-        const auto start = source.column == 0U ? 0U : source.column - 1U;
-        const auto character = std::min(start, utf16_units(*line_text, line_text->size()));
-        if (source.end_line != 0U || source.end_column != 0U) {
-            const auto end_line = source.end_line == 0U ? line : source.end_line - 1U;
-            const auto end_text = line_at(*text, end_line);
-            const auto end_start = source.end_column == 0U || !end_text
-                ? 0U : source.end_column - 1U;
-            const auto end_character = end_text
-                ? std::min(end_start, utf16_units(*end_text, end_text->size()))
-                : 0U;
-            return Range{
-                .start = Position{.line = line, .character = character},
-                .end = Position{.line = end_line, .character = end_character},
-            };
-        }
-        return Range{
-            .start = Position{.line = line, .character = character},
-            .end = Position{.line = line,
-                            .character = utf16_units(*line_text, line_text->size())},
-        };
+        return source_location_range(source, *text, line, *line_text);
     }
 
     [[nodiscard]] std::string location(const SourceLocation& source,

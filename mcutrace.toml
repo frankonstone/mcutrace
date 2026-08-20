@@ -29,8 +29,6 @@ sources = [
   "src/source_annotations.cpp",
   "src/trace_import.cpp",
   "src/validation.cpp",
-  "editors/vscode/client.js",
-  "editors/vscode/extension.js",
 ]
 build_files = ["CMakeLists.txt"]
 
@@ -49,6 +47,10 @@ importer = "mcucheck"
 
 [validation]
 fail_at_or_above = "error"
+
+# The CLI entry point is outside the instrumented mcutrace_core target.
+[validation.missing_coverage]
+excluded_paths = ["src/main.cpp"]
 
 [validation.dangling_reference]
 severity = "error"
