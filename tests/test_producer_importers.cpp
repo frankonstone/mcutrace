@@ -59,7 +59,7 @@ TEST(producer_importers, imports_mcucheck_results, "REQ-0039", "REQ-0051", "REQ-
     const mcutrace::ArtifactInput input{
         .path = "/tmp/check.json",
         .base_directory = "/work/project",
-        .content = R"({"format":"mcucheck-results","version":1,"diagnostics":[{"rule_id":"AUTOSAR-A1","message":"bad thing","severity":"warning","state":"violation","id":"abc123","location":{"path":"src/foo.cpp","line":7,"column":2}}]})",
+        .content = R"({"format":"mcucheck-results","version":1,"diagnostics":[{"rule_id":"AUTOSAR-A1","message":"bad thing","severity":"warning","state":"violation","id":"abc123","location":{"path":"src/foo.cpp","line":7,"column":2,"end_line":9,"end_column":3}}]})",
     };
     const auto result = mcutrace::import_producer_artifact(input);
     ASSERT_TRUE(result.has_value());
@@ -69,6 +69,8 @@ TEST(producer_importers, imports_mcucheck_results, "REQ-0039", "REQ-0051", "REQ-
     ASSERT_EQ(result->edges.size(), static_cast<std::size_t>(1));
     ASSERT_EQ(result->edges[0].type.kind, mcutrace::RelationshipKind::reports);
     ASSERT_EQ(result->nodes[0].source->line, static_cast<std::uint32_t>(7));
+    ASSERT_EQ(result->nodes[0].source->end_line, static_cast<std::uint32_t>(9));
+    ASSERT_EQ(result->nodes[0].source->end_column, static_cast<std::uint32_t>(3));
 }
 
 TEST(producer_importers, rejects_unsupported_version, "REQ-0041", "REQ-0042") {

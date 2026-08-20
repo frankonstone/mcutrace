@@ -165,7 +165,12 @@ std::expected<void, ConfigError> read_project(const mcutoml::Toml& document,
     }
     const auto sources = project.valid() && project["sources"].valid()
         ? project["sources"] : document["sources"];
-    return read_path_array(sources, "sources", result.root, result.source_files);
+    if (auto status = read_path_array(sources, "sources", result.root, result.source_files); !status) {
+        return std::unexpected(status.error());
+    }
+    const auto builds = project.valid() && project["build_files"].valid()
+        ? project["build_files"] : document["build_files"];
+    return read_path_array(builds, "build_files", result.root, result.build_files);
 }
 
 std::expected<ArtifactConfig, ConfigError> read_artifact(const mcutoml::TomlRef entry,

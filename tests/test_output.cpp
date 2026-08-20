@@ -154,6 +154,10 @@ TEST(output, groups_requirement_evidence_for_cli_queries, "REQ-0055", "REQ-0056"
         .id = "coverage:output", .kind = mcutrace::NodeKind::coverage, .label = "src/output.cpp",
         .source = mcutrace::SourceLocation{.path = "src/output.cpp"}}).has_value());
     ASSERT_TRUE(trace.graph.add_node(mcutrace::Node{
+        .id = "artifact:cmake:output", .kind = mcutrace::NodeKind::artifact,
+        .label = "CMake build definition: CMakeLists.txt",
+        .source = mcutrace::SourceLocation{.path = "CMakeLists.txt", .line = 5}}).has_value());
+    ASSERT_TRUE(trace.graph.add_node(mcutrace::Node{
         .id = "finding:output", .kind = mcutrace::NodeKind::finding, .label = "A1: issue",
         .finding_state = "violation", .source = mcutrace::SourceLocation{.path = "src/output.cpp", .line = 11}}).has_value());
     ASSERT_TRUE(trace.graph.add_edge(mcutrace::Edge{
@@ -161,6 +165,9 @@ TEST(output, groups_requirement_evidence_for_cli_queries, "REQ-0055", "REQ-0056"
         .type = mcutrace::RelationshipType::known(mcutrace::RelationshipKind::implements)}).has_value());
     ASSERT_TRUE(trace.graph.add_edge(mcutrace::Edge{
         .source_id = "test:render", .target_id = "REQ-0001",
+        .type = mcutrace::RelationshipType::known(mcutrace::RelationshipKind::verifies)}).has_value());
+    ASSERT_TRUE(trace.graph.add_edge(mcutrace::Edge{
+        .source_id = "artifact:cmake:output", .target_id = "REQ-0001",
         .type = mcutrace::RelationshipType::known(mcutrace::RelationshipKind::verifies)}).has_value());
     ASSERT_TRUE(trace.graph.add_edge(mcutrace::Edge{
         .source_id = "coverage:output", .target_id = "source:src/output.cpp",
@@ -175,6 +182,7 @@ TEST(output, groups_requirement_evidence_for_cli_queries, "REQ-0055", "REQ-0056"
     ASSERT_EQ(report->sources.size(), static_cast<std::size_t>(1));
     ASSERT_EQ(report->tests.size(), static_cast<std::size_t>(1));
     ASSERT_EQ(report->coverage.size(), static_cast<std::size_t>(1));
+    ASSERT_EQ(report->builds.size(), static_cast<std::size_t>(1));
     ASSERT_EQ(report->findings.size(), static_cast<std::size_t>(1));
 
     const auto json = mcutrace::render_requirement_json_report(*report);
@@ -182,6 +190,9 @@ TEST(output, groups_requirement_evidence_for_cli_queries, "REQ-0055", "REQ-0056"
     ASSERT_NE(json->find("\"tests\""), std::string::npos);
     ASSERT_NE(json->find("\"evidence_state\":\"passed\""), std::string::npos);
     ASSERT_NE(json->find("\"findings\""), std::string::npos);
+    ASSERT_NE(json->find("\"builds\""), std::string::npos);
+    const auto text = mcutrace::render_requirement_text_report(*report);
+    ASSERT_NE(text.find("build evidence:"), std::string::npos);
     ASSERT_FALSE(mcutrace::build_requirement_trace_report(trace, "REQ-9999").has_value());
 }
 

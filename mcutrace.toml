@@ -10,14 +10,18 @@ requirements = [
   "docs/requirements-evidence.md",
   "docs/requirements-hardening.md",
   "docs/requirements-links.md",
+  "docs/requirements-language-server.md",
   "docs/requirements-source-annotations.md",
   "docs/requirements-vscode.md",
 ]
 sources = [
   "src/assembly.cpp",
+  "src/build_annotations.cpp",
   "src/cli.cpp",
   "src/config.cpp",
   "src/importer.cpp",
+  "src/lsp.cpp",
+  "src/lsp_main.cpp",
   "src/model.cpp",
   "src/output.cpp",
   "src/producer_importers.cpp",
@@ -25,9 +29,10 @@ sources = [
   "src/source_annotations.cpp",
   "src/trace_import.cpp",
   "src/validation.cpp",
+  "editors/vscode/client.js",
   "editors/vscode/extension.js",
-  "editors/vscode/requirements.js",
 ]
+build_files = ["CMakeLists.txt"]
 
 # make.sh merges each independently runnable mcutest binary into one artifact.
 [[artifacts]]

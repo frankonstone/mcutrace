@@ -33,6 +33,9 @@ struct RequirementDocument final {
 
 struct RequirementParseResult final {
     std::vector<Requirement> requirements;
+    // All syntactically valid requirement definitions, including definitions
+    // suppressed from `requirements` because their ID is duplicated.
+    std::vector<Requirement> definitions;
     std::vector<Diagnostic> diagnostics;
 };
 

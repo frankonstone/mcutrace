@@ -27,6 +27,7 @@ MCUCHECK_BIN="${MCUCHECK_BIN:-$MCUCHECK_BUILD_DIR/mcucheck}"
 MCUCHECK_CONFIG="${MCUCHECK_CONFIG:-$ROOT_DIR/../mcucheck/standards/llm_cpp/config/default.toml}"
 ANALYSIS_COMMANDS="$ARTIFACT_DIR/compile_commands.mcucheck.json"
 VSCODE_DIR="$ROOT_DIR/editors/vscode"
+VSCODE_NPM_CACHE="${MCUTRACE_VSCODE_NPM_CACHE:-$ROOT_DIR/build/vscode-npm-cache}"
 
 TEST_TARGETS=(
   mcutrace_tests
@@ -35,6 +36,7 @@ TEST_TARGETS=(
   mcutrace_producer_importer_tests
   mcutrace_trace_import_tests
   mcutrace_source_annotation_tests
+  mcutrace_build_annotation_tests
   mcutrace_hardening_tests
   mcutrace_assembly_tests
   mcutrace_validation_tests
@@ -42,6 +44,7 @@ TEST_TARGETS=(
   mcutrace_cli_tests
   mcutrace_output_tests
   mcutrace_evidence_expectation_tests
+  mcutrace_lsp_tests
 )
 
 log() {
@@ -55,6 +58,20 @@ run() {
 
 has_cmd() {
   command -v "$1" >/dev/null 2>&1
+}
+
+vscode_target() {
+  local target
+  target="$(node -p '`${process.platform}-${process.arch}`')"
+  case "$target" in
+    darwin-arm64|darwin-x64|linux-arm64|linux-x64|win32-arm64|win32-x64)
+      echo "$target"
+      ;;
+    *)
+      echo "Unsupported VS Code extension target: $target" >&2
+      return 2
+      ;;
+  esac
 }
 
 usage() {
@@ -222,7 +239,7 @@ cmd_vscode() {
   log "Checking VS Code extension tooling"
   local status=0
   local tool
-  for tool in node npm npx code; do
+  for tool in cmake node npm npx code; do
     if has_cmd "$tool"; then
       echo "    [OK]   $tool"
     else
@@ -234,19 +251,32 @@ cmd_vscode() {
     return "$status"
   fi
 
+  log "Building bundled language server"
+  run cmake --preset host
+  run cmake --build --preset host --target mcutrace-lsp --parallel
+
   pushd "$VSCODE_DIR" >/dev/null
   local package_name
   local package_version
   local package_path
+  local target
   package_name="$(node -p 'require("./package.json").name')"
   package_version="$(node -p 'require("./package.json").version')"
-  package_path="$VSCODE_DIR/$package_name-$package_version.vsix"
+  target="$(vscode_target)"
+  package_path="$VSCODE_DIR/$package_name-$package_version-$target.vsix"
+
+  log "Installing VS Code extension dependencies"
+  run npm ci --no-audit --cache "$VSCODE_NPM_CACHE"
 
   log "Running VS Code extension tests"
   run npm test
 
+  log "Staging bundled language server"
+  run npm run stage-server -- "$ROOT_DIR/build/host/mcutrace-lsp"
+
   log "Packaging VS Code extension"
-  run npx --yes @vscode/vsce package --out "$package_path"
+  run npx --yes --cache "$VSCODE_NPM_CACHE" @vscode/vsce package \
+    --target "$target" --out "$package_path"
   popd >/dev/null
 
   log "Installing VS Code extension"

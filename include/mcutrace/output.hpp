@@ -33,6 +33,7 @@ struct RequirementTraceReport final {
     std::vector<Node> sources;
     std::vector<Node> tests;
     std::vector<Node> coverage;
+    std::vector<Node> builds;
     std::vector<Node> findings;
 };
 

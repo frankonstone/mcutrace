@@ -12,6 +12,7 @@ root = ".."
 
 requirements = ["docs/requirements.md", "spec/feature.md"]
 sources = ["src/feature.cpp", "include/feature.hpp"]
+build_files = ["CMakeLists.txt", "cmake/dependencies.cmake"]
 
 [[artifacts]]
 path = "build/test.json"
@@ -29,6 +30,9 @@ path = "build/cov.json"
     ASSERT_EQ(config->requirement_files[0], std::string("/work/project/docs/requirements.md"));
     ASSERT_EQ(config->source_files.size(), static_cast<std::size_t>(2));
     ASSERT_EQ(config->source_files[0], std::string("/work/project/src/feature.cpp"));
+    ASSERT_EQ(config->build_files.size(), static_cast<std::size_t>(2));
+    ASSERT_EQ(config->build_files[0], std::string("/work/project/CMakeLists.txt"));
+    ASSERT_EQ(config->build_files[1], std::string("/work/project/cmake/dependencies.cmake"));
     ASSERT_EQ(config->source_files[1], std::string("/work/project/include/feature.hpp"));
     ASSERT_EQ(config->artifacts.size(), static_cast<std::size_t>(2));
     ASSERT_EQ(config->artifacts[0].path, std::string("/work/project/build/test.json"));

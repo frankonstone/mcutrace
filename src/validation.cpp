@@ -179,7 +179,8 @@ void validate_finding(const Graph& graph,
         return;
     }
     append_diagnostic(diagnostics, "validation.static_analysis_finding",
-        policy.static_finding.severity, "linked static-analysis finding: " + node.id, node.source);
+        policy.static_finding.severity,
+        "static-analysis finding: " + (node.label.empty() ? node.id : node.label), node.source);
 }
 
 void validate_node(const Graph& graph,

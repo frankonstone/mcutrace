@@ -11,6 +11,8 @@ struct SourceLocation final {
     std::string path;
     std::uint32_t line = 0;
     std::uint32_t column = 0;
+    std::uint32_t end_line = 0;
+    std::uint32_t end_column = 0;
 
     [[nodiscard]] bool available() const noexcept { return !path.empty(); }
 

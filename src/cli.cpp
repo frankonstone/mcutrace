@@ -1,6 +1,7 @@
 #include <mcutrace/cli.hpp>
 
 #include <mcutrace/assembly.hpp>
+#include <mcutrace/build_annotations.hpp>
 #include <mcutrace/config.hpp>
 #include <mcutrace/output.hpp>
 #include <mcutrace/requirements.hpp>
@@ -119,6 +120,25 @@ load_source(const std::string& path, const std::string& base_directory) {
     return std::move(*fragment);
 }
 
+std::expected<ImportFragment, CliError>
+load_build(const std::string& path, const std::string& base_directory) {
+    auto content = read_text_file(path);
+    if (!content) {
+        return std::unexpected(content.error());
+    }
+    auto fragment = import_build_annotations(ArtifactInput{
+        .path = path,
+        .base_directory = base_directory,
+        .content = std::move(*content),
+    });
+    if (!fragment) {
+        return std::unexpected(CliError{
+            .message = "build annotation import error: " + fragment.error().detail,
+        });
+    }
+    return std::move(*fragment);
+}
+
 std::expected<ProjectConfig, CliError> load_project_config(const CliOptions& options) {
     if (options.config_path.empty()) {
         ProjectConfig config;
@@ -170,10 +190,19 @@ std::expected<std::vector<ImportFragment>, CliError>
 load_fragments(const ProjectConfig& config, const CliOptions& options) {
     std::vector<ImportFragment> fragments;
     fragments.reserve(config.source_files.size() + options.source_files.size() +
+                      config.build_files.size() + options.build_files.size() +
                       config.artifacts.size() + options.artifact_files.size());
 
     for (const auto& source : config.source_files) {
         auto fragment = load_source(source, config.root);
+        if (!fragment) {
+            return std::unexpected(fragment.error());
+        }
+        fragments.push_back(std::move(*fragment));
+    }
+
+    for (const auto& build : config.build_files) {
+        auto fragment = load_build(build, config.root);
         if (!fragment) {
             return std::unexpected(fragment.error());
         }
@@ -185,6 +214,15 @@ load_fragments(const ProjectConfig& config, const CliOptions& options) {
     for (const auto& source : options.source_files) {
         const std::string normalized = normalize_explicit_path(source);
         auto fragment = load_source(normalized, explicit_base);
+        if (!fragment) {
+            return std::unexpected(fragment.error());
+        }
+        fragments.push_back(std::move(*fragment));
+    }
+
+    for (const auto& build : options.build_files) {
+        const std::string normalized = normalize_explicit_path(build);
+        auto fragment = load_build(normalized, explicit_base);
         if (!fragment) {
             return std::unexpected(fragment.error());
         }
@@ -267,6 +305,13 @@ std::expected<CliOptions, CliError> parse_cli(int argc, const char* const* argv)
             return std::unexpected(CliError{.message = cli_error_text(sources.error())});
         }
         (*sources)->metavar("FILE").repeatable();
+
+        auto builds = command->add_option(
+            "-b, --build", "Additional annotated CMake build-definition file", options.build_files);
+        if (!builds) {
+            return std::unexpected(CliError{.message = cli_error_text(builds.error())});
+        }
+        (*builds)->metavar("FILE").repeatable();
 
         auto artifacts = command->add_option(
             "-a, --artifact", "Additional producer artifact file (auto-detected)", options.artifact_files);

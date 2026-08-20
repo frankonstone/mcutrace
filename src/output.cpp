@@ -58,8 +58,10 @@ void append_related_node(RequirementTraceReport& report, const Node& node) {
     case NodeKind::finding:
         append_node_once(report.findings, node);
         break;
-    case NodeKind::requirement:
     case NodeKind::artifact:
+        append_node_once(report.builds, node);
+        break;
+    case NodeKind::requirement:
         break;
     }
 }
@@ -118,6 +120,12 @@ void write_node(Object& object, const Node& node) {
             source("path", node.source->path)
                 ("line", node.source->line)
                 ("column", node.source->column);
+            if (node.source->end_line != 0U) {
+                source("end_line", node.source->end_line);
+            }
+            if (node.source->end_column != 0U) {
+                source("end_column", node.source->end_column);
+            }
         });
     }
 }
@@ -249,6 +257,7 @@ std::string render_requirement_text_report(const RequirementTraceReport& report)
     append_node_group(output, "sources", report.sources);
     append_node_group(output, "tests", report.tests);
     append_node_group(output, "coverage", report.coverage);
+    append_node_group(output, "build evidence", report.builds);
     append_node_group(output, "static analysis", report.findings);
     return output.str();
 }
@@ -315,6 +324,12 @@ render_json_report(const TraceResult& trace, const ValidationResult& validation)
                             source("path", diagnostic.source->path)
                                 ("line", diagnostic.source->line)
                                 ("column", diagnostic.source->column);
+                            if (diagnostic.source->end_line != 0U) {
+                                source("end_line", diagnostic.source->end_line);
+                            }
+                            if (diagnostic.source->end_column != 0U) {
+                                source("end_column", diagnostic.source->end_column);
+                            }
                         });
                     }
                 });
@@ -341,6 +356,7 @@ std::expected<std::string, OutputError>
 render_requirement_json_report(const RequirementTraceReport& report) {
     const std::size_t node_count = 1U + report.implementations.size() + report.sources.size() +
                                    report.tests.size() + report.coverage.size() +
+                                   report.builds.size() +
                                    report.findings.size();
     std::vector<char> buffer(2048U + node_count * 384U);
     mcujson::JsonWriter writer(std::span<char>(buffer.data(), buffer.size()));
@@ -362,6 +378,7 @@ render_requirement_json_report(const RequirementTraceReport& report) {
         write_nodes("sources", report.sources);
         write_nodes("tests", report.tests);
         write_nodes("coverage", report.coverage);
+        write_nodes("builds", report.builds);
         write_nodes("findings", report.findings);
     });
     const auto size = writer.finish();

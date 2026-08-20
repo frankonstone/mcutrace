@@ -80,8 +80,8 @@ TEST(assembly, keeps_dangling_edges_for_validation, "REQ-0045", "REQ-0082") {
 }
 
 TEST(assembly, canonicalizes_file_level_source_node_locations, "REQ-0020", "REQ-0043") {
-    mcutrace::ImportFragment sidecar;
-    sidecar.nodes.push_back(mcutrace::Node{
+    mcutrace::ImportFragment source_fragment;
+    source_fragment.nodes.push_back(mcutrace::Node{
         .id = "source:/work/src/main.cpp",
         .kind = mcutrace::NodeKind::source,
         .label = "src/main.cpp",
@@ -95,7 +95,7 @@ TEST(assembly, canonicalizes_file_level_source_node_locations, "REQ-0020", "REQ-
         .source = mcutrace::SourceLocation{.path = "/work/src/main.cpp", .line = 42, .column = 7},
     });
 
-    const std::array fragments{sidecar, coverage};
+    const std::array fragments{source_fragment, coverage};
     const auto result = mcutrace::assemble_trace({}, fragments);
 
     ASSERT_EQ(result.graph.nodes().size(), static_cast<std::size_t>(1));

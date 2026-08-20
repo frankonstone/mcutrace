@@ -295,7 +295,7 @@ void append_requirement(RequirementParseResult& result, Requirement requirement)
     const auto duplicate = std::find_if(result.requirements.begin(), result.requirements.end(),
         [&requirement](const Requirement& existing) { return existing.id == requirement.id; });
     if (duplicate != result.requirements.end()) {
-        result.diagnostics.push_back(Diagnostic{.code = "MTR-REQ-DUPLICATE-ID", .severity = Severity::error,
+        result.diagnostics.push_back(Diagnostic{.code = "MTR-REQ-DUPLICATE-ID", .severity = Severity::warning,
             .message = "duplicate requirement ID " + requirement.id + "; first defined at " +
                        duplicate->source.path + ":" + std::to_string(duplicate->source.line),
             .source = requirement.source});
@@ -340,6 +340,7 @@ RequirementParseResult parse_requirements(std::span<const RequirementDocument> d
         for (std::size_t index = 0; index < headings.size(); ++index) {
             auto requirement = parse_requirement(document, headings, index, result);
             if (requirement) {
+                result.definitions.push_back(*requirement);
                 append_requirement(result, std::move(*requirement));
             }
         }

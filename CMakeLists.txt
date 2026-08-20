@@ -7,16 +7,19 @@ project(
     LANGUAGES CXX
 )
 
+# @req REQ-0077 REQ-0094
 option(MCUTRACE_BUILD_TESTS "Build mcutrace tests" ON)
 option(MCUTRACE_DISABLE_EXCEPTIONS_RTTI "Disable exceptions and RTTI" ON)
 option(MCUTRACE_ENABLE_MCUCOV "Instrument mcutrace core with mcucov" OFF)
 
 set(MCUTRACE_MCUCLI_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../mcucli" CACHE PATH "Path to mcucli checkout")
+# @req REQ-0063
 set(MCUTRACE_MCUJSON_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../mcujson" CACHE PATH "Path to mcujson checkout")
 set(MCUTRACE_MCUTOML_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../mcutoml" CACHE PATH "Path to mcutoml checkout")
 set(MCUTRACE_MCUTEST_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../mcutest" CACHE PATH "Path to mcutest checkout")
 set(MCUTRACE_MCUCOV_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../mcucov" CACHE PATH "Path to mcucov checkout")
 
+# @req REQ-0069 REQ-0070 REQ-0072 REQ-0074
 function(mcutrace_warnings target)
     if(MSVC)
         target_compile_options(${target} PRIVATE /W4 /WX)
@@ -60,11 +63,14 @@ if(MCUTRACE_ENABLE_MCUCOV)
     add_subdirectory("${MCUTRACE_MCUCOV_SOURCE_DIR}" "${CMAKE_BINARY_DIR}/_deps/mcucov" EXCLUDE_FROM_ALL)
 endif()
 
+# @req REQ-0073
 add_library(mcutrace_core STATIC
     src/assembly.cpp
+    src/build_annotations.cpp
     src/cli.cpp
     src/config.cpp
     src/importer.cpp
+    src/lsp.cpp
     src/model.cpp
     src/output.cpp
     src/producer_importers.cpp
@@ -90,7 +96,12 @@ add_executable(mcutrace src/main.cpp)
 target_link_libraries(mcutrace PRIVATE mcutrace::core)
 mcutrace_host_options(mcutrace)
 
+add_executable(mcutrace-lsp src/lsp_main.cpp)
+target_link_libraries(mcutrace-lsp PRIVATE mcutrace::core)
+mcutrace_host_options(mcutrace-lsp)
+
 if(MCUTRACE_BUILD_TESTS)
+    # @req REQ-0075 REQ-0076
     enable_testing()
     if(NOT TARGET mcutest::mcutest AND EXISTS "${MCUTRACE_MCUTEST_SOURCE_DIR}/CMakeLists.txt")
         set(MCUTEST_BUILD_TESTS OFF CACHE BOOL "" FORCE)

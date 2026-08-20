@@ -15,6 +15,7 @@ struct CliOptions final {
     std::string config_path;
     std::vector<std::string> requirement_files;
     std::vector<std::string> source_files;
+    std::vector<std::string> build_files;
     std::vector<std::string> artifact_files;
     std::string requirement_id;
     std::string help_text;

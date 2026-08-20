@@ -1,8 +1,8 @@
 {
   "name": "mcutrace-requirements",
   "displayName": "mcutrace Requirements",
-  "description": "Hover and navigation support for mcutrace REQ-NNNN requirement references.",
-  "version": "0.1.2",
+  "description": "Language-server-powered requirement and traceability support for mcutrace.",
+  "version": "0.2.1",
   "publisher": "mcutrace",
   "license": "UNLICENSED",
   "repository": {
@@ -28,47 +28,39 @@
   ],
   "activationEvents": [
     "onStartupFinished",
-    "onCommand:mcutrace.refreshRequirements",
-    "onCommand:mcutrace.refreshTraceData"
+    "onCommand:mcutrace.refreshRequirements"
   ],
   "contributes": {
     "commands": [
       {
         "command": "mcutrace.refreshRequirements",
         "title": "mcutrace: Refresh Requirements"
-      },
-      {
-        "command": "mcutrace.refreshTraceData",
-        "title": "mcutrace: Refresh Trace Data"
       }
     ],
     "configuration": {
       "title": "mcutrace",
       "properties": {
-        "mcutrace.requirementFiles": {
+        "mcutrace.languageServer.path": {
+          "type": "string",
+          "default": "",
+          "description": "Optional path or command used instead of the bundled mcutrace language server. `${workspaceFolder}` is supported."
+        },
+        "mcutrace.languageServer.arguments": {
           "type": "array",
           "items": {
             "type": "string"
           },
-          "default": [
-            "**/requirements*.md"
-          ],
-          "description": "Workspace glob patterns used to discover Markdown requirement documents."
-        },
-        "mcutrace.exclude": {
-          "type": "string",
-          "default": "**/{.git,build,node_modules}/**",
-          "description": "Glob pattern excluded while discovering requirement documents."
-        },
-        "mcutrace.traceReport": {
-          "type": "string",
-          "default": "build/mcutrace-report.json",
-          "description": "Workspace-relative JSON report written by `mcutrace validate --format json`; its evidence is shown in requirement hovers."
+          "default": [],
+          "description": "Arguments passed to the mcutrace language server. `${workspaceFolder}` is supported."
         }
       }
     }
   },
+  "dependencies": {
+    "vscode-languageclient": "9.0.1"
+  },
   "scripts": {
+    "stage-server": "node scripts/stage-server.js",
     "test": "node --test test/*.test.js"
   }
 }

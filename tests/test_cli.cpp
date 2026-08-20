@@ -32,11 +32,12 @@ private:
 
 }  // namespace
 
-TEST(cli, parses_validate_config_and_explicit_inputs, "REQ-0064", "REQ-0065", "REQ-0066", "REQ-0067", "REQ-0093") {
+TEST(cli, parses_validate_config_and_explicit_inputs, "REQ-0064", "REQ-0065", "REQ-0066", "REQ-0067", "REQ-0081", "REQ-0093") {
     const char* argv[] = {
         "mcutrace", "--config", "project.toml", "validate",
         "--requirement", "reqs.md", "--requirement", "more.md",
         "--source", "src/feature.cpp", "--source", "include/feature.hpp",
+        "--build", "CMakeLists.txt",
         "--artifact", "out.json", "--format", "json",
     };
     const auto result = mcutrace::parse_cli(static_cast<int>(std::size(argv)), argv);
@@ -46,6 +47,7 @@ TEST(cli, parses_validate_config_and_explicit_inputs, "REQ-0064", "REQ-0065", "R
     ASSERT_EQ(result->config_path, std::string("project.toml"));
     ASSERT_EQ(result->requirement_files.size(), static_cast<std::size_t>(2));
     ASSERT_EQ(result->source_files.size(), static_cast<std::size_t>(2));
+    ASSERT_EQ(result->build_files.size(), static_cast<std::size_t>(1));
     ASSERT_EQ(result->artifact_files.size(), static_cast<std::size_t>(1));
 }
 

@@ -33,6 +33,7 @@ TEST(requirements, extracts_title_body_and_source, "REQ-0007", "REQ-0010", "REQ-
     const auto parsed = mcutrace::parse_requirements(documents);
 
     ASSERT_EQ(parsed.requirements.size(), std::size_t{1});
+    ASSERT_EQ(parsed.definitions.size(), std::size_t{1});
     ASSERT_EQ(parsed.diagnostics.size(), std::size_t{0});
     ASSERT_EQ(parsed.requirements[0].id, std::string{"REQ-0007"});
     ASSERT_EQ(parsed.requirements[0].title, std::string{"Heading based requirements"});
@@ -49,6 +50,7 @@ TEST(requirements, supports_explicit_req_marker, "REQ-0009") {
     const auto parsed = mcutrace::parse_requirements(documents);
 
     ASSERT_EQ(parsed.requirements.size(), std::size_t{1});
+    ASSERT_EQ(parsed.definitions.size(), std::size_t{1});
     ASSERT_EQ(parsed.requirements[0].title, std::string{"Unsupported input version"});
 }
 
@@ -64,6 +66,7 @@ TEST(requirements, ignores_headings_inside_fenced_code, "REQ-0006", "REQ-0007") 
     const auto parsed = mcutrace::parse_requirements(documents);
 
     ASSERT_EQ(parsed.requirements.size(), std::size_t{1});
+    ASSERT_EQ(parsed.definitions.size(), std::size_t{1});
     ASSERT_EQ(parsed.requirements[0].id, std::string{"REQ-0001"});
 }
 
@@ -109,8 +112,12 @@ TEST(requirements, diagnoses_duplicates_across_documents, "REQ-0013") {
     const auto parsed = mcutrace::parse_requirements(documents);
 
     ASSERT_EQ(parsed.requirements.size(), std::size_t{1});
+    ASSERT_EQ(parsed.definitions.size(), std::size_t{2});
+    ASSERT_EQ(parsed.definitions[0].source.path, std::string{"a.md"});
+    ASSERT_EQ(parsed.definitions[1].source.path, std::string{"b.md"});
     ASSERT_EQ(parsed.diagnostics.size(), std::size_t{1});
     ASSERT_EQ(parsed.diagnostics[0].code, std::string{"MTR-REQ-DUPLICATE-ID"});
+    ASSERT_EQ(parsed.diagnostics[0].severity, mcutrace::Severity::warning);
     ASSERT_EQ(parsed.diagnostics[0].source->path, std::string{"b.md"});
 }
 

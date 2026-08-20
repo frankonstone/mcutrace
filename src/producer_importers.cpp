@@ -581,6 +581,10 @@ std::expected<void, ImportError> append_mcucheck_diagnostic(ImportFragment& frag
         ? static_cast<std::uint32_t>(location["line"].get<long long>()) : 0U;
     const auto column = location["column"].is_number()
         ? static_cast<std::uint32_t>(location["column"].get<long long>()) : 0U;
+    const auto end_line = location["end_line"].is_number()
+        ? static_cast<std::uint32_t>(location["end_line"].get<long long>()) : 0U;
+    const auto end_column = location["end_column"].is_number()
+        ? static_cast<std::uint32_t>(location["end_column"].get<long long>()) : 0U;
     const std::string rule = diagnostic["rule_id"].get<std::string>();
     const std::string message = diagnostic["message"].get<std::string>();
     const std::string stable = diagnostic["id"].is_string()
@@ -595,11 +599,13 @@ std::expected<void, ImportError> append_mcucheck_diagnostic(ImportFragment& frag
         .evidence_state = EvidenceState::unknown,
         .evidence_detail = {},
         .finding_state = {},
-        .source = SourceLocation{.path = *normalized, .line = line, .column = column},
+        .source = SourceLocation{.path = *normalized, .line = line, .column = column,
+                                 .end_line = end_line, .end_column = end_column},
         .expected_evidence = std::nullopt,
     });
     add_source_and_edge(fragment, finding_id, RelationshipKind::reports, input,
-                        SourceLocation{.path = *normalized, .line = line, .column = column});
+                        SourceLocation{.path = *normalized, .line = line, .column = column,
+                                       .end_line = end_line, .end_column = end_column});
     return {};
 }
 

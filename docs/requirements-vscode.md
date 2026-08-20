@@ -1,16 +1,19 @@
-# mcutrace VS Code Extension Requirements
+# mcutrace VS Code Language Client Requirements
 
 ### REQ-0098 Requirement hover @evidence(implementation)
-The mcutrace VS Code extension shall display the title, body, and definition location of a canonical `REQ-NNNN` requirement when a user hovers over its reference.
+The mcutrace VS Code extension shall obtain requirement hover information from the mcutrace language server rather than maintain a client-side requirement index.
 
 ### REQ-0099 Requirement navigation @evidence(implementation)
-The mcutrace VS Code extension shall provide native Go to Definition navigation from a canonical `REQ-NNNN` reference to its Markdown heading.
+The mcutrace VS Code extension shall obtain native requirement definition navigation from the mcutrace language server.
 
-### REQ-0100 Requirement document discovery @evidence(implementation)
-The mcutrace VS Code extension shall discover requirement Markdown files through configurable workspace glob patterns and shall refresh its index when matching documents or settings change.
+### REQ-0100 Language-server workspace synchronization @evidence(implementation)
+The mcutrace VS Code extension shall start the mcutrace language server, synchronize open documents and relevant workspace file changes, and allow the server to discover inputs from `mcutrace.toml`.
 
 ### REQ-0101 Duplicate requirement definitions @evidence(implementation)
-When a requirement identifier has multiple definitions, the mcutrace VS Code extension shall warn in hover content and return every definition as a navigation target.
+When a requirement identifier has multiple definitions, the mcutrace VS Code extension shall surface the language server's warning diagnostics in Problems and its squiggles at every conflicting definition.
 
 ### REQ-0102 Requirement references @evidence(implementation)
-The mcutrace VS Code extension shall provide native Find All References navigation from a canonical `REQ-NNNN` reference and return every matching canonical reference in workspace files.
+The mcutrace VS Code extension shall obtain native Find All References navigation from the mcutrace language server.
+
+### REQ-0124 Language-server launch configuration @evidence(implementation)
+The mcutrace VS Code extension shall allow the language-server executable path and arguments to be configured, including `${workspaceFolder}` substitution.

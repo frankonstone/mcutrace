@@ -40,23 +40,7 @@ If a producer exposes a schema/format version, identify it before semantic impor
 
 ## Requirement links
 
-Producers may attach a `requirements` array to evidence entries when their schema supports that extension. The built-in trace-aware importer maps those references to typed edges. For producers that cannot or should not change their output, a separate `mcutrace-links` v1 artifact can connect arbitrary node IDs.
-
-Example sidecar:
-
-```json
-{
-  "format": "mcutrace-links",
-  "version": 1,
-  "links": [
-    {
-      "source": "test:vendor:boot_test",
-      "target": "REQ-0042",
-      "type": "verifies"
-    }
-  ]
-}
-```
+Producers may attach a `requirements` array to evidence entries when their schema supports that extension. The built-in trace-aware importer maps those references to typed edges. Build-definition evidence is declared directly in configured CMake files with `# @req REQ-NNNN` annotations.
 
 ## Diagnostic codes
 
