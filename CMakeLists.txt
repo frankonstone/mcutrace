@@ -73,6 +73,7 @@ add_library(mcutrace_core STATIC
     src/lsp.cpp
     src/model.cpp
     src/output.cpp
+    src/path_patterns.cpp
     src/producer_importers.cpp
     src/requirements.cpp
     src/source_annotations.cpp

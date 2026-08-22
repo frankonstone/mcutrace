@@ -4,6 +4,7 @@
 #include <mcutrace/build_annotations.hpp>
 #include <mcutrace/config.hpp>
 #include <mcutrace/output.hpp>
+#include <mcutrace/path_patterns.hpp>
 #include <mcutrace/requirements.hpp>
 #include <mcutrace/source_annotations.hpp>
 #include <mcutrace/trace_import.hpp>
@@ -164,8 +165,14 @@ std::expected<RequirementParseResult, CliError>
 load_requirements(const ProjectConfig& config, const CliOptions& options) {
     std::vector<std::string> paths = config.requirement_files;
     paths.reserve(paths.size() + options.requirement_files.size());
+    const std::string explicit_base =
+        std::filesystem::current_path().lexically_normal().generic_string();
     for (const auto& path : options.requirement_files) {
-        paths.push_back(normalize_explicit_path(path));
+        const auto expanded = expand_path_pattern(path, explicit_base);
+        if (!expanded) {
+            return std::unexpected(CliError{.message = expanded.error().detail});
+        }
+        paths.insert(paths.end(), expanded->begin(), expanded->end());
     }
 
     std::vector<std::string> contents;
@@ -208,6 +215,20 @@ std::vector<std::string> normalized_paths(const std::vector<std::string>& paths)
     result.reserve(paths.size());
     for (const auto& path : paths) {
         result.push_back(normalize_explicit_path(path));
+    }
+    return result;
+}
+
+std::expected<std::vector<std::string>, CliError>
+expand_explicit_paths(const std::vector<std::string>& paths,
+                      const std::string& base_directory) {
+    std::vector<std::string> result;
+    for (const auto& path : paths) {
+        const auto expanded = expand_path_pattern(path, base_directory);
+        if (!expanded) {
+            return std::unexpected(CliError{.message = expanded.error().detail});
+        }
+        result.insert(result.end(), expanded->begin(), expanded->end());
     }
     return result;
 }
@@ -255,8 +276,12 @@ load_fragments(const ProjectConfig& config, const CliOptions& options) {
         !status) {
         return std::unexpected(status.error());
     }
-    if (auto status = append_path_fragments(fragments, normalized_paths(options.source_files),
-                                            explicit_base, load_source); !status) {
+    const auto explicit_sources = expand_explicit_paths(options.source_files, explicit_base);
+    if (!explicit_sources) {
+        return std::unexpected(explicit_sources.error());
+    }
+    if (auto status = append_path_fragments(fragments, *explicit_sources, explicit_base,
+                                            load_source); !status) {
         return std::unexpected(status.error());
     }
     if (auto status = append_path_fragments(fragments, normalized_paths(options.build_files),
@@ -433,7 +458,7 @@ std::expected<CliOptions, CliError> parse_cli(int argc, const char* const* argv)
     return std::unexpected(CliError{.message = "a command is required; use 'mcutrace validate' or 'mcutrace show REQ-NNNN'"});
 }
 
-// @req REQ-0001 REQ-0002 REQ-0067 REQ-0093
+// @req REQ-0001 REQ-0002 REQ-0067 REQ-0093 REQ-0125
 int run_cli(const CliOptions& options) {
     if (options.action == CliAction::version) {
         std::cout << "mcutrace " << kVersion << '\n';

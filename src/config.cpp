@@ -1,4 +1,5 @@
 #include <mcutrace/config.hpp>
+#include <mcutrace/path_patterns.hpp>
 
 #include <filesystem>
 #include <string>
@@ -130,7 +131,12 @@ std::expected<void, ConfigError> read_path_array(const mcutoml::TomlRef values,
             return std::unexpected(config_error(ConfigErrorCode::invalid_type,
                                                 std::string(name) + " entries must be strings"));
         }
-        result.push_back(normalize_path(entry.get<std::string_view>(), root));
+        const auto expanded = expand_path_pattern(entry.get<std::string_view>(), root);
+        if (!expanded) {
+            return std::unexpected(config_error(ConfigErrorCode::invalid_value,
+                                                expanded.error().detail));
+        }
+        result.insert(result.end(), expanded->begin(), expanded->end());
     }
     return {};
 }
@@ -305,7 +311,7 @@ std::expected<void, ConfigError> read_validation(const mcutoml::TomlRef validati
 
 }  // namespace
 
-// @req REQ-0004 REQ-0054 REQ-0062 REQ-0065 REQ-0093
+// @req REQ-0004 REQ-0054 REQ-0062 REQ-0065 REQ-0093 REQ-0125
 std::expected<ProjectConfig, ConfigError>
 parse_project_config(std::string_view content, std::string_view config_path) {
     const auto parsed = mcutoml::Toml::parse(content);

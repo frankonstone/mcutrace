@@ -218,6 +218,18 @@ The CLI shall provide a command or mode that validates the complete configured t
 ### REQ-0068 Version command
 The CLI shall expose the mcutrace version.
 
+### REQ-0125 Wildcard requirement and source inputs @evidence(implementation,test)
+mcutrace shall expand wildcard patterns in TOML `project.requirements` and
+`project.sources` entries, and in repeatable `--requirement` and `--source`
+command-line inputs. A pattern shall be resolved relative to the configured
+project root in TOML and relative to the current working directory on the
+command line. `*` shall match characters within one path component, `?` shall
+match one character, and `**` shall match zero or more directory components.
+Only regular files shall be included, matches shall be processed in
+deterministic lexical path order, and a wildcard that matches no files shall
+produce an actionable error. Explicit non-wildcard paths shall retain their
+existing behavior.
+
 ## Host implementation
 
 ### REQ-0069 C++23 @evidence(build)

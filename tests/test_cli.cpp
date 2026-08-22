@@ -3,9 +3,13 @@
 
 #include "test_runner.hpp"
 
+#include <filesystem>
+#include <fstream>
 #include <iostream>
 #include <sstream>
 #include <string>
+#include <string_view>
+#include <system_error>
 
 namespace {
 
@@ -23,11 +27,61 @@ public:
     StreamCapture(const StreamCapture&) = delete;
     StreamCapture& operator=(const StreamCapture&) = delete;
 
+    [[nodiscard]] std::string output() const { return out_stream_.str(); }
+
 private:
     std::ostringstream out_stream_;
     std::ostringstream err_stream_;
     std::streambuf* out_;
     std::streambuf* err_;
+};
+
+}  // namespace
+
+namespace {
+
+class TemporaryProject final {
+public:
+    TemporaryProject() {
+        std::error_code error;
+        root_ = std::filesystem::temp_directory_path(error) / "mcutrace-wildcard-cli";
+        if (error) {
+            setup_error_ = error;
+            return;
+        }
+        std::filesystem::remove_all(root_, error);
+        if (error) {
+            setup_error_ = error;
+            return;
+        }
+        std::filesystem::create_directories(root_ / "requirements" / "nested", error);
+        if (error) {
+            setup_error_ = error;
+            return;
+        }
+        std::filesystem::create_directories(root_ / "src" / "nested", error);
+        setup_error_ = error;
+    }
+
+    ~TemporaryProject() {
+        std::error_code ignored;
+        std::filesystem::remove_all(root_, ignored);
+    }
+
+    TemporaryProject(const TemporaryProject&) = delete;
+    TemporaryProject& operator=(const TemporaryProject&) = delete;
+
+    void write(const std::filesystem::path& path, std::string_view content) const {
+        std::ofstream stream(path);
+        stream << content;
+    }
+
+    [[nodiscard]] const std::filesystem::path& root() const noexcept { return root_; }
+    [[nodiscard]] const std::error_code& setup_error() const noexcept { return setup_error_; }
+
+private:
+    std::filesystem::path root_;
+    std::error_code setup_error_;
 };
 
 }  // namespace
@@ -130,6 +184,33 @@ TEST(cli, requires_validate_command_for_invocation, "REQ-0064", "REQ-0067") {
     const char* argv[] = {"mcutrace"};
     const auto result = mcutrace::parse_cli(static_cast<int>(std::size(argv)), argv);
     ASSERT_FALSE(result.has_value());
+}
+
+TEST(cli, expands_wildcard_requirement_and_source_overrides, "REQ-0125") {
+    TemporaryProject project;
+    ASSERT_FALSE(project.setup_error());
+    project.write(project.root() / "requirements" / "top.md",
+                 "## REQ-0001 Top @evidence(none)\nBody\n");
+    project.write(project.root() / "requirements" / "nested" / "deep.md",
+                 "## REQ-0002 Deep @evidence(none)\nBody\n");
+    project.write(project.root() / "src" / "nested" / "deep.cpp",
+                 "// @req REQ-0002\nvoid deep() {}\n");
+
+    const std::string requirement_pattern =
+        (project.root() / "requirements" / "**" / "*.md").generic_string();
+    const std::string source_pattern =
+        (project.root() / "src" / "**" / "*.cpp").generic_string();
+    const char* argv[] = {"mcutrace", "show", "REQ-0002", "--requirement",
+                          requirement_pattern.c_str(), "--source", source_pattern.c_str()};
+    const auto options = mcutrace::parse_cli(static_cast<int>(std::size(argv)), argv);
+    ASSERT_TRUE(options.has_value());
+    ASSERT_EQ(options->requirement_files.size(), static_cast<std::size_t>(1));
+    ASSERT_EQ(options->source_files.size(), static_cast<std::size_t>(1));
+
+    const StreamCapture capture;
+    ASSERT_EQ(mcutrace::run_cli(*options), 0);
+    ASSERT_NE(capture.output().find((project.root() / "src" / "nested" / "deep.cpp").generic_string()),
+              std::string::npos);
 }
 
 int main(int argc, char* argv[]) {
