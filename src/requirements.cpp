@@ -304,6 +304,23 @@ void append_requirement(RequirementParseResult& result, Requirement requirement)
     result.requirements.push_back(std::move(requirement));
 }
 
+void append_headings(RequirementParseResult& result,
+                     const RequirementDocument& document,
+                     std::span<const Heading> headings) {
+    for (const auto& heading : headings) {
+        const auto candidate = requirement_candidate(heading.text);
+        const auto identifier = is_requirement_id(candidate)
+            ? std::optional<std::string>{std::string(candidate)} : std::nullopt;
+        result.headings.push_back(RequirementHeading{
+            .title = identifier ? normalized_title(heading.text, *identifier)
+                                : std::string(heading.text),
+            .source = SourceLocation{document.path, heading.line, 1U},
+            .heading_level = heading.level,
+            .requirement_id = identifier,
+        });
+    }
+}
+
 }  // namespace
 
 // @req REQ-0008 REQ-0014
@@ -337,6 +354,7 @@ RequirementParseResult parse_requirements(std::span<const RequirementDocument> d
     RequirementParseResult result;
     for (const auto& document : documents) {
         const auto headings = scan_headings(document.content);
+        append_headings(result, document, headings);
         for (std::size_t index = 0; index < headings.size(); ++index) {
             auto requirement = parse_requirement(document, headings, index, result);
             if (requirement) {

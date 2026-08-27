@@ -31,12 +31,22 @@ struct RequirementDocument final {
     std::string_view content;
 };
 
+struct RequirementHeading final {
+    std::string title;
+    SourceLocation source;
+    std::uint8_t heading_level = 0;
+    std::optional<std::string> requirement_id;
+
+    friend bool operator==(const RequirementHeading&, const RequirementHeading&) = default;
+};
+
 struct RequirementParseResult final {
     std::vector<Requirement> requirements;
     // All syntactically valid requirement definitions, including definitions
     // suppressed from `requirements` because their ID is duplicated.
     std::vector<Requirement> definitions;
     std::vector<Diagnostic> diagnostics;
+    std::vector<RequirementHeading> headings;
 };
 
 [[nodiscard]] bool is_requirement_id(std::string_view text) noexcept;

@@ -30,7 +30,7 @@ The language server shall publish mcutrace requirement-parser diagnostics to the
 For a duplicated requirement identifier, the language server shall publish a warning at every conflicting definition and include the other definition locations as related diagnostic information.
 
 ### REQ-0110 Traceability validation diagnostics
-When all required workspace inputs are available, the language server shall publish applicable traceability-validation diagnostics at their relevant source locations.
+When all required workspace inputs are available, the language server shall publish applicable traceability-validation diagnostics with their relevant source locations through the dedicated trace-view data channel, not as editor Problems diagnostics.
 
 ### REQ-0111 Artifact refresh
 The language server shall refresh traceability analysis when an editor client reports that a configured artifact input changed, without requiring an editor restart.
@@ -76,3 +76,6 @@ For the same workspace inputs, the language server and the command-line tool sha
 
 ### REQ-0123 Analysis failure isolation
 The language server shall report configuration, input, and analysis failures to the editor without terminating the language-server process or preventing analysis of unaffected workspace documents.
+
+### REQ-0126 Trace-view data @evidence(implementation,test)
+After each workspace analysis, the language server shall publish deterministic trace-view data containing requirement documents in document order, each requirement's Markdown heading level and typed trace evidence, and all trace import and validation diagnostics.

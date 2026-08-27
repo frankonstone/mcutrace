@@ -10,6 +10,9 @@ command-line tool use the same semantic implementation.
   completion, rename, and CodeLens come from the language server.
 - Duplicate requirement identifiers appear as server-produced warnings in **Problems**
   and are squiggled at every conflicting definition.
+- Trace evidence and trace import or validation issues appear in the dedicated **Trace**
+  activity-bar view. They do not appear in **Problems**. Requirement nodes retain the
+  Markdown heading hierarchy and trace entries with source locations are navigable.
 - Open documents, configured artifacts, and `mcutrace.toml` updates are synchronized
   with the server automatically.
 
@@ -25,7 +28,7 @@ configure its workspace-relative path:
 
 The server discovers requirements, sources, artifacts, and validation settings solely
 from `mcutrace.toml`. Run **mcutrace: Refresh Requirements** from the Command
-Palette to request a fresh analysis.
+Palette or the Trace view title menu to request a fresh analysis.
 
 ## Development
 

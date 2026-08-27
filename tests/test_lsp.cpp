@@ -72,7 +72,7 @@ TemporaryWorkspace create_workspace() {
 TEST(lsp, serves_core_backed_editor_features_and_live_diagnostics,
      "REQ-0103", "REQ-0104", "REQ-0106", "REQ-0108", "REQ-0109", "REQ-0112",
      "REQ-0113", "REQ-0114", "REQ-0115", "REQ-0116", "REQ-0117", "REQ-0118",
-     "REQ-0119", "REQ-0120") {
+     "REQ-0119", "REQ-0120", "REQ-0126") {
     const auto workspace = create_workspace();
     const auto config = workspace.root / "mcutrace.toml";
     const auto requirements = workspace.root / "docs/requirements.md";
@@ -130,6 +130,15 @@ TEST(lsp, serves_core_backed_editor_features_and_live_diagnostics,
     ASSERT_EQ(occurrences(initialize_output, "MTR-REQ-DUPLICATE-ID"), std::size_t{2});
     ASSERT_NE(initialize_output.find("relatedInformation"), std::string::npos);
     ASSERT_NE(initialize_output.find("static-analysis finding: AUTOSAR-A1: bad thing"),
+              std::string::npos);
+    const auto trace_notification = initialize_output.find("\"method\":\"mcutrace/publishTrace\"");
+    ASSERT_NE(trace_notification, std::string::npos);
+    ASSERT_EQ(initialize_output.substr(0, trace_notification).find(
+                  "static-analysis finding: AUTOSAR-A1: bad thing"),
+              std::string::npos);
+    ASSERT_NE(initialize_output.find("\"headingLevel\":3", trace_notification),
+              std::string::npos);
+    ASSERT_NE(initialize_output.find("\"tests\":[", trace_notification),
               std::string::npos);
     ASSERT_NE(initialize_output.find("\"end\":{\"line\":1,\"character\":4}"),
               std::string::npos);
@@ -213,6 +222,10 @@ TEST(lsp, serves_core_backed_editor_features_and_live_diagnostics,
     const auto refreshed = joined(server.handle(
         "{\"jsonrpc\":\"2.0\",\"method\":\"workspace/didChangeWatchedFiles\",\"params\":{\"changes\":[]}}"));
     ASSERT_NE(refreshed.find("source.annotation.missing_target"), std::string::npos);
+    const auto refreshed_trace = refreshed.find("\"method\":\"mcutrace/publishTrace\"");
+    ASSERT_NE(refreshed_trace, std::string::npos);
+    ASSERT_EQ(refreshed.substr(0, refreshed_trace).find("source.annotation.missing_target"),
+              std::string::npos);
 }
 
 TEST(lsp, uses_content_length_framing, "REQ-0103") {

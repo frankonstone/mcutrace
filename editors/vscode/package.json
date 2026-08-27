@@ -28,13 +28,45 @@
   ],
   "activationEvents": [
     "onStartupFinished",
-    "onCommand:mcutrace.refreshRequirements"
+    "onCommand:mcutrace.refreshRequirements",
+    "onView:mcutrace.traceView"
   ],
   "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "mcutrace",
+          "title": "mcutrace",
+          "icon": "media/trace.svg"
+        }
+      ]
+    },
+    "views": {
+      "mcutrace": [
+        {
+          "id": "mcutrace.traceView",
+          "name": "Trace"
+        }
+      ]
+    },
+    "menus": {
+      "view/title": [
+        {
+          "command": "mcutrace.refreshRequirements",
+          "when": "view == mcutrace.traceView",
+          "group": "navigation"
+        }
+      ]
+    },
     "commands": [
       {
         "command": "mcutrace.refreshRequirements",
-        "title": "mcutrace: Refresh Requirements"
+        "title": "mcutrace: Refresh Requirements",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "mcutrace.openTraceLocation",
+        "title": "mcutrace: Open Trace Location"
       }
     ],
     "configuration": {

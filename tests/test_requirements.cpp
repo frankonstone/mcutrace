@@ -16,7 +16,8 @@ TEST(requirements, validates_canonical_ids, "REQ-0008") {
     ASSERT_FALSE(mcutrace::is_requirement_id("REQ-00A1"));
 }
 
-TEST(requirements, extracts_title_body_and_source, "REQ-0007", "REQ-0010", "REQ-0011", "REQ-0012") {
+TEST(requirements, extracts_title_body_and_source, "REQ-0007", "REQ-0010", "REQ-0011",
+     "REQ-0012", "REQ-0126") {
     constexpr std::string_view markdown =
         "# Product\n"
         "\n"
@@ -41,6 +42,12 @@ TEST(requirements, extracts_title_body_and_source, "REQ-0007", "REQ-0010", "REQ-
     ASSERT_EQ(parsed.requirements[0].source.line, std::uint32_t{3});
     ASSERT_TRUE(parsed.requirements[0].body.find("Nested content belongs") != std::string::npos);
     ASSERT_TRUE(parsed.requirements[0].body.find("Not requirement body") == std::string::npos);
+    ASSERT_EQ(parsed.headings.size(), std::size_t{4});
+    ASSERT_EQ(parsed.headings[0].title, std::string{"Product"});
+    ASSERT_FALSE(parsed.headings[0].requirement_id.has_value());
+    ASSERT_EQ(*parsed.headings[1].requirement_id, std::string{"REQ-0007"});
+    ASSERT_EQ(parsed.headings[2].title, std::string{"Detail"});
+    ASSERT_EQ(parsed.headings[2].heading_level, std::uint8_t{3});
 }
 
 TEST(requirements, supports_explicit_req_marker, "REQ-0009") {

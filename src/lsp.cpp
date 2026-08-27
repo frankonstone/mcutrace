@@ -453,6 +453,7 @@ struct LanguageServer::State final {
     ValidationResult validation;
     std::map<std::string, OpenDocument> open_documents;
     std::map<std::string, std::vector<PublishedDiagnostic>> diagnostics;
+    std::vector<Diagnostic> trace_diagnostics;
     std::set<std::string> published_paths;
     bool exit = false;
 
@@ -501,10 +502,20 @@ struct LanguageServer::State final {
         });
     }
 
-    void append_input_failure(std::string code, std::string message, const std::string& path) {
+    void append_problem_input_failure(std::string code, std::string message,
+                                      const std::string& path) {
         append(Diagnostic{.code = std::move(code), .severity = Severity::error,
                           .message = std::move(message),
                           .source = SourceLocation{.path = path, .line = 1U, .column = 1U}});
+    }
+
+    void append_trace_input_failure(std::string code, std::string message, const std::string& path) {
+        trace_diagnostics.push_back(Diagnostic{
+            .code = std::move(code),
+            .severity = Severity::error,
+            .message = std::move(message),
+            .source = SourceLocation{.path = path, .line = 1U, .column = 1U},
+        });
     }
 
     void append_duplicate_diagnostics() {
@@ -542,6 +553,7 @@ struct LanguageServer::State final {
         requirement_parse = {};
         trace = {};
         validation = {};
+        trace_diagnostics.clear();
     }
 
     void analyze_requirements() {
@@ -552,7 +564,8 @@ struct LanguageServer::State final {
         for (const auto& path : config->requirement_files) {
             auto content = text_for(path);
             if (!content) {
-                append_input_failure("lsp.requirement_read", "cannot read requirement document: " + path, path);
+                append_problem_input_failure(
+                    "lsp.requirement_read", "cannot read requirement document: " + path, path);
                 continue;
             }
             contents.push_back(std::move(*content));
@@ -571,13 +584,13 @@ struct LanguageServer::State final {
         for (const auto& path : config->source_files) {
             auto content = text_for(path);
             if (!content) {
-                append_input_failure("lsp.source_read", "cannot read source input: " + path, path);
+                append_trace_input_failure("lsp.source_read", "cannot read source input: " + path, path);
                 continue;
             }
             auto fragment = import_source_annotations(ArtifactInput{
                 .path = path, .base_directory = config->root, .content = std::move(*content)});
             if (!fragment) {
-                append_input_failure("lsp.source_import", fragment.error().detail, path);
+                append_trace_input_failure("lsp.source_import", fragment.error().detail, path);
                 continue;
             }
             fragments.push_back(std::move(*fragment));
@@ -588,13 +601,13 @@ struct LanguageServer::State final {
         for (const auto& path : config->build_files) {
             auto content = text_for(path);
             if (!content) {
-                append_input_failure("lsp.build_read", "cannot read build input: " + path, path);
+                append_trace_input_failure("lsp.build_read", "cannot read build input: " + path, path);
                 continue;
             }
             auto fragment = import_build_annotations(ArtifactInput{
                 .path = path, .base_directory = config->root, .content = std::move(*content)});
             if (!fragment) {
-                append_input_failure("lsp.build_import", fragment.error().detail, path);
+                append_trace_input_failure("lsp.build_import", fragment.error().detail, path);
                 continue;
             }
             fragments.push_back(std::move(*fragment));
@@ -605,8 +618,9 @@ struct LanguageServer::State final {
         for (const auto& artifact : config->artifacts) {
             auto content = text_for(artifact.path);
             if (!content) {
-                append_input_failure("lsp.artifact_read", "cannot read artifact input: " + artifact.path,
-                                     artifact.path);
+                append_trace_input_failure("lsp.artifact_read",
+                                           "cannot read artifact input: " + artifact.path,
+                                           artifact.path);
                 continue;
             }
             auto fragment = import_trace_artifact(ArtifactInput{
@@ -615,7 +629,8 @@ struct LanguageServer::State final {
                 .content = std::move(*content),
             }, artifact.importer);
             if (!fragment) {
-                append_input_failure("lsp.artifact_import", fragment.error().detail, artifact.path);
+                append_trace_input_failure(
+                    "lsp.artifact_import", fragment.error().detail, artifact.path);
                 continue;
             }
             fragments.push_back(std::move(*fragment));
@@ -625,9 +640,8 @@ struct LanguageServer::State final {
     void validate_fragments(const std::vector<ImportFragment>& fragments) {
         trace = assemble_trace(requirement_parse.requirements, fragments);
         validation = validate_trace(trace, config->validation);
-        for (const auto& diagnostic : validation.diagnostics) {
-            append(diagnostic);
-        }
+        trace_diagnostics.insert(trace_diagnostics.end(), validation.diagnostics.begin(),
+                                 validation.diagnostics.end());
     }
 
     [[nodiscard]] std::vector<std::string> analyze() {
@@ -642,7 +656,102 @@ struct LanguageServer::State final {
             import_artifact_fragments(fragments);
             validate_fragments(fragments);
         }
-        return publish_diagnostics();
+        auto result = publish_diagnostics();
+        result.push_back(publish_trace());
+        return result;
+    }
+
+    [[nodiscard]] std::string trace_source(const SourceLocation& source) const {
+        JsonObject value;
+        value.string("path", source.path);
+        value.string("uri", encode_uri_path(source.path));
+        value.member("range", range_json(source_range(source)));
+        return std::move(value).finish();
+    }
+
+    [[nodiscard]] std::string trace_diagnostic(const Diagnostic& diagnostic) const {
+        JsonObject value;
+        value.string("severity", severity_name(diagnostic.severity));
+        value.string("code", diagnostic.code);
+        value.string("message", diagnostic.message);
+        if (diagnostic.source && !diagnostic.source->path.empty()) {
+            value.member("source", trace_source(*diagnostic.source));
+        }
+        return std::move(value).finish();
+    }
+
+    [[nodiscard]] std::string trace_requirement(const Requirement& requirement) const {
+        JsonObject value;
+        value.string("kind", "requirement");
+        value.string("id", requirement.id);
+        value.string("title", requirement.title);
+        value.member("headingLevel", std::to_string(requirement.heading_level));
+        value.member("location", location(requirement.source, requirement.id));
+        const auto report = build_requirement_trace_report(trace, requirement.id);
+        if (report) {
+            const auto rendered = render_requirement_json_report(*report);
+            if (rendered) {
+                value.member("trace", *rendered);
+            }
+        }
+        return std::move(value).finish();
+    }
+
+    [[nodiscard]] std::string trace_section(const RequirementHeading& heading) const {
+        JsonObject value;
+        value.string("kind", "section");
+        value.string("title", heading.title);
+        value.member("headingLevel", std::to_string(heading.heading_level));
+        value.member("location", location(heading.source));
+        return std::move(value).finish();
+    }
+
+    [[nodiscard]] const Requirement* definition_for(const RequirementHeading& heading) const {
+        if (!heading.requirement_id) {
+            return nullptr;
+        }
+        const auto found = std::find_if(
+            requirement_parse.definitions.begin(), requirement_parse.definitions.end(),
+            [&heading](const Requirement& requirement) {
+                return requirement.id == *heading.requirement_id &&
+                       requirement.source.path == heading.source.path &&
+                       requirement.source.line == heading.source.line;
+            });
+        return found == requirement_parse.definitions.end() ? nullptr : &*found;
+    }
+
+    [[nodiscard]] std::string trace_documents() const {
+        JsonArray documents;
+        if (!config) {
+            return std::move(documents).finish();
+        }
+        for (const auto& path : config->requirement_files) {
+            JsonArray headings;
+            for (const auto& heading : requirement_parse.headings) {
+                if (heading.source.path == path) {
+                    const auto* definition = definition_for(heading);
+                    headings.value(definition ? trace_requirement(*definition)
+                                              : trace_section(heading));
+                }
+            }
+            JsonObject document;
+            document.string("path", path);
+            document.string("uri", encode_uri_path(path));
+            document.member("headings", std::move(headings).finish());
+            documents.value(std::move(document).finish());
+        }
+        return std::move(documents).finish();
+    }
+
+    [[nodiscard]] std::string publish_trace() const {
+        JsonArray issues;
+        for (const auto& diagnostic : trace_diagnostics) {
+            issues.value(trace_diagnostic(diagnostic));
+        }
+        JsonObject params;
+        params.member("documents", trace_documents());
+        params.member("diagnostics", std::move(issues).finish());
+        return notification("mcutrace/publishTrace", std::move(params).finish());
     }
 
     [[nodiscard]] std::vector<std::string> publish_diagnostics() {
@@ -1365,7 +1474,7 @@ bool LanguageServer::exit_requested() const noexcept {
     return state_->exit;
 }
 
-// @req REQ-0103 REQ-0104 REQ-0105 REQ-0106 REQ-0107 REQ-0108 REQ-0109 REQ-0110 REQ-0111 REQ-0112 REQ-0113 REQ-0114 REQ-0115 REQ-0116 REQ-0117 REQ-0118 REQ-0119 REQ-0120 REQ-0121 REQ-0122 REQ-0123
+// @req REQ-0103 REQ-0104 REQ-0105 REQ-0106 REQ-0107 REQ-0108 REQ-0109 REQ-0110 REQ-0111 REQ-0112 REQ-0113 REQ-0114 REQ-0115 REQ-0116 REQ-0117 REQ-0118 REQ-0119 REQ-0120 REQ-0121 REQ-0122 REQ-0123 REQ-0126
 std::vector<std::string> LanguageServer::handle(const std::string_view message) {
     const auto parsed = LspJson::parse(message);
     if (!parsed || !parsed->is_object()) {
