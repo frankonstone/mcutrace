@@ -72,7 +72,7 @@ TemporaryWorkspace create_workspace() {
 TEST(lsp, serves_core_backed_editor_features_and_live_diagnostics,
      "REQ-0103", "REQ-0104", "REQ-0106", "REQ-0108", "REQ-0109", "REQ-0112",
      "REQ-0113", "REQ-0114", "REQ-0115", "REQ-0116", "REQ-0117", "REQ-0118",
-     "REQ-0119", "REQ-0120", "REQ-0126") {
+     "REQ-0119", "REQ-0120") {
     const auto workspace = create_workspace();
     const auto config = workspace.root / "mcutrace.toml";
     const auto requirements = workspace.root / "docs/requirements.md";
