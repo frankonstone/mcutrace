@@ -67,6 +67,10 @@
       {
         "command": "mcutrace.openTraceLocation",
         "title": "mcutrace: Open Trace Location"
+      },
+      {
+        "command": "mcutrace.openTestLocation",
+        "title": "mcutrace: Open Test Declaration"
       }
     ],
     "configuration": {

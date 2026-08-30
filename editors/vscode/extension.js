@@ -4,7 +4,7 @@ const vscode = require('vscode');
 const { LanguageClient } = require('vscode-languageclient/node');
 
 const { clientOptions, serverOptions } = require('./client');
-const { buildTraceTree } = require('./trace-view');
+const { buildTraceTree, findTestDeclaration } = require('./trace-view');
 
 let languageClient;
 
@@ -80,7 +80,13 @@ class TraceTreeProvider {
     if (element.problemTooltip) {
       item.tooltip = [item.tooltip, element.problemTooltip].filter(Boolean).join('\n\n');
     }
-    if (element.location) {
+    if (element.test) {
+      item.command = {
+        command: 'mcutrace.openTestLocation',
+        title: 'Open test declaration',
+        arguments: [element.test],
+      };
+    } else if (element.location) {
       item.command = {
         command: 'mcutrace.openTraceLocation',
         title: 'Open trace location',
@@ -119,6 +125,43 @@ async function openTraceLocation(location) {
   await vscode.window.showTextDocument(uri, { selection });
 }
 
+// @req REQ-0128
+async function openTestLocation(test) {
+  if (test.location) {
+    await openTraceLocation(test.location);
+    return;
+  }
+
+  const files = await vscode.workspace.findFiles(
+    '**/*.{c,cc,cpp,cxx,h,hh,hpp,hxx}',
+    '**/{.git,node_modules,build,out}/**');
+  files.sort((left, right) => {
+    const leftIsTest = /(^|[/\\])tests?([/\\]|$)/i.test(left.fsPath) ? 0 : 1;
+    const rightIsTest = /(^|[/\\])tests?([/\\]|$)/i.test(right.fsPath) ? 0 : 1;
+    return leftIsTest - rightIsTest || left.fsPath.localeCompare(right.fsPath);
+  });
+
+  for (const uri of files) {
+    let source;
+    try {
+      source = Buffer.from(await vscode.workspace.fs.readFile(uri)).toString('utf8');
+    } catch {
+      continue;
+    }
+    const declaration = findTestDeclaration(source, test.name);
+    if (declaration) {
+      const document = await vscode.workspace.openTextDocument(uri);
+      const selection = new vscode.Range(
+        new vscode.Position(declaration.line, declaration.character),
+        new vscode.Position(declaration.endLine, declaration.endCharacter));
+      await vscode.window.showTextDocument(document, { selection });
+      return;
+    }
+  }
+
+  vscode.window.showWarningMessage(`Unable to find test declaration: ${test.name}`);
+}
+
 function workspaceFolderPath() {
   const [folder] = vscode.workspace.workspaceFolders || [];
   return folder ? folder.uri.fsPath : undefined;
@@ -139,7 +182,7 @@ function reportServerSettingChange(event) {
   }
 }
 
-// @req REQ-0098 REQ-0099 REQ-0100 REQ-0101 REQ-0102 REQ-0124 REQ-0127
+// @req REQ-0098 REQ-0099 REQ-0100 REQ-0101 REQ-0102 REQ-0124 REQ-0127 REQ-0128
 async function activate(context) {
   const output = vscode.window.createOutputChannel('mcutrace Language Server');
   const configuration = vscode.workspace.getConfiguration('mcutrace');
@@ -175,6 +218,7 @@ async function activate(context) {
     { dispose: () => { void languageClient.stop(); } },
     vscode.commands.registerCommand('mcutrace.refreshRequirements', refreshAnalysis),
     vscode.commands.registerCommand('mcutrace.openTraceLocation', openTraceLocation),
+    vscode.commands.registerCommand('mcutrace.openTestLocation', openTestLocation),
     vscode.workspace.onDidChangeConfiguration(reportServerSettingChange),
   );
 

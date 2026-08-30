@@ -3,7 +3,7 @@
 const assert = require('node:assert/strict');
 const test = require('node:test');
 
-const { buildTraceTree } = require('../trace-view');
+const { buildTraceTree, findTestDeclaration } = require('../trace-view');
 
 test('builds a document and Markdown heading hierarchy for requirements', () => {
   const tree = buildTraceTree({
@@ -68,11 +68,55 @@ test('shows trace diagnostics and typed evidence without using Problems', () => 
   const tests = requirement.children.find((node) => node.label === 'Tests');
   assert.equal(tests.children[0].icon, 'error');
   assert.equal(tests.children[0].description, 'failed');
+  assert.deepEqual(tests.children[0].test, {
+    name: 'component works',
+    location: {
+      source: { path: '/project/tests/component.cpp', line: 4, column: 1 },
+    },
+  });
   assert.equal(tests.children[0].problemSeverity, 'error');
   assert.equal(tests.children[0].problemTooltip,
     'Trace problems: 1 error\nvalidation.failed_test_evidence: linked test evidence is failing');
   assert.equal(tree.flatMap((node) => node.children).some(
     (node) => node.label === 'Trace problems'), false);
+});
+
+test('makes tests without artifact locations navigable by their mcutest name', () => {
+  const tree = buildTraceTree({
+    documents: [{
+      path: '/project/docs/requirements.md',
+      uri: 'file:///project/docs/requirements.md',
+      headings: [{
+        kind: 'requirement',
+        id: 'REQ-0001',
+        title: 'Feature',
+        headingLevel: 2,
+        trace: {
+          tests: [{ id: 'test:mcutest:component.works', kind: 'test', label: 'component.works' }],
+        },
+      }],
+    }],
+  });
+
+  const tests = tree[0].children[0].children.find((node) => node.label === 'Tests');
+  assert.deepEqual(tests.children[0].test, { name: 'component.works', location: undefined });
+});
+
+test('finds a mcutest TEST declaration from its dotted artifact name', () => {
+  const source = [
+    '#include <mcutest/mcutest.hpp>',
+    '',
+    'TEST(component, works, "REQ-0001") {',
+    '}',
+  ].join('\n');
+
+  assert.deepEqual(findTestDeclaration(source, 'component.works'), {
+    line: 2,
+    character: 0,
+    endLine: 2,
+    endCharacter: 'TEST(component, works'.length,
+  });
+  assert.equal(findTestDeclaration(source, 'component.missing'), undefined);
 });
 
 test('maps requirement diagnostics by identifier and propagates warning decoration', () => {

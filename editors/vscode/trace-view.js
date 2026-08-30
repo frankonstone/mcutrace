@@ -13,6 +13,34 @@ function sourceLocation(source) {
   return source && source.path ? { source } : undefined;
 }
 
+function escapeRegExp(value) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+// Resolve the dotted names emitted by mcutest back to their TEST(suite, name, ...)
+// declaration when an older result artifact does not contain file/line metadata.
+function findTestDeclaration(text, testName) {
+  const separator = testName.lastIndexOf('.');
+  if (separator <= 0 || separator === testName.length - 1) {
+    return undefined;
+  }
+  const suite = escapeRegExp(testName.slice(0, separator));
+  const name = escapeRegExp(testName.slice(separator + 1));
+  const match = new RegExp(
+    `\\b(?:TEST|TEST_F|TEST_P)\\s*\\(\\s*${suite}\\s*,\\s*${name}\\b`).exec(text);
+  if (!match) {
+    return undefined;
+  }
+  const lineStart = text.lastIndexOf('\n', match.index) + 1;
+  const line = text.slice(0, lineStart).split('\n').length - 1;
+  return {
+    line,
+    character: match.index - lineStart,
+    endLine: line,
+    endCharacter: match.index - lineStart + match[0].length,
+  };
+}
+
 function evidenceIcon(node, fallback) {
   if (node.evidence_state === 'passed') {
     return 'pass';
@@ -45,16 +73,21 @@ function evidenceGroups(trace = {}) {
       description: String(values.length),
       icon,
       contextValue: 'mcutrace.evidenceGroup',
-      children: values.map((node) => ({
-        label: node.label || node.id,
-        description: evidenceDescription(node),
-        tooltip: node.id,
-        traceId: node.id,
-        icon: evidenceIcon(node, icon),
-        contextValue: `mcutrace.${node.kind || 'evidence'}`,
-        location: sourceLocation(node.source),
-        children: [],
-      })),
+      children: values.map((node) => {
+        const label = node.label || node.id;
+        const location = sourceLocation(node.source);
+        return {
+          label,
+          description: evidenceDescription(node),
+          tooltip: node.id,
+          traceId: node.id,
+          icon: evidenceIcon(node, icon),
+          contextValue: `mcutrace.${node.kind || 'evidence'}`,
+          location,
+          test: node.kind === 'test' ? { name: label, location } : undefined,
+          children: [],
+        };
+      }),
     }];
   });
 }
@@ -222,4 +255,10 @@ function buildTraceTree(payload = {}, relativePath = (value) => value) {
     documents, Array.isArray(payload.diagnostics) ? payload.diagnostics : []);
 }
 
-module.exports = { applyDiagnostics, buildTraceTree, evidenceGroups, headingHierarchy };
+module.exports = {
+  applyDiagnostics,
+  buildTraceTree,
+  evidenceGroups,
+  findTestDeclaration,
+  headingHierarchy,
+};
