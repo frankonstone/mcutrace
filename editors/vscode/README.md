@@ -10,9 +10,11 @@ command-line tool use the same semantic implementation.
   completion, rename, and CodeLens come from the language server.
 - Duplicate requirement identifiers appear as server-produced warnings in **Problems**
   and are squiggled at every conflicting definition.
-- Trace evidence and trace import or validation issues appear in the dedicated **Trace**
-  activity-bar view. They do not appear in **Problems**. Requirement nodes retain the
-  Markdown heading hierarchy and trace entries with source locations are navigable.
+- Trace evidence appears in the dedicated **Trace** activity-bar view. Trace import or
+  validation issues do not appear as entries in **Problems** or as separate tree nodes.
+  Instead, affected evidence, requirement, section, and document labels receive colored
+  `E`, `W`, or `I` decorations and tooltips. Requirement nodes retain the Markdown heading
+  hierarchy and trace entries with source locations are navigable.
 - Open documents, configured artifacts, and `mcutrace.toml` updates are synchronized
   with the server automatically.
 

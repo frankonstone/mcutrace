@@ -49,6 +49,7 @@ function evidenceGroups(trace = {}) {
         label: node.label || node.id,
         description: evidenceDescription(node),
         tooltip: node.id,
+        traceId: node.id,
         icon: evidenceIcon(node, icon),
         contextValue: `mcutrace.${node.kind || 'evidence'}`,
         location: sourceLocation(node.source),
@@ -67,6 +68,7 @@ function requirementNode(requirement) {
       : requirement.id,
     icon: 'symbol-key',
     contextValue: 'mcutrace.requirement',
+    requirementId: requirement.id,
     location: requirement.location,
     children: [],
     requirementChildren: [],
@@ -113,48 +115,101 @@ function headingHierarchy(headings = []) {
   return roots;
 }
 
-function diagnosticGroups(diagnostics = []) {
-  if (diagnostics.length === 0) {
-    return [];
+const SEVERITY_RANK = { note: 1, warning: 2, error: 3 };
+
+function locationIdentity(location) {
+  if (!location) {
+    return {};
   }
-  const definitions = [
-    ['error', 'Errors', 'error'],
-    ['warning', 'Warnings', 'warning'],
-    ['note', 'Notes', 'info'],
-  ];
-  const children = definitions.flatMap(([severity, label, icon]) => {
-    const issues = diagnostics.filter((diagnostic) => diagnostic.severity === severity);
-    if (issues.length === 0) {
-      return [];
+  const source = location.source || location;
+  const path = source.path || source.uri;
+  const line = source.range?.start?.line ??
+    (Number.isInteger(source.line) && source.line > 0 ? source.line - 1 : undefined);
+  return { path, line };
+}
+
+function collectNodes(roots) {
+  const result = [];
+  const visit = (node, depth) => {
+    result.push({ node, depth, location: locationIdentity(node.location) });
+    node.children.forEach((child) => visit(child, depth + 1));
+  };
+  roots.forEach((root) => visit(root, 0));
+  return result;
+}
+
+function identifierMatch(diagnostic, candidates) {
+  const text = `${diagnostic.code} ${diagnostic.message}`;
+  return candidates
+    .filter(({ node }) =>
+      (node.requirementId && text.includes(node.requirementId)) ||
+      (node.traceId && text.includes(node.traceId)))
+    .sort((left, right) => right.depth - left.depth)[0];
+}
+
+function locationMatch(diagnostic, candidates) {
+  const wanted = locationIdentity(diagnostic.source);
+  if (!wanted.path) {
+    return undefined;
+  }
+  return candidates
+    .filter(({ location }) => location.path === wanted.path &&
+      (wanted.line === undefined || location.line === wanted.line))
+    .sort((left, right) => right.depth - left.depth)[0];
+}
+
+function severitySummary(diagnostics) {
+  const counts = { error: 0, warning: 0, note: 0 };
+  diagnostics.forEach((diagnostic) => {
+    if (Object.hasOwn(counts, diagnostic.severity)) {
+      counts[diagnostic.severity] += 1;
     }
-    return [{
-      label,
-      description: String(issues.length),
-      icon,
-      contextValue: `mcutrace.${severity}Group`,
-      children: issues.map((diagnostic) => ({
-        label: diagnostic.message,
-        description: diagnostic.code,
-        tooltip: `${diagnostic.code}: ${diagnostic.message}`,
-        icon,
-        contextValue: 'mcutrace.traceDiagnostic',
-        location: diagnostic.source,
-        children: [],
-      })),
-    }];
   });
-  return [{
-    label: 'Trace problems',
-    description: String(diagnostics.length),
-    icon: 'issues',
-    contextValue: 'mcutrace.traceProblems',
-    children,
-  }];
+  return [
+    counts.error ? `${counts.error} error${counts.error === 1 ? '' : 's'}` : undefined,
+    counts.warning ? `${counts.warning} warning${counts.warning === 1 ? '' : 's'}` : undefined,
+    counts.note ? `${counts.note} note${counts.note === 1 ? '' : 's'}` : undefined,
+  ].filter(Boolean).join(', ');
+}
+
+function finishDecorations(node, path) {
+  const directDiagnostics = node.directDiagnostics || [];
+  const diagnostics = [...directDiagnostics];
+  node.children.forEach((child, index) => {
+    finishDecorations(child, `${path}/${index}`);
+    diagnostics.push(...child.aggregatedDiagnostics);
+  });
+  node.aggregatedDiagnostics = diagnostics;
+  node.decorationId = path;
+  if (diagnostics.length > 0) {
+    node.problemSeverity = diagnostics.reduce((severity, diagnostic) =>
+      SEVERITY_RANK[diagnostic.severity] > SEVERITY_RANK[severity]
+        ? diagnostic.severity : severity, 'note');
+    node.problemBadge = node.problemSeverity === 'error' ? 'E'
+      : node.problemSeverity === 'warning' ? 'W' : 'I';
+    const summary = `Trace problems: ${severitySummary(diagnostics)}`;
+    const details = directDiagnostics.map(
+      (diagnostic) => `${diagnostic.code}: ${diagnostic.message}`).join('\n');
+    node.problemTooltip = details ? `${summary}\n${details}` : summary;
+  }
+  delete node.directDiagnostics;
+}
+
+function applyDiagnostics(roots, diagnostics = []) {
+  const candidates = collectNodes(roots);
+  for (const diagnostic of diagnostics) {
+    const match = identifierMatch(diagnostic, candidates) ||
+      locationMatch(diagnostic, candidates);
+    if (match) {
+      (match.node.directDiagnostics ||= []).push(diagnostic);
+    }
+  }
+  roots.forEach((root, index) => finishDecorations(root, String(index)));
+  return roots;
 }
 
 // @req REQ-0127
 function buildTraceTree(payload = {}, relativePath = (value) => value) {
-  const issues = diagnosticGroups(Array.isArray(payload.diagnostics) ? payload.diagnostics : []);
   const documents = (Array.isArray(payload.documents) ? payload.documents : []).map((document) => ({
     label: relativePath(document.path),
     tooltip: document.path,
@@ -163,7 +218,8 @@ function buildTraceTree(payload = {}, relativePath = (value) => value) {
     location: { uri: document.uri },
     children: headingHierarchy(document.headings || document.requirements),
   }));
-  return [...issues, ...documents];
+  return applyDiagnostics(
+    documents, Array.isArray(payload.diagnostics) ? payload.diagnostics : []);
 }
 
-module.exports = { buildTraceTree, diagnosticGroups, evidenceGroups, headingHierarchy };
+module.exports = { applyDiagnostics, buildTraceTree, evidenceGroups, headingHierarchy };

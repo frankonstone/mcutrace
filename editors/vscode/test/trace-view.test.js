@@ -32,7 +32,11 @@ test('shows trace diagnostics and typed evidence without using Problems', () => 
       severity: 'error',
       code: 'validation.failed_test_evidence',
       message: 'linked test evidence is failing',
-      source: { uri: 'file:///project/tests/component.cpp', range: {} },
+      source: {
+        path: '/project/tests/component.cpp',
+        uri: 'file:///project/tests/component.cpp',
+        range: { start: { line: 3, character: 0 }, end: { line: 3, character: 1 } },
+      },
     }],
     documents: [{
       path: '/project/docs/requirements.md',
@@ -55,9 +59,39 @@ test('shows trace diagnostics and typed evidence without using Problems', () => 
     }],
   });
 
-  assert.equal(tree[0].label, 'Trace problems');
-  assert.equal(tree[0].children[0].children[0].description, 'validation.failed_test_evidence');
-  const tests = tree[1].children[0].children.find((node) => node.label === 'Tests');
+  assert.equal(tree.length, 1);
+  assert.equal(tree[0].label, '/project/docs/requirements.md');
+  assert.equal(tree[0].problemSeverity, 'error');
+  assert.equal(tree[0].problemBadge, 'E');
+  const requirement = tree[0].children[0];
+  assert.equal(requirement.problemSeverity, 'error');
+  const tests = requirement.children.find((node) => node.label === 'Tests');
   assert.equal(tests.children[0].icon, 'error');
   assert.equal(tests.children[0].description, 'failed');
+  assert.equal(tests.children[0].problemSeverity, 'error');
+  assert.equal(tests.children[0].problemTooltip,
+    'Trace problems: 1 error\nvalidation.failed_test_evidence: linked test evidence is failing');
+  assert.equal(tree.flatMap((node) => node.children).some(
+    (node) => node.label === 'Trace problems'), false);
+});
+
+test('maps requirement diagnostics by identifier and propagates warning decoration', () => {
+  const tree = buildTraceTree({
+    diagnostics: [{
+      severity: 'warning',
+      code: 'validation.missing_test_evidence',
+      message: 'requirement has no linked test evidence: REQ-0042',
+    }],
+    documents: [{
+      path: '/project/requirements.md',
+      uri: 'file:///project/requirements.md',
+      headings: [{
+        kind: 'requirement', id: 'REQ-0042', title: 'Feature', headingLevel: 2, trace: {},
+      }],
+    }],
+  });
+
+  assert.equal(tree[0].children[0].problemSeverity, 'warning');
+  assert.equal(tree[0].children[0].problemBadge, 'W');
+  assert.equal(tree[0].problemSeverity, 'warning');
 });

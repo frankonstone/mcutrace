@@ -19,4 +19,4 @@ The mcutrace VS Code extension shall obtain native Find All References navigatio
 The mcutrace VS Code extension shall allow the language-server executable path and arguments to be configured, including `${workspaceFolder}` substitution.
 
 ### REQ-0127 Dedicated trace view @evidence(implementation)
-The mcutrace VS Code extension shall display trace evidence and trace import or validation diagnostics in a dedicated Trace view, preserve the Markdown requirement heading hierarchy within each configured document, and navigate from trace items to available source locations. Trace-related entries shall not appear in Problems.
+The mcutrace VS Code extension shall display trace evidence in a dedicated Trace view, preserve the Markdown requirement heading hierarchy within each configured document, and navigate from trace items to available source locations. Trace import and validation problems shall not appear as separate entries in Problems or the Trace tree; affected nodes and their ancestors shall instead expose severity-colored text decorations, severity badges, and explanatory tooltips.
