@@ -17,10 +17,10 @@ function escapeRegExp(value) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
-// Resolve the dotted names emitted by mcutest back to their TEST(suite, name, ...)
-// declaration when an older result artifact does not contain file/line metadata.
+// Resolve mcutest's suite/test names (and legacy suite.test names) back to their
+// TEST(suite, name, ...) declaration when an artifact has no file/line metadata.
 function findTestDeclaration(text, testName) {
-  const separator = testName.lastIndexOf('.');
+  const separator = Math.max(testName.lastIndexOf('/'), testName.lastIndexOf('.'));
   if (separator <= 0 || separator === testName.length - 1) {
     return undefined;
   }

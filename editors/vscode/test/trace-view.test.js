@@ -119,6 +119,17 @@ test('finds a mcutest TEST declaration from its dotted artifact name', () => {
   assert.equal(findTestDeclaration(source, 'component.missing'), undefined);
 });
 
+test('finds a mcutest TEST declaration from its slash-separated artifact name', () => {
+  const source = 'TEST(cli, exposes_evidence_query_help, "REQ-0055", "REQ-0064") {}';
+
+  assert.deepEqual(findTestDeclaration(source, 'cli/exposes_evidence_query_help'), {
+    line: 0,
+    character: 0,
+    endLine: 0,
+    endCharacter: 'TEST(cli, exposes_evidence_query_help'.length,
+  });
+});
+
 test('maps requirement diagnostics by identifier and propagates warning decoration', () => {
   const tree = buildTraceTree({
     diagnostics: [{
