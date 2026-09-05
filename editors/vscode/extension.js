@@ -4,7 +4,9 @@ const vscode = require('vscode');
 const { LanguageClient } = require('vscode-languageclient/node');
 
 const { clientOptions, serverOptions } = require('./client');
-const { buildTraceTree, findTestDeclaration } = require('./trace-view');
+const {
+  buildTraceTree, findTestDeclaration, requirementAtLocation, requirementNodes,
+} = require('./trace-view');
 
 let languageClient;
 
@@ -28,7 +30,6 @@ class TraceDecorationProvider {
         this.decorations.set(node.decorationId, {
           badge: node.problemBadge,
           tooltip: node.problemTooltip,
-          color: new vscode.ThemeColor(PROBLEM_COLORS[node.problemSeverity]),
           propagate: false,
         });
       }
@@ -39,7 +40,8 @@ class TraceDecorationProvider {
   }
 
   provideFileDecoration(uri) {
-    return this.decorations.get(uri.path.slice(1));
+    return uri.scheme === 'mcutrace'
+      ? this.decorations.get(decodeURIComponent(uri.path.slice(1))) : undefined;
   }
 
   dispose() {
@@ -50,6 +52,8 @@ class TraceDecorationProvider {
 class TraceTreeProvider {
   constructor(decorations, updateBadge) {
     this.roots = [];
+    this.parents = new Map();
+    this.problemsOnly = false;
     this.decorations = decorations;
     this.updateBadge = updateBadge;
     this.changed = new vscode.EventEmitter();
@@ -58,25 +62,48 @@ class TraceTreeProvider {
 
   update(payload) {
     this.roots = buildTraceTree(payload, (path) => vscode.workspace.asRelativePath(path));
+    this.parents.clear();
+    const visit = (nodes, parent) => nodes.forEach((node) => {
+      this.parents.set(node, parent);
+      visit(node.children, node);
+    });
+    visit(this.roots);
     this.decorations.update(this.roots);
     this.updateBadge(Array.isArray(payload.diagnostics) ? payload.diagnostics.length : 0);
     this.changed.fire();
   }
 
   getChildren(element) {
-    return element ? element.children : this.roots;
+    const children = element ? element.children : this.roots;
+    return this.problemsOnly ? children.filter((node) => node.problemSeverity) : children;
+  }
+
+  getParent(element) {
+    return this.parents.get(element);
+  }
+
+  setProblemsOnly(enabled) {
+    this.problemsOnly = enabled;
+    this.changed.fire();
   }
 
   getTreeItem(element) {
-    const state = element.children.length > 0
+    const state = this.getChildren(element).length > 0
       ? vscode.TreeItemCollapsibleState.Collapsed
       : vscode.TreeItemCollapsibleState.None;
     const item = new vscode.TreeItem(element.label, state);
+    item.id = element.id;
     item.description = element.description;
     item.tooltip = element.tooltip;
     item.contextValue = element.contextValue;
-    item.iconPath = new vscode.ThemeIcon(element.icon);
-    item.resourceUri = vscode.Uri.parse(`mcutrace:/${element.decorationId}`);
+    const severity = element.directProblemSeverity;
+    item.iconPath = severity
+      ? new vscode.ThemeIcon(severity === 'note' ? 'info' : severity,
+        new vscode.ThemeColor(PROBLEM_COLORS[severity]))
+      : new vscode.ThemeIcon(element.icon);
+    item.resourceUri = vscode.Uri.from({
+      scheme: 'mcutrace', path: `/${encodeURIComponent(element.decorationId)}`,
+    });
     if (element.problemTooltip) {
       item.tooltip = [item.tooltip, element.problemTooltip].filter(Boolean).join('\n\n');
     }
@@ -204,6 +231,47 @@ async function activate(context) {
     treeDataProvider: traceProvider,
     showCollapseAll: true,
   });
+  const setProblemsOnly = async (enabled) => {
+    traceProvider.setProblemsOnly(enabled);
+    traceView.message = enabled ? 'Showing items with trace problems' : undefined;
+    await vscode.commands.executeCommand('setContext', 'mcutrace.traceProblemsOnly', enabled);
+  };
+  await setProblemsOnly(false);
+  const revealRequirement = async (node) => {
+    if (traceProvider.problemsOnly && !node.problemSeverity) {
+      await setProblemsOnly(false);
+    }
+    await traceView.reveal(node, { select: true, focus: true });
+  };
+  const findRequirement = async () => {
+    const items = requirementNodes(traceProvider.roots).map((node) => ({
+      label: node.label,
+      description: node.requirementId,
+      detail: node.location?.uri ? vscode.workspace.asRelativePath(vscode.Uri.parse(node.location.uri)) : undefined,
+      node,
+    }));
+    const picked = await vscode.window.showQuickPick(items, {
+      placeHolder: 'Find requirement by title or ID',
+      matchOnDescription: true,
+    });
+    if (picked) {
+      // Analysis may have refreshed while the picker was open.
+      const node = requirementNodes(traceProvider.roots).find((entry) => entry.id === picked.node.id);
+      if (node) await revealRequirement(node);
+    }
+  };
+  const revealActiveRequirement = async () => {
+    const editor = vscode.window.activeTextEditor;
+    if (!editor) return;
+    const position = editor.selection.active;
+    const node = requirementAtLocation(traceProvider.roots,
+      editor.document.uri.toString(), position.line);
+    if (node) {
+      await revealRequirement(node);
+    } else {
+      vscode.window.showInformationMessage('No requirement at the current cursor position.');
+    }
+  };
   const traceSubscription = languageClient.onNotification(
     'mcutrace/publishTrace', (payload) => traceProvider.update(payload));
 
@@ -219,6 +287,10 @@ async function activate(context) {
     vscode.commands.registerCommand('mcutrace.refreshRequirements', refreshAnalysis),
     vscode.commands.registerCommand('mcutrace.openTraceLocation', openTraceLocation),
     vscode.commands.registerCommand('mcutrace.openTestLocation', openTestLocation),
+    vscode.commands.registerCommand('mcutrace.findRequirement', findRequirement),
+    vscode.commands.registerCommand('mcutrace.revealActiveRequirement', revealActiveRequirement),
+    vscode.commands.registerCommand('mcutrace.showTraceProblems', () => setProblemsOnly(true)),
+    vscode.commands.registerCommand('mcutrace.showAllTraceItems', () => setProblemsOnly(false)),
     vscode.workspace.onDidChangeConfiguration(reportServerSettingChange),
   );
 

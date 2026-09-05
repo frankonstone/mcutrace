@@ -94,12 +94,12 @@ function evidenceGroups(trace = {}) {
 
 function requirementNode(requirement) {
   return {
-    label: requirement.id,
-    description: requirement.title || '',
+    label: requirement.title || requirement.id,
+    description: requirement.title ? requirement.id : '',
     tooltip: requirement.title
       ? `${requirement.id} — ${requirement.title}`
       : requirement.id,
-    icon: 'symbol-key',
+    icon: 'checklist',
     contextValue: 'mcutrace.requirement',
     requirementId: requirement.id,
     location: requirement.location,
@@ -113,7 +113,7 @@ function sectionNode(heading) {
   return {
     label: heading.title,
     tooltip: heading.title,
-    icon: 'symbol-namespace',
+    icon: 'list-tree',
     contextValue: 'mcutrace.requirementSection',
     location: heading.location,
     children: [],
@@ -207,6 +207,9 @@ function severitySummary(diagnostics) {
 
 function finishDecorations(node, path) {
   const directDiagnostics = node.directDiagnostics || [];
+  node.directProblemSeverity = directDiagnostics.reduce((severity, diagnostic) =>
+    SEVERITY_RANK[diagnostic.severity] > (SEVERITY_RANK[severity] || 0)
+      ? diagnostic.severity : severity, undefined);
   const diagnostics = [...directDiagnostics];
   node.children.forEach((child, index) => {
     finishDecorations(child, `${path}/${index}`);
@@ -220,7 +223,7 @@ function finishDecorations(node, path) {
         ? diagnostic.severity : severity, 'note');
     node.problemBadge = node.problemSeverity === 'error' ? 'E'
       : node.problemSeverity === 'warning' ? 'W' : 'I';
-    const summary = `Trace problems: ${severitySummary(diagnostics)}`;
+    const summary = `${directDiagnostics.length ? 'Trace problems' : 'Problems inside'}: ${severitySummary(diagnostics)}`;
     const details = directDiagnostics.map(
       (diagnostic) => `${diagnostic.code}: ${diagnostic.message}`).join('\n');
     node.problemTooltip = details ? `${summary}\n${details}` : summary;
@@ -243,16 +246,72 @@ function applyDiagnostics(roots, diagnostics = []) {
 
 // @req REQ-0127
 function buildTraceTree(payload = {}, relativePath = (value) => value) {
-  const documents = (Array.isArray(payload.documents) ? payload.documents : []).map((document) => ({
-    label: relativePath(document.path),
-    tooltip: document.path,
-    icon: 'markdown',
-    contextValue: 'mcutrace.requirementDocument',
-    location: { uri: document.uri },
-    children: headingHierarchy(document.headings || document.requirements),
-  }));
-  return applyDiagnostics(
-    documents, Array.isArray(payload.diagnostics) ? payload.diagnostics : []);
+  const roots = [];
+  const folders = new Map();
+  for (const document of Array.isArray(payload.documents) ? payload.documents : []) {
+    const path = relativePath(document.path).replace(/\\/g, '/');
+    const parts = path.split('/').filter(Boolean);
+    const filename = parts.pop();
+    let children = roots;
+    let folderPath = path.startsWith('/') ? '/' : '';
+    for (const part of parts) {
+      folderPath += `${part}/`;
+      let folder = folders.get(folderPath);
+      if (!folder) {
+        folder = {
+          id: `folder:${folderPath}`,
+          label: part,
+          tooltip: folderPath,
+          icon: 'folder',
+          contextValue: 'mcutrace.requirementFolder',
+          children: [],
+        };
+        folders.set(folderPath, folder);
+        children.push(folder);
+      }
+      children = folder.children;
+    }
+    children.push({
+      id: `document:${document.uri || document.path}`,
+      label: filename,
+      tooltip: document.path,
+      icon: 'markdown',
+      contextValue: 'mcutrace.requirementDocument',
+      location: { uri: document.uri },
+      children: headingHierarchy(document.headings || document.requirements),
+    });
+  }
+  applyDiagnostics(roots, Array.isArray(payload.diagnostics) ? payload.diagnostics : []);
+  assignTreeIds(roots);
+  return roots;
+}
+
+// Identity follows content, rather than sibling position, so refreshes preserve folds.
+function assignTreeIds(nodes, parentId = '') {
+  const occurrences = new Map();
+  for (const node of nodes) {
+    const key = JSON.stringify([node.contextValue, node.requirementId || node.traceId || node.label]);
+    const occurrence = occurrences.get(key) || 0;
+    occurrences.set(key, occurrence + 1);
+    node.id ||= `${parentId}/${key}/${occurrence}`;
+    node.decorationId = node.id;
+    assignTreeIds(node.children, node.id);
+  }
+}
+
+function requirementNodes(roots) {
+  return collectNodes(roots).map(({ node }) => node).filter((node) => node.requirementId);
+}
+
+function requirementAtLocation(roots, uri, line) {
+  // Include section boundaries so a cursor in a new section doesn't select the
+  // last requirement in the previous section. Heading ranges cover the heading.
+  const headings = collectNodes(roots).map(({ node }) => node).filter((node) =>
+    (node.requirementId || node.contextValue === 'mcutrace.requirementSection') &&
+    node.location?.uri === uri && node.location.range?.start.line <= line);
+  headings.sort((a, b) => b.location.range.start.line - a.location.range.start.line ||
+    b.location.range.start.character - a.location.range.start.character);
+  return headings[0]?.requirementId ? headings[0] : undefined;
 }
 
 module.exports = {
@@ -261,4 +320,6 @@ module.exports = {
   evidenceGroups,
   findTestDeclaration,
   headingHierarchy,
+  requirementAtLocation,
+  requirementNodes,
 };

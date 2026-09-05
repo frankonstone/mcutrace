@@ -3,7 +3,7 @@
 const assert = require('node:assert/strict');
 const test = require('node:test');
 
-const { buildTraceTree, findTestDeclaration } = require('../trace-view');
+const { buildTraceTree, findTestDeclaration, requirementAtLocation, requirementNodes } = require('../trace-view');
 
 test('builds a document and Markdown heading hierarchy for requirements', () => {
   const tree = buildTraceTree({
@@ -20,10 +20,13 @@ test('builds a document and Markdown heading hierarchy for requirements', () => 
     }],
   }, (path) => path.replace('/project/', ''));
 
-  assert.equal(tree[0].label, 'docs/requirements.md');
-  assert.deepEqual(tree[0].children.map((node) => node.label), ['Feature group', 'Other group']);
-  assert.equal(tree[0].children[0].children[0].label, 'REQ-0001');
-  assert.equal(tree[0].children[0].children[0].children[0].label, 'REQ-0002');
+  assert.equal(tree[0].label, 'docs');
+  const document = tree[0].children[0];
+  assert.equal(document.label, 'requirements.md');
+  assert.deepEqual(document.children.map((node) => node.label), ['Feature group', 'Other group']);
+  assert.equal(document.children[0].children[0].label, 'Parent');
+  assert.equal(document.children[0].children[0].description, 'REQ-0001');
+  assert.equal(document.children[0].children[0].children[0].label, 'Child');
 });
 
 test('shows trace diagnostics and typed evidence without using Problems', () => {
@@ -60,10 +63,10 @@ test('shows trace diagnostics and typed evidence without using Problems', () => 
   });
 
   assert.equal(tree.length, 1);
-  assert.equal(tree[0].label, '/project/docs/requirements.md');
+  assert.equal(tree[0].label, 'project');
   assert.equal(tree[0].problemSeverity, 'error');
   assert.equal(tree[0].problemBadge, 'E');
-  const requirement = tree[0].children[0];
+  const [requirement] = requirementNodes(tree);
   assert.equal(requirement.problemSeverity, 'error');
   const tests = requirement.children.find((node) => node.label === 'Tests');
   assert.equal(tests.children[0].icon, 'error');
@@ -98,7 +101,7 @@ test('makes tests without artifact locations navigable by their mcutest name', (
     }],
   });
 
-  const tests = tree[0].children[0].children.find((node) => node.label === 'Tests');
+  const tests = requirementNodes(tree)[0].children.find((node) => node.label === 'Tests');
   assert.deepEqual(tests.children[0].test, { name: 'component.works', location: undefined });
 });
 
@@ -146,7 +149,75 @@ test('maps requirement diagnostics by identifier and propagates warning decorati
     }],
   });
 
-  assert.equal(tree[0].children[0].problemSeverity, 'warning');
-  assert.equal(tree[0].children[0].problemBadge, 'W');
+  assert.equal(requirementNodes(tree)[0].problemSeverity, 'warning');
+  assert.equal(requirementNodes(tree)[0].problemBadge, 'W');
   assert.equal(tree[0].problemSeverity, 'warning');
+});
+
+test('groups nested folders without merging equal filenames or workspace roots [REQ-0127]', () => {
+  const paths = ['alpha/docs/a.md', 'alpha/docs/nested/a.md', 'alpha/docs/b.md', 'beta/docs/a.md', 'root.md'];
+  const tree = buildTraceTree({ documents: paths.map((path) => ({
+    path, uri: `file:///work/${path}`, requirements: [],
+  })) });
+  assert.deepEqual(tree.map((node) => node.label), ['alpha', 'beta', 'root.md']);
+  const docs = tree[0].children[0];
+  assert.equal(docs.label, 'docs');
+  assert.equal(docs.contextValue, 'mcutrace.requirementFolder');
+  assert.equal(docs.location, undefined);
+  assert.deepEqual(docs.children.map((node) => node.label), ['a.md', 'nested', 'b.md']);
+  assert.equal(docs.children[1].children[0].label, 'a.md');
+  assert.notEqual(docs.children[0].id, tree[1].children[0].children[0].id);
+  const windows = buildTraceTree({ documents: [{ path: 'docs\\nested\\a.md' }] });
+  assert.equal(windows[0].children[0].children[0].label, 'a.md');
+});
+
+test('retains identities across inserted siblings and changed requirement titles [REQ-0127]', () => {
+  const document = (requirements) => ({
+    path: 'docs/req.md', uri: 'file:///work/docs/req.md', requirements,
+  });
+  const original = buildTraceTree({ documents: [document([
+    { id: 'REQ-0001', title: 'Same title' }, { id: 'REQ-0002', title: 'Same title' },
+  ])] });
+  const refreshed = buildTraceTree({ documents: [
+    { path: 'new.md', uri: 'file:///work/new.md' },
+    document([{ id: 'REQ-0003' }, { id: 'REQ-0001', title: 'Renamed' }, { id: 'REQ-0002', title: 'Same title' }]),
+  ] });
+  const before = requirementNodes(original);
+  const after = requirementNodes(refreshed);
+  assert.notEqual(before[0].id, before[1].id);
+  assert.equal(before[0].id, after[1].id);
+  assert.equal(before[1].id, after[2].id);
+  assert.equal(original[0].id, refreshed[1].id);
+  assert.equal(original[0].children[0].id, refreshed[1].children[0].id);
+  assert.equal(after[0].label, 'REQ-0003');
+  assert.equal(after[0].description, '');
+});
+
+test('distinguishes direct problems from descendant summaries [REQ-0127]', () => {
+  const tree = buildTraceTree({
+    documents: [{ path: 'docs/req.md', uri: 'file:///docs/req.md', requirements: [{ id: 'REQ-0042' }] }],
+    diagnostics: [{ severity: 'warning', code: 'missing', message: 'REQ-0042 has no test' }],
+  });
+  assert.equal(tree[0].directProblemSeverity, undefined);
+  assert.equal(tree[0].problemTooltip, 'Problems inside: 1 warning');
+  assert.equal(requirementNodes(tree)[0].directProblemSeverity, 'warning');
+  assert.match(requirementNodes(tree)[0].problemTooltip, /missing: REQ-0042 has no test/);
+});
+
+test('reveals requirements on heading and body lines without crossing section or document boundaries [REQ-0127]', () => {
+  const uri = 'file:///work/docs/req.md';
+  const heading = (kind, line, id) => ({
+    kind, id, title: id || 'Section', headingLevel: kind === 'section' ? 1 : 2,
+    location: { uri, range: { start: { line, character: 4 }, end: { line, character: 12 } } },
+  });
+  const tree = buildTraceTree({ documents: [{ path: 'docs/req.md', uri, headings: [
+    heading('section', 0), heading('requirement', 2, 'REQ-0001'),
+    heading('requirement', 5, 'REQ-0002'), heading('section', 8),
+  ] }] });
+  assert.equal(requirementAtLocation(tree, uri, 1), undefined);
+  assert.equal(requirementAtLocation(tree, uri, 2).requirementId, 'REQ-0001');
+  assert.equal(requirementAtLocation(tree, uri, 4).requirementId, 'REQ-0001');
+  assert.equal(requirementAtLocation(tree, uri, 7).requirementId, 'REQ-0002');
+  assert.equal(requirementAtLocation(tree, uri, 9), undefined);
+  assert.equal(requirementAtLocation(tree, 'file:///other.md', 4), undefined);
 });

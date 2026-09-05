@@ -12,9 +12,18 @@ command-line tool use the same semantic implementation.
   and are squiggled at every conflicting definition.
 - Trace evidence appears in the dedicated **Trace** activity-bar view. Trace import or
   validation issues do not appear as entries in **Problems** or as separate tree nodes.
-  Instead, affected evidence, requirement, section, and document labels receive colored
-  `E`, `W`, or `I` decorations and tooltips. Requirement nodes retain the Markdown heading
-  hierarchy and trace entries with source locations are navigable.
+  Instead, affected items show colored problem icons and neutral `E`, `W`, or `I`
+  badges with explanatory tooltips. Ancestors show neutral badges summarizing problems
+  inside them; titles keep their normal text color.
+- Documents are grouped in collapsible folders, with filenames shown inside each folder.
+  Requirements show their title first and their ID as secondary text. Markdown sections
+  and requirement order are preserved, and expanded branches survive analysis refreshes.
+  Trace entries with source locations are navigable.
+- Use **Find Requirement** in the Trace title bar to search all requirements by title or
+  ID, including collapsed branches. **Show Trace Problems Only** filters the tree to
+  affected items and their ancestors. **Reveal Active Requirement** in the view menu or
+  Command Palette selects the requirement at the cursor in a requirements document.
+  Finding or revealing a requirement clears the problems filter when needed to show it.
 - Open documents, configured artifacts, and `mcutrace.toml` updates are synchronized
   with the server automatically.
 

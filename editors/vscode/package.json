@@ -55,6 +55,26 @@
           "command": "mcutrace.refreshRequirements",
           "when": "view == mcutrace.traceView",
           "group": "navigation"
+        },
+        {
+          "command": "mcutrace.findRequirement",
+          "when": "view == mcutrace.traceView",
+          "group": "navigation"
+        },
+        {
+          "command": "mcutrace.revealActiveRequirement",
+          "when": "view == mcutrace.traceView",
+          "group": "1_navigation"
+        },
+        {
+          "command": "mcutrace.showTraceProblems",
+          "when": "view == mcutrace.traceView && !mcutrace.traceProblemsOnly",
+          "group": "navigation"
+        },
+        {
+          "command": "mcutrace.showAllTraceItems",
+          "when": "view == mcutrace.traceView && mcutrace.traceProblemsOnly",
+          "group": "navigation"
         }
       ]
     },
@@ -71,6 +91,26 @@
       {
         "command": "mcutrace.openTestLocation",
         "title": "mcutrace: Open Test Declaration"
+      },
+      {
+        "command": "mcutrace.findRequirement",
+        "title": "mcutrace: Find Requirement",
+        "icon": "$(search)"
+      },
+      {
+        "command": "mcutrace.revealActiveRequirement",
+        "title": "mcutrace: Reveal Active Requirement",
+        "icon": "$(go-to-file)"
+      },
+      {
+        "command": "mcutrace.showTraceProblems",
+        "title": "mcutrace: Show Trace Problems Only",
+        "icon": "$(filter)"
+      },
+      {
+        "command": "mcutrace.showAllTraceItems",
+        "title": "mcutrace: Show All Trace Items",
+        "icon": "$(filter-filled)"
       }
     ],
     "configuration": {
