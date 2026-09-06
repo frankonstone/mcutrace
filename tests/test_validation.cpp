@@ -4,6 +4,7 @@
 #include "test_runner.hpp"
 
 #include <algorithm>
+#include <array>
 #include <string>
 
 namespace {
@@ -250,6 +251,26 @@ TEST(validation, output_order_is_deterministic, "REQ-0005") {
     const auto result = mcutrace::validate_trace(trace, policy);
     ASSERT_EQ(result.diagnostics.size(), static_cast<std::size_t>(2));
     ASSERT_TRUE(result.diagnostics[0].message < result.diagnostics[1].message);
+}
+
+TEST(validation, diagnoses_dependency_integrity_without_satisfying_evidence,
+     "REQ-0131", "REQ-0132") {
+    const std::array requirements{
+        mcutrace::Requirement{.id = "REQ-0001", .title = "One",
+            .dependencies = {{.id = "REQ-0002"}}},
+        mcutrace::Requirement{.id = "REQ-0002", .title = "Two",
+            .dependencies = {{.id = "REQ-0001"}}},
+        mcutrace::Requirement{.id = "REQ-0003", .title = "Three",
+            .dependencies = {{.id = "REQ-0003"}, {.id = "REQ-9999"}}},
+    };
+    const std::array<mcutrace::ImportFragment, 0> fragments{};
+    const auto trace = mcutrace::assemble_trace(requirements, fragments);
+    const auto result = mcutrace::validate_trace(trace);
+
+    ASSERT_TRUE(has_code(result, "MTR-DEP-CYCLE"));
+    ASSERT_TRUE(has_code(result, "MTR-DEP-SELF"));
+    ASSERT_TRUE(has_code(result, "MTR-DEP-UNRESOLVED"));
+    ASSERT_TRUE(has_code(result, "validation.missing_test_evidence"));
 }
 
 int main(int argc, char* argv[]) {

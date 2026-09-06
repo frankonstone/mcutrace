@@ -13,6 +13,13 @@
 
 namespace mcutrace {
 
+struct RequirementReference final {
+    std::string id;
+    SourceLocation source;
+
+    friend bool operator==(const RequirementReference&, const RequirementReference&) = default;
+};
+
 struct Requirement final {
     std::string id;
     std::string title;
@@ -20,6 +27,7 @@ struct Requirement final {
     SourceLocation source;
     std::uint8_t heading_level = 0;
     std::optional<std::uint8_t> expected_evidence;
+    std::vector<RequirementReference> dependencies;
 
     [[nodiscard]] Node as_node() const;
 

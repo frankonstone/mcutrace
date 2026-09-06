@@ -17,6 +17,8 @@ other tool JSON ───────┤                              │
 source annotations ────┘                    ┌─────────┼─────────┐
                                             ▼         ▼         ▼
                                         validation  reports    JSON
+                                                       │
+                                                  CLI / LSP / MCP
 ```
 
 ## Layers
@@ -65,10 +67,18 @@ Validation operates only on the normalized model and project policy. It detects 
 
 Output adapters render the same validated model as machine-readable JSON and human-readable reports. Output ordering must be deterministic.
 
+### Protocol adapters
+
+The CLI, language server, and MCP server are separate adapters over the shared
+semantic core. `mcutrace-mcp` exposes a read-only local stdio interface for agent
+queries and owns only MCP framing, schemas, capability discovery, and protocol
+error mapping. It does not duplicate traceability semantics or depend on the VS
+Code extension.
+
 ## Dependency direction
 
 ```text
-CLI / report / JSON output
+CLI / report / JSON / LSP / MCP output
           │
       validation
           │
@@ -107,4 +117,6 @@ All externally observable ordering must be deterministic. Filesystem discovery r
 
 ## Platform strategy
 
-Early CI intentionally targets macOS only. Production code must nevertheless use portable C++23 and normalized path semantics so Linux and Windows can be enabled later without architectural changes.
+The initial macOS-only CI phase has ended. CI now exercises portable C++23 and
+normalized path semantics with Apple Clang on macOS, GCC on Linux, and MSVC on
+Windows.

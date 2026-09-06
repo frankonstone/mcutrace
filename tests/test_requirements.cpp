@@ -128,6 +128,61 @@ TEST(requirements, diagnoses_duplicates_across_documents, "REQ-0013") {
     ASSERT_EQ(parsed.diagnostics[0].source->path, std::string{"b.md"});
 }
 
+TEST(requirements, parses_evidence_and_dependencies_anywhere_in_paragraphs,
+     "REQ-0084", "REQ-0129") {
+    constexpr std::string_view markdown =
+        "## REQ-0001 First @depends(REQ-0002)\n"
+        "At the beginning @evidence(implementation,test) of this paragraph.\n"
+        "\n"
+        "A second paragraph ends with @depends(REQ-0003, REQ-0002)\n"
+        "## REQ-0002 Second\nBody.\n"
+        "## REQ-0003 Third\nBody.\n";
+    const std::array documents{mcutrace::RequirementDocument{"req.md", markdown}};
+
+    const auto parsed = mcutrace::parse_requirements(documents);
+
+    ASSERT_EQ(parsed.diagnostics.size(), std::size_t{0});
+    ASSERT_EQ(parsed.requirements.size(), std::size_t{3});
+    ASSERT_EQ(parsed.requirements[0].title, std::string{"First"});
+    ASSERT_EQ(parsed.requirements[0].dependencies.size(), std::size_t{2});
+    ASSERT_EQ(parsed.requirements[0].dependencies[0].id, std::string{"REQ-0002"});
+    ASSERT_EQ(parsed.requirements[0].dependencies[1].id, std::string{"REQ-0003"});
+    ASSERT_EQ(parsed.requirements[0].dependencies[1].source.line, std::uint32_t{4});
+    const auto mask = mcutrace::evidence_mask(mcutrace::EvidenceExpectation::implementation) |
+                      mcutrace::evidence_mask(mcutrace::EvidenceExpectation::test);
+    ASSERT_EQ(*parsed.requirements[0].expected_evidence, mask);
+}
+
+TEST(requirements, retains_valid_dependencies_from_partially_invalid_annotation,
+     "REQ-0129", "REQ-0131") {
+    constexpr std::string_view markdown =
+        "## REQ-0001 First\n"
+        "Depends here @depends(REQ-0002, bad, REQ-0003).\n";
+    const std::array documents{mcutrace::RequirementDocument{"req.md", markdown}};
+
+    const auto parsed = mcutrace::parse_requirements(documents);
+
+    ASSERT_EQ(parsed.requirements.size(), std::size_t{1});
+    ASSERT_EQ(parsed.requirements[0].dependencies.size(), std::size_t{2});
+    ASSERT_EQ(parsed.diagnostics.size(), std::size_t{1});
+    ASSERT_EQ(parsed.diagnostics[0].code, std::string{"MTR-REQ-INVALID-DEPENDENCY"});
+}
+
+TEST(requirements, ignores_annotation_examples_in_markdown_code, "REQ-0084", "REQ-0129") {
+    constexpr std::string_view markdown =
+        "## REQ-0001 Syntax documentation\n"
+        "Use `@evidence(...)` and `@depends(REQ-NNNN)` in prose. @evidence(none)\n"
+        "```markdown\n@depends(REQ-9999)\n```\n";
+    const std::array documents{mcutrace::RequirementDocument{"req.md", markdown}};
+
+    const auto parsed = mcutrace::parse_requirements(documents);
+
+    ASSERT_EQ(parsed.diagnostics.size(), std::size_t{0});
+    ASSERT_EQ(parsed.requirements.size(), std::size_t{1});
+    ASSERT_EQ(*parsed.requirements[0].expected_evidence, std::uint8_t{0U});
+    ASSERT_EQ(parsed.requirements[0].dependencies.size(), std::size_t{0});
+}
+
 TEST(requirements, preserves_document_order, "REQ-0015") {
     constexpr std::string_view markdown =
         "## REQ-0040 Later numeric ID\n"

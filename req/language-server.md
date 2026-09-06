@@ -14,6 +14,11 @@ The language server and command-line tool shall use the same mcutrace requiremen
 
 ### REQ-0105 Workspace configuration
 The language server shall discover requirement documents, source inputs, artifact inputs, and validation policy from the workspace's mcutrace configuration.
+Explicit analysis refreshes and watched-file notifications shall reload the saved
+configuration and re-expand configured input patterns before analysis, so added
+and removed inputs are reflected without restarting the server. Reloading shall
+retain the initialization workspace root and configuration path and preserve
+in-memory text for open requirement documents.
 
 ### REQ-0106 Unsaved document analysis
 The language server shall analyze the latest in-memory text supplied by an editor for open requirement documents without requiring that document to be saved.

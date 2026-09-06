@@ -6,14 +6,18 @@
 [project]
 root = "."
 requirements = [
-  "docs/requirements.md",
-  "docs/requirements-evidence.md",
-  "docs/requirements-hardening.md",
-  "docs/requirements-links.md",
-  "docs/requirements-language-server.md",
-  "docs/requirements-source-annotations.md",
-  "docs/requirements-vscode.md",
+  "req/mcutrace.md",
+  "req/evidence.md",
+  "req/hardening.md",
+  "req/implementation-plans.md",
+  "req/links.md",
+  "req/dependencies.md",
+  "req/language-server.md",
+  "req/mcp-server.md",
+  "req/source-annotations.md",
+  "req/vscode.md",
 ]
+plans = ["plan/implementation-plan.md"]
 sources = [
   "src/assembly.cpp",
   "src/build_annotations.cpp",
@@ -22,10 +26,14 @@ sources = [
   "src/importer.cpp",
   "src/lsp.cpp",
   "src/lsp_main.cpp",
+  "src/mcp.cpp",
+  "src/mcp_main.cpp",
   "src/model.cpp",
   "src/output.cpp",
   "src/path_patterns.cpp",
+  "src/plans.cpp",
   "src/producer_importers.cpp",
+  "src/project.cpp",
   "src/requirements.cpp",
   "src/source_annotations.cpp",
   "src/trace_import.cpp",

@@ -3,6 +3,7 @@
 
 #include "test_runner.hpp"
 
+#include <array>
 #include <string>
 
 namespace {
@@ -203,6 +204,45 @@ TEST(output, renders_human_readable_summary, "REQ-0056", "REQ-0059", "REQ-0060")
     ASSERT_NE(text.find("requirements: 2"), std::string::npos);
     ASSERT_NE(text.find("relationships: 1"), std::string::npos);
     ASSERT_NE(text.find("REQ-0002"), std::string::npos);
+}
+
+TEST(output, reports_dependencies_plans_and_cycle_safe_context,
+     "REQ-0133", "REQ-0134", "REQ-0137") {
+    const std::array requirements{
+        mcutrace::Requirement{.id = "REQ-0001", .title = "One", .body = "First body",
+            .expected_evidence = std::uint8_t{0U},
+            .dependencies = {{.id = "REQ-0002"}}},
+        mcutrace::Requirement{.id = "REQ-0002", .title = "Two", .body = "Second body",
+            .expected_evidence = std::uint8_t{0U},
+            .dependencies = {{.id = "REQ-0001"}}},
+    };
+    const std::array plans{mcutrace::PlanItem{
+        .id = "PLN-0001", .title = "Implement one", .status = mcutrace::PlanStatus::planned,
+        .requirement_links = {{.id = "REQ-0001"}}}};
+    const std::array<mcutrace::ImportFragment, 0> fragments{};
+    const auto trace = mcutrace::assemble_trace(requirements, fragments, plans);
+    const auto validation = mcutrace::validate_trace(trace);
+
+    const auto shown = mcutrace::build_requirement_trace_report(trace, validation, "REQ-0001");
+    ASSERT_TRUE(shown.has_value());
+    ASSERT_EQ(shown->prerequisites.size(), std::size_t{1});
+    ASSERT_EQ(shown->dependents.size(), std::size_t{1});
+    ASSERT_EQ(shown->plans.size(), std::size_t{1});
+    ASSERT_NE(mcutrace::render_requirement_text_report(*shown).find("Depends on"),
+              std::string::npos);
+
+    const auto context = mcutrace::build_requirement_context_report(
+        trace, validation, "REQ-0001");
+    ASSERT_TRUE(context.has_value());
+    ASSERT_EQ(context->requirements.size(), std::size_t{2});
+    const auto json = mcutrace::render_requirement_context_json_report(*context);
+    ASSERT_TRUE(json.has_value());
+    ASSERT_NE(json->find("First body"), std::string::npos);
+    ASSERT_NE(json->find("depends_on"), std::string::npos);
+
+    const auto summary = mcutrace::build_report(trace, validation);
+    ASSERT_EQ(summary.summary.plan_items, std::size_t{1});
+    ASSERT_EQ(summary.summary.outstanding_plan_items, std::size_t{1});
 }
 
 int main(int argc, char* argv[]) {

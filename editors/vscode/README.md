@@ -19,6 +19,9 @@ command-line tool use the same semantic implementation.
   Requirements show their title first and their ID as secondary text. Markdown sections
   and requirement order are preserved, and expanded branches survive analysis refreshes.
   Trace entries with source locations are navigable.
+- Requirement nodes include navigable **Depends on**, **Required by**, and
+  **Implementation plans** groups. Configured plan documents also appear in the
+  tree with their current status, and refresh after saved or in-memory edits.
 - Use **Find Requirement** in the Trace title bar to search all requirements by title or
   ID, including collapsed branches. **Show Trace Problems Only** filters the tree to
   affected items and their ancestors. **Reveal Active Requirement** in the view menu or
@@ -37,9 +40,12 @@ configure its workspace-relative path:
 }
 ```
 
-The server discovers requirements, sources, artifacts, and validation settings solely
+The server discovers requirements, implementation plans, sources, artifacts, and validation settings solely
 from `mcutrace.toml`. Run **mcutrace: Refresh Requirements** from the Command
 Palette or the Trace view title menu to request a fresh analysis.
+Refresh reloads the saved configuration and re-expands input patterns, so newly
+configured documents and newly matching files appear without restarting the
+language server. Watched-file changes use the same refresh behavior.
 
 ## Development
 

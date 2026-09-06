@@ -74,6 +74,8 @@ void add_source_and_edge(ImportFragment& fragment,
         .finding_state = {},
         .source = source,
         .expected_evidence = std::nullopt,
+        .body = {},
+        .status = {},
     });
     fragment.edges.push_back(Edge{
         .source_id = std::move(evidence_id),
@@ -212,6 +214,8 @@ void append_mcutest_test(ImportFragment& fragment,
         .finding_state = {},
         .source = std::nullopt,
         .expected_evidence = std::nullopt,
+        .body = {},
+        .status = {},
     };
     if (test["file"].is_string()) {
         auto path = source_path(test["file"].get<std::string_view>(), input);
@@ -520,6 +524,8 @@ std::expected<void, ImportError> append_mcucov_module(ImportFragment& fragment,
         .finding_state = {},
         .source = SourceLocation{.path = *normalized},
         .expected_evidence = std::nullopt,
+        .body = {},
+        .status = {},
     });
     add_source_and_edge(fragment, coverage_id, RelationshipKind::covers, input,
                         SourceLocation{.path = *normalized});
@@ -617,6 +623,8 @@ std::expected<void, ImportError> append_mcucheck_diagnostic(ImportFragment& frag
         .finding_state = {},
         .source = source,
         .expected_evidence = std::nullopt,
+        .body = {},
+        .status = {},
     });
     add_source_and_edge(fragment, finding_id, RelationshipKind::reports, input, source);
     return {};

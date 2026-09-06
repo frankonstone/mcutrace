@@ -4,6 +4,7 @@
 #include <mcutrace/build_annotations.hpp>
 #include <mcutrace/config.hpp>
 #include <mcutrace/output.hpp>
+#include <mcutrace/plans.hpp>
 #include <mcutrace/requirements.hpp>
 #include <mcutrace/source_annotations.hpp>
 #include <mcutrace/trace_import.hpp>
@@ -449,6 +450,7 @@ struct LanguageServer::State final {
     std::string config_path;
     std::string workspace_root;
     RequirementParseResult requirement_parse;
+    PlanParseResult plan_parse;
     TraceResult trace;
     ValidationResult validation;
     std::map<std::string, OpenDocument> open_documents;
@@ -551,6 +553,7 @@ struct LanguageServer::State final {
     void reset_analysis() {
         diagnostics.clear();
         requirement_parse = {};
+        plan_parse = {};
         trace = {};
         validation = {};
         trace_diagnostics.clear();
@@ -578,6 +581,28 @@ struct LanguageServer::State final {
             }
         }
         append_duplicate_diagnostics();
+    }
+
+    // @req REQ-0137
+    void analyze_plans() {
+        std::vector<std::string> contents;
+        contents.reserve(config->plan_files.size());
+        std::vector<PlanDocument> documents;
+        documents.reserve(config->plan_files.size());
+        for (const auto& path : config->plan_files) {
+            auto content = text_for(path);
+            if (!content) {
+                append_problem_input_failure(
+                    "lsp.plan_read", "cannot read implementation plan: " + path, path);
+                continue;
+            }
+            contents.push_back(std::move(*content));
+            documents.push_back(PlanDocument{.path = path, .content = contents.back()});
+        }
+        plan_parse = parse_plans(documents);
+        for (const auto& diagnostic : plan_parse.diagnostics) {
+            append(diagnostic);
+        }
     }
 
     void import_source_fragments(std::vector<ImportFragment>& fragments) {
@@ -638,7 +663,9 @@ struct LanguageServer::State final {
     }
 
     void validate_fragments(const std::vector<ImportFragment>& fragments) {
-        trace = assemble_trace(requirement_parse.requirements, fragments);
+        std::vector<Diagnostic> parser_diagnostics = plan_parse.diagnostics;
+        trace = assemble_trace(requirement_parse.requirements, fragments, plan_parse.plans,
+                               parser_diagnostics);
         validation = validate_trace(trace, config->validation);
         trace_diagnostics.insert(trace_diagnostics.end(), validation.diagnostics.begin(),
                                  validation.diagnostics.end());
@@ -648,6 +675,7 @@ struct LanguageServer::State final {
         reset_analysis();
         if (config) {
             analyze_requirements();
+            analyze_plans();
             std::vector<ImportFragment> fragments;
             fragments.reserve(config->source_files.size() + config->build_files.size() +
                               config->artifacts.size());
@@ -687,7 +715,7 @@ struct LanguageServer::State final {
         value.string("title", requirement.title);
         value.member("headingLevel", std::to_string(requirement.heading_level));
         value.member("location", location(requirement.source, requirement.id));
-        const auto report = build_requirement_trace_report(trace, requirement.id);
+        const auto report = build_requirement_trace_report(trace, validation, requirement.id);
         if (report) {
             const auto rendered = render_requirement_json_report(*report);
             if (rendered) {
@@ -706,6 +734,56 @@ struct LanguageServer::State final {
         return std::move(value).finish();
     }
 
+    [[nodiscard]] std::string trace_plan(const PlanItem& plan) const {
+        JsonObject value;
+        value.string("kind", "plan");
+        value.string("id", plan.id);
+        value.string("title", plan.title);
+        value.string("status", plan_status_name(plan.status));
+        value.member("headingLevel", std::to_string(plan.heading_level));
+        value.member("location", location(plan.source, plan.id));
+        JsonArray links;
+        for (const auto& link : plan.requirement_links) {
+            JsonObject requirement_link;
+            requirement_link.string("id", link.id);
+            const auto* requirement = trace.graph.find_node(link.id);
+            if (requirement != nullptr && requirement->kind == NodeKind::requirement) {
+                requirement_link.string("title", requirement->label);
+                if (requirement->source) {
+                    requirement_link.member("location",
+                                            location(*requirement->source, requirement->id));
+                }
+            } else {
+                requirement_link.member("location", location(link.source, link.id));
+            }
+            links.value(std::move(requirement_link).finish());
+        }
+        value.member("links", std::move(links).finish());
+        return std::move(value).finish();
+    }
+
+    [[nodiscard]] std::string trace_plan_section(const PlanHeading& heading) const {
+        JsonObject value;
+        value.string("kind", "section");
+        value.string("title", heading.title);
+        value.member("headingLevel", std::to_string(heading.heading_level));
+        value.member("location", location(heading.source));
+        return std::move(value).finish();
+    }
+
+    [[nodiscard]] const PlanItem* plan_definition_for(const PlanHeading& heading) const {
+        if (!heading.plan_id) {
+            return nullptr;
+        }
+        const auto found = std::find_if(
+            plan_parse.definitions.begin(), plan_parse.definitions.end(),
+            [&heading](const PlanItem& plan) {
+                return plan.id == *heading.plan_id && plan.source.path == heading.source.path &&
+                       plan.source.line == heading.source.line;
+            });
+        return found == plan_parse.definitions.end() ? nullptr : &*found;
+    }
+
     [[nodiscard]] const Requirement* definition_for(const RequirementHeading& heading) const {
         if (!heading.requirement_id) {
             return nullptr;
@@ -720,6 +798,7 @@ struct LanguageServer::State final {
         return found == requirement_parse.definitions.end() ? nullptr : &*found;
     }
 
+    // @req REQ-0136 REQ-0137
     [[nodiscard]] std::string trace_documents() const {
         JsonArray documents;
         if (!config) {
@@ -732,6 +811,21 @@ struct LanguageServer::State final {
                     const auto* definition = definition_for(heading);
                     headings.value(definition ? trace_requirement(*definition)
                                               : trace_section(heading));
+                }
+            }
+            JsonObject document;
+            document.string("path", path);
+            document.string("uri", encode_uri_path(path));
+            document.member("headings", std::move(headings).finish());
+            documents.value(std::move(document).finish());
+        }
+        for (const auto& path : config->plan_files) {
+            JsonArray headings;
+            for (const auto& heading : plan_parse.headings) {
+                if (heading.source.path == path) {
+                    const auto* definition = plan_definition_for(heading);
+                    headings.value(definition ? trace_plan(*definition)
+                                              : trace_plan_section(heading));
                 }
             }
             JsonObject document;
@@ -833,6 +927,7 @@ struct LanguageServer::State final {
         std::set<std::string> result;
         if (config) {
             result.insert(config->requirement_files.begin(), config->requirement_files.end());
+            result.insert(config->plan_files.begin(), config->plan_files.end());
             result.insert(config->source_files.begin(), config->source_files.end());
             for (const auto& artifact : config->artifacts) {
                 result.insert(artifact.path);
@@ -854,6 +949,7 @@ struct LanguageServer::State final {
         return std::move(locations).finish();
     }
 
+    // @req REQ-0135
     [[nodiscard]] std::string reference_locations(std::string_view identifier) const {
         JsonArray locations;
         for (const auto& path : workspace_paths()) {
@@ -1037,6 +1133,9 @@ struct LanguageServer::State final {
         append_hover_evidence_group(markdown, "Coverage", report.coverage);
         append_hover_evidence_group(markdown, "Build evidence", report.builds);
         append_hover_evidence_group(markdown, "Static analysis findings", report.findings);
+        append_hover_evidence_group(markdown, "Depends on", report.prerequisites);
+        append_hover_evidence_group(markdown, "Required by", report.dependents);
+        append_hover_evidence_group(markdown, "Implementation plans", report.plans);
     }
 
     [[nodiscard]] std::string hover(std::string_view identifier) const {
@@ -1051,7 +1150,7 @@ struct LanguageServer::State final {
         if (!value->body.empty()) {
             markdown += "\n\n" + value->body;
         }
-        const auto report = build_requirement_trace_report(trace, identifier);
+        const auto report = build_requirement_trace_report(trace, validation, identifier);
         if (report) {
             append_hover_evidence(markdown, *report);
         }
@@ -1102,6 +1201,7 @@ struct LanguageServer::State final {
         return std::move(symbols).finish();
     }
 
+    // @req REQ-0135
     [[nodiscard]] std::string completion() const {
         JsonArray items;
         for (const auto& requirement_value : requirement_parse.requirements) {
@@ -1115,7 +1215,10 @@ struct LanguageServer::State final {
                                       std::string_view{"@evidence(test)"},
                                       std::string_view{"@evidence(implementation)"},
                                       std::string_view{"@evidence(coverage)"},
-                                      std::string_view{"@evidence(none)"}}) {
+                                      std::string_view{"@evidence(none)"},
+                                      std::string_view{"@depends(REQ-NNNN)"},
+                                      std::string_view{"@link(REQ-NNNN)"},
+                                      std::string_view{"@status(planned)"}}) {
             JsonObject item;
             item.string("label", annotation);
             item.member("kind", "14");
@@ -1138,7 +1241,7 @@ struct LanguageServer::State final {
             if (definition.source.path != path) {
                 continue;
             }
-            const auto report = build_requirement_trace_report(trace, definition.id);
+            const auto report = build_requirement_trace_report(trace, validation, definition.id);
             const auto implementations = report ? report->implementations.size() : 0U;
             const auto tests = report ? report->tests.size() : 0U;
             const auto coverage = report ? report->coverage.size() : 0U;
@@ -1160,6 +1263,7 @@ struct LanguageServer::State final {
         return std::move(lenses).finish();
     }
 
+    // @req REQ-0135
     [[nodiscard]] std::string rename(const mcujson::JsonRef params, std::string& failure) const {
         const auto identifier_value = identifier(params);
         const auto replacement = string_value(params["newName"]);
@@ -1197,9 +1301,6 @@ struct LanguageServer::State final {
 
     [[nodiscard]] std::string execute_command(const mcujson::JsonRef params) {
         const auto command = string_value(params["command"]);
-        if (command && *command == "mcutrace.refresh") {
-            return "null";
-        }
         if (command && *command == "mcutrace.showTrace") {
             const auto arguments = params["arguments"];
             if (arguments.is_array() && arguments.size() > 0U && arguments[0].is_string()) {
@@ -1246,16 +1347,18 @@ struct LanguageServer::State final {
 
     [[nodiscard]] std::vector<std::string> load_config(const mcujson::JsonRef params) {
         const auto root_uri = string_value(params["rootUri"]);
-        workspace_root = root_uri ? decode_uri_path(*root_uri) :
-            std::filesystem::current_path().generic_string();
+        if (root_uri) {
+            workspace_root = decode_uri_path(*root_uri);
+        } else if (workspace_root.empty()) {
+            workspace_root = std::filesystem::current_path().generic_string();
+        }
         const auto initialized = params["initializationOptions"];
         auto config_path = string_value(initialized["configPath"]);
         if (!config_path && !this->config_path.empty()) {
             config_path = this->config_path;
         }
         if (!config_path) {
-            const auto root = root_uri ? decode_uri_path(*root_uri) : std::filesystem::current_path().generic_string();
-            config_path = root + "/mcutrace.toml";
+            config_path = workspace_root + "/mcutrace.toml";
         }
         std::string resolved_path = *config_path;
         if (resolved_path.starts_with("file://")) {
@@ -1300,6 +1403,13 @@ struct LanguageServer::State final {
     static void append_messages(Messages& result, Messages messages) {
         result.insert(result.end(), std::make_move_iterator(messages.begin()),
                       std::make_move_iterator(messages.end()));
+    }
+
+    // @req REQ-0105 REQ-0111 REQ-0126
+    [[nodiscard]] Messages refresh_analysis() {
+        Messages result = load_config(mcujson::JsonRef{});
+        append_messages(result, analyze());
+        return result;
     }
 
     [[nodiscard]] static std::optional<DocumentUpdate> open_document(const mcujson::JsonRef& params) {
@@ -1376,13 +1486,11 @@ struct LanguageServer::State final {
     }
 
     [[nodiscard]] Messages handle_configuration_change(const mcujson::JsonRef&, const std::string&) {
-        Messages result = load_config(mcujson::JsonRef{});
-        append_messages(result, analyze());
-        return result;
+        return refresh_analysis();
     }
 
     [[nodiscard]] Messages handle_watched_files(const mcujson::JsonRef&, const std::string&) {
-        return analyze();
+        return refresh_analysis();
     }
 
     [[nodiscard]] Messages handle_hover(const mcujson::JsonRef& params, const std::string& id) {
@@ -1432,6 +1540,12 @@ struct LanguageServer::State final {
     }
 
     [[nodiscard]] Messages handle_execute_command(const mcujson::JsonRef& params, const std::string& id) {
+        const auto command = string_value(params["command"]);
+        if (command && *command == "mcutrace.refresh") {
+            auto result = refresh_analysis();
+            append_messages(result, reply_to(id, "null"));
+            return result;
+        }
         return reply_to(id, execute_command(params));
     }
 

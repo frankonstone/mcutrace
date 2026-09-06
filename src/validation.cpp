@@ -108,6 +108,10 @@ void validate_dangling_edges(const TraceResult& trace,
         return;
     }
     for (const auto& edge : trace.graph.edges()) {
+        if (edge.type.kind == RelationshipKind::depends_on ||
+            edge.type.kind == RelationshipKind::plans) {
+            continue;
+        }
         if (trace.graph.find_node(edge.source_id) == nullptr) {
             append_diagnostic(diagnostics, "validation.dangling_source",
                 policy.dangling_reference.severity,
@@ -118,6 +122,68 @@ void validate_dangling_edges(const TraceResult& trace,
             append_diagnostic(diagnostics, "validation.dangling_target",
                 policy.dangling_reference.severity,
                 "relationship references unknown target node: " + edge.target_id,
+                edge_location(edge));
+        }
+    }
+}
+
+bool dependency_path_exists(const Graph& graph,
+                            std::string_view from,
+                            std::string_view wanted,
+                            std::vector<std::string>& visited) {
+    if (from == wanted) {
+        return true;
+    }
+    if (std::find(visited.begin(), visited.end(), from) != visited.end()) {
+        return false;
+    }
+    visited.emplace_back(from);
+    for (const auto& edge : graph.edges()) {
+        if (edge.type.kind == RelationshipKind::depends_on && edge.source_id == from &&
+            dependency_path_exists(graph, edge.target_id, wanted, visited)) {
+            return true;
+        }
+    }
+    return false;
+}
+
+void validate_semantic_edges(const TraceResult& trace,
+                             const ValidationPolicy& policy,
+                             std::vector<Diagnostic>& diagnostics) {
+    if (!policy.dangling_reference.enabled) {
+        return;
+    }
+    for (const auto& edge : trace.graph.edges()) {
+        if (edge.type.kind == RelationshipKind::plans) {
+            if (trace.graph.find_node(edge.target_id) == nullptr) {
+                append_diagnostic(diagnostics, "MTR-PLAN-UNRESOLVED-LINK",
+                    policy.dangling_reference.severity,
+                    "plan item " + edge.source_id + " links unknown requirement " +
+                    edge.target_id, edge_location(edge));
+            }
+            continue;
+        }
+        if (edge.type.kind != RelationshipKind::depends_on) {
+            continue;
+        }
+        if (trace.graph.find_node(edge.target_id) == nullptr) {
+            append_diagnostic(diagnostics, "MTR-DEP-UNRESOLVED",
+                policy.dangling_reference.severity,
+                "requirement " + edge.source_id + " depends on unknown requirement " +
+                edge.target_id, edge_location(edge));
+            continue;
+        }
+        if (edge.source_id == edge.target_id) {
+            append_diagnostic(diagnostics, "MTR-DEP-SELF",
+                policy.dangling_reference.severity,
+                "requirement depends on itself: " + edge.source_id, edge_location(edge));
+            continue;
+        }
+        std::vector<std::string> visited;
+        if (dependency_path_exists(trace.graph, edge.target_id, edge.source_id, visited)) {
+            append_diagnostic(diagnostics, "MTR-DEP-CYCLE",
+                policy.dangling_reference.severity,
+                "dependency cycle includes " + edge.source_id + " and " + edge.target_id,
                 edge_location(edge));
         }
     }
@@ -229,6 +295,8 @@ void validate_node(const Graph& graph,
     case NodeKind::requirement:
         validate_requirement(graph, node, policy, diagnostics);
         break;
+    case NodeKind::plan:
+        break;
     case NodeKind::source:
         validate_source(graph, node, policy, diagnostics);
         break;
@@ -252,12 +320,13 @@ bool severity_at_least(Severity value, Severity threshold) noexcept {
     return static_cast<unsigned>(value) >= static_cast<unsigned>(threshold);
 }
 
-// @req REQ-0045 REQ-0050 REQ-0051 REQ-0052 REQ-0053 REQ-0054 REQ-0088
+// @req REQ-0045 REQ-0050 REQ-0051 REQ-0052 REQ-0053 REQ-0054 REQ-0088 REQ-0131 REQ-0132
 ValidationResult validate_trace(const TraceResult& trace, const ValidationPolicy& policy) {
     ValidationResult result;
     result.diagnostics = trace.diagnostics;
 
     validate_dangling_edges(trace, policy, result.diagnostics);
+    validate_semantic_edges(trace, policy, result.diagnostics);
     for (const auto& node : trace.graph.nodes()) {
         validate_node(trace.graph, node, policy, result.diagnostics);
     }

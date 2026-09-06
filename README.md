@@ -24,6 +24,36 @@ Multiple canonical `REQ-NNNN` identifiers may be listed on either annotation. So
 
 Annotated files can be configured with `sources = ["src/foo.cpp", "include/foo.hpp"]` in the project configuration or supplied explicitly with repeatable `--source FILE` options.
 
+## Requirement metadata and implementation plans
+
+Requirements may declare evidence expectations and prerequisites in either their
+heading or any prose paragraph in their block:
+
+```markdown
+### REQ-0042 Start controller
+This behavior needs @evidence(implementation, test) and
+@depends(REQ-0010, REQ-0011).
+```
+
+`@depends(...)` creates typed dependency relationships; it does not satisfy or
+copy evidence. `mcutrace show REQ-0042` reports direct prerequisites and
+dependents, while `mcutrace context REQ-0042` emits the requirement and its
+cycle-safe transitive prerequisite context in text or JSON.
+
+Living implementation plans use `PLN-NNNN` headings with `@link(...)` and one
+of `@status(planned)`, `@status(in_progress)`, `@status(blocked)`, or
+`@status(done)`. Configure them independently from requirement documents:
+
+```toml
+[project]
+requirements = ["docs/requirements.md"]
+plans = ["docs/implementation-plan.md"]
+```
+
+Plan links and status appear in CLI/JSON reports and the VS Code Trace view, but
+never count as implementation or test evidence. Repeatable `--plan FILE` inputs
+are also supported by `validate`, `show`, and `context`.
+
 ## CMake build evidence
 
 Declare build evidence beside the relevant CMake configuration, then list the CMake file under `build_files`:
@@ -51,7 +81,11 @@ This repository includes [`mcutrace.toml`](mcutrace.toml), which indexes its req
 build/trace/mcutrace --config mcutrace.toml show REQ-0097
 ```
 
-`show` prints the requirement's implementations, sources, tests, coverage, build evidence, and static-analysis findings. mcucov's host tools need `nlohmann_json` and `CLI11`; set `MCUCOV_FETCH_DEPENDENCIES=ON` when running the script if CMake should obtain missing copies.
+`show` prints the requirement's dependencies, linked plan items, implementations,
+sources, tests, coverage, build evidence, and static-analysis findings. mcucov's
+host tools need `nlohmann_json` and `CLI11`; set
+`MCUCOV_FETCH_DEPENDENCIES=ON` when running the script if CMake should obtain
+missing copies.
 
 ## VS Code integration
 
@@ -68,7 +102,7 @@ Test, package, and install the extension locally with:
 To install an already packaged extension manually:
 
 ```sh
-code --install-extension editors/vscode/mcutrace-requirements-0.2.1-darwin-arm64.vsix --force
+code --install-extension editors/vscode/mcutrace-requirements-0.2.2-darwin-arm64.vsix --force
 ```
 
 The platform-specific VSIX includes `mcutrace-lsp` and uses the bundled server by
@@ -83,7 +117,29 @@ Install the separate mcucov Coverage extension to display `mcucov.lcov` files in
 
 `mcutrace-lsp` is a standard-input/output Language Server Protocol server. It loads the workspace `mcutrace.toml` from the LSP `rootUri` (or an `initializationOptions.configPath` override) and uses the same C++ parser, traceability model, and validation rules as the CLI.
 
-Build it with the normal CMake build, then configure an LSP client to launch `mcutrace-lsp` over stdio. It provides diagnostics, hover, definition/reference/implementation navigation, symbols, completion, CodeLens, and safe requirement rename edits. See [`docs/requirements-language-server.md`](docs/requirements-language-server.md) for the supported contract.
+Build it with the normal CMake build, then configure an LSP client to launch `mcutrace-lsp` over stdio. It provides diagnostics, hover, definition/reference/implementation navigation, symbols, completion, CodeLens, and safe requirement rename edits. See [`req/language-server.md`](req/language-server.md) for the supported contract.
+
+## MCP server
+
+`mcutrace-mcp` is a read-only local Model Context Protocol server for AI agents.
+It uses the same configuration, semantic model, reports, and validation engine as
+the CLI and language server, but exposes focused tools for project overview,
+search, requirement detail, prerequisite context, change impact, plan detail, and
+filtered validation. It also publishes versioned resources describing mcutrace's
+rules, result schema, and active project.
+
+Build it with the normal CMake build and configure an MCP client to launch it over
+stdio from the project directory:
+
+```sh
+build/trace/mcutrace-mcp --config mcutrace.toml
+```
+
+The server speaks MCP revision `2025-11-25`, accepts `2025-06-18` clients, reads
+only inputs selected by `mcutrace.toml`, and never edits files or runs evidence
+producers. See [`integrations/mcp/README.md`](integrations/mcp/README.md) for client
+setup and tool usage, and [`req/mcp-server.md`](req/mcp-server.md) for the supported
+contract.
 
 ## Initial host stack
 
@@ -95,6 +151,7 @@ Build it with the normal CMake build, then configure an LSP client to launch `mc
 - `mcutoml` for TOML configuration
 - `mcutest` for tests
 
-CI intentionally runs on macOS only during early development to conserve runner time.
+CI builds and tests with Apple Clang on macOS, GCC on Linux, and MSVC on Windows.
 
-See `docs/requirements.md`, `docs/requirements-source-annotations.md`, `docs/architecture.md`, and `docs/implementation-plan.md`.
+See `req/mcutrace.md`, `req/source-annotations.md`, `req/architecture.md`, and
+`plan/implementation-plan.md`.

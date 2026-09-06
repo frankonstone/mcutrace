@@ -30,6 +30,71 @@ std::string_view trim(std::string_view text) noexcept {
     return text;
 }
 
+bool starts_fence(std::string_view line, char marker) noexcept;
+
+bool markdown_code_position(std::string_view text, std::size_t position) noexcept {
+    bool fenced = false;
+    char fence_marker = '\0';
+    std::size_t line_begin = 0U;
+    while (line_begin <= text.size()) {
+        const auto newline = text.find('\n', line_begin);
+        const auto line_end = newline == std::string_view::npos ? text.size() : newline;
+        const auto line = text.substr(line_begin, line_end - line_begin);
+        const auto stripped = trim(line);
+        const bool fence = starts_fence(line, '`') || starts_fence(line, '~');
+        if (fence && (!fenced || stripped.front() == fence_marker)) {
+            if (position >= line_begin && position <= line_end) {
+                return true;
+            }
+            if (fenced) {
+                fenced = false;
+                fence_marker = '\0';
+            } else {
+                fenced = true;
+                fence_marker = stripped.front();
+            }
+        } else if (position >= line_begin && position <= line_end) {
+            if (fenced) {
+                return true;
+            }
+            std::size_t delimiter = 0U;
+            std::size_t index = 0U;
+            const auto local_position = position - line_begin;
+            while (index < local_position && index < line.size()) {
+                if (line[index] != '`') {
+                    ++index;
+                    continue;
+                }
+                std::size_t run = 1U;
+                while (index + run < line.size() && line[index + run] == '`') {
+                    ++run;
+                }
+                if (delimiter == 0U) {
+                    delimiter = run;
+                } else if (run >= delimiter) {
+                    delimiter = 0U;
+                }
+                index += run;
+            }
+            return delimiter != 0U;
+        }
+        if (newline == std::string_view::npos) {
+            break;
+        }
+        line_begin = newline + 1U;
+    }
+    return false;
+}
+
+std::size_t find_annotation(std::string_view text, std::string_view annotation,
+                            std::size_t start) noexcept {
+    auto found = text.find(annotation, start);
+    while (found != std::string_view::npos && markdown_code_position(text, found)) {
+        found = text.find(annotation, found + annotation.size());
+    }
+    return found;
+}
+
 bool starts_fence(std::string_view line, char marker) noexcept {
     line = trim(line);
     std::size_t count = 0;
@@ -146,46 +211,18 @@ bool append_evidence_token(std::string_view token,
     return true;
 }
 
-std::optional<std::uint8_t> parse_evidence(std::string_view heading, bool& valid) {
-    valid = true;
-    const auto begin = heading.find("@evidence(");
-    if (begin == std::string_view::npos) {
-        return std::nullopt;
-    }
-    const auto value_begin = begin + std::string_view{"@evidence("}.size();
-    const auto end = heading.find(')', value_begin);
-    if (end == std::string_view::npos) {
-        valid = false;
-        return std::nullopt;
-    }
-
-    const auto values = heading.substr(value_begin, end - value_begin);
-    std::uint8_t mask = 0;
-    bool saw_none = false;
-    std::size_t pos = 0;
-    while (pos <= values.size()) {
-        const auto comma = values.find(',', pos);
-        const auto length = comma == std::string_view::npos ? values.size() - pos : comma - pos;
-        if (!append_evidence_token(trim(values.substr(pos, length)), mask, saw_none)) {
-            valid = false;
-            return std::nullopt;
-        }
-        if (comma == std::string_view::npos) {
-            break;
-        }
-        pos = comma + 1;
-    }
-    valid = !saw_none || mask == 0;
-    return valid ? std::optional<std::uint8_t>{mask} : std::nullopt;
-}
-
 std::string normalized_title(std::string_view heading, std::string_view id) {
     std::string title{heading};
-    const auto evidence = title.find("@evidence(");
-    if (evidence != std::string::npos) {
-        const auto end = title.find(')', evidence);
-        if (end != std::string::npos) {
-            title.erase(evidence, end - evidence + 1);
+    for (const auto annotation : {std::string_view{"@evidence("},
+                                  std::string_view{"@depends("}}) {
+        auto begin = title.find(annotation);
+        while (begin != std::string::npos) {
+            const auto end = title.find(')', begin + annotation.size());
+            if (end == std::string::npos) {
+                break;
+            }
+            title.erase(begin, end - begin + 1U);
+            begin = title.find(annotation);
         }
     }
     const auto erase_token = [&title](std::string_view token) {
@@ -238,6 +275,158 @@ void add_malformed(RequirementParseResult& result, const RequirementDocument& do
         .source = SourceLocation{document.path, heading.line, 1}});
 }
 
+SourceLocation location_at(const RequirementDocument& document, std::size_t offset) {
+    SourceLocation source{.path = document.path, .line = 1U, .column = 1U};
+    const auto bounded = std::min(offset, document.content.size());
+    for (std::size_t index = 0U; index < bounded; ++index) {
+        if (document.content[index] == '\n') {
+            ++source.line;
+            source.column = 1U;
+        } else {
+            ++source.column;
+        }
+    }
+    return source;
+}
+
+void add_annotation_diagnostic(RequirementParseResult& result,
+                               const RequirementDocument& document,
+                               std::size_t offset,
+                               std::string code,
+                               std::string message) {
+    result.diagnostics.push_back(Diagnostic{
+        .code = std::move(code),
+        .severity = Severity::error,
+        .message = std::move(message),
+        .source = location_at(document, offset),
+    });
+}
+
+std::optional<std::uint8_t> parse_evidence(const RequirementDocument& document,
+                                           std::string_view block,
+                                           std::size_t block_offset,
+                                           RequirementParseResult& result,
+                                           bool& valid) {
+    constexpr std::string_view prefix = "@evidence(";
+    bool explicit_annotation = false;
+    valid = true;
+    bool saw_none = false;
+    std::uint8_t mask = 0U;
+    std::size_t search = 0U;
+    while ((search = find_annotation(block, "@evidence", search)) != std::string_view::npos) {
+        explicit_annotation = true;
+        if (block.substr(search, prefix.size()) != prefix) {
+            add_annotation_diagnostic(result, document, block_offset + search,
+                                      "MTR-REQ-INVALID-EVIDENCE",
+                                      "invalid @evidence annotation");
+            valid = false;
+            search += std::string_view{"@evidence"}.size();
+            continue;
+        }
+        const auto value_begin = search + prefix.size();
+        const auto end = block.find(')', value_begin);
+        if (end == std::string_view::npos) {
+            add_annotation_diagnostic(result, document, block_offset + search,
+                                      "MTR-REQ-INVALID-EVIDENCE",
+                                      "unterminated @evidence annotation");
+            valid = false;
+            break;
+        }
+        const auto values = block.substr(value_begin, end - value_begin);
+        std::size_t position = 0U;
+        while (position <= values.size()) {
+            const auto comma = values.find(',', position);
+            const auto length = comma == std::string_view::npos
+                ? values.size() - position : comma - position;
+            const auto token = trim(values.substr(position, length));
+            if (!append_evidence_token(token, mask, saw_none)) {
+                add_annotation_diagnostic(result, document,
+                    block_offset + value_begin + position,
+                    "MTR-REQ-INVALID-EVIDENCE",
+                    "invalid evidence class: " +
+                    std::string{token.empty() ? std::string_view{"<empty>"} : token});
+                valid = false;
+            }
+            if (comma == std::string_view::npos) {
+                break;
+            }
+            position = comma + 1U;
+        }
+        search = end + 1U;
+    }
+    if (saw_none && mask != 0U) {
+        add_annotation_diagnostic(result, document, block_offset,
+                                  "MTR-REQ-INVALID-EVIDENCE",
+                                  "@evidence(none) cannot be combined with evidence classes");
+        valid = false;
+        return std::uint8_t{0U};
+    }
+    return explicit_annotation ? std::optional<std::uint8_t>{mask} : std::nullopt;
+}
+
+void append_dependency(Requirement& requirement, std::string_view id, SourceLocation source) {
+    const auto existing = std::find_if(requirement.dependencies.begin(),
+                                       requirement.dependencies.end(),
+                                       [id](const RequirementReference& dependency) {
+                                           return dependency.id == id;
+                                       });
+    if (existing == requirement.dependencies.end()) {
+        requirement.dependencies.push_back(RequirementReference{
+            .id = std::string{id}, .source = std::move(source)});
+    }
+}
+
+void parse_dependencies(const RequirementDocument& document,
+                        std::string_view block,
+                        std::size_t block_offset,
+                        Requirement& requirement,
+                        RequirementParseResult& result) {
+    constexpr std::string_view prefix = "@depends(";
+    std::size_t search = 0U;
+    while ((search = find_annotation(block, "@depends", search)) != std::string_view::npos) {
+        if (block.substr(search, prefix.size()) != prefix) {
+            add_annotation_diagnostic(result, document, block_offset + search,
+                                      "MTR-REQ-INVALID-DEPENDENCY",
+                                      "invalid @depends annotation");
+            search += std::string_view{"@depends"}.size();
+            continue;
+        }
+        const auto value_begin = search + prefix.size();
+        const auto end = block.find(')', value_begin);
+        if (end == std::string_view::npos) {
+            add_annotation_diagnostic(result, document, block_offset + search,
+                                      "MTR-REQ-INVALID-DEPENDENCY",
+                                      "unterminated @depends annotation");
+            break;
+        }
+        const auto values = block.substr(value_begin, end - value_begin);
+        std::size_t position = 0U;
+        while (position <= values.size()) {
+            const auto comma = values.find(',', position);
+            const auto length = comma == std::string_view::npos
+                ? values.size() - position : comma - position;
+            const auto raw = values.substr(position, length);
+            const auto token = trim(raw);
+            const auto leading = static_cast<std::size_t>(token.data() - raw.data());
+            if (is_requirement_id(token)) {
+                append_dependency(requirement, token, location_at(
+                    document, block_offset + value_begin + position + leading));
+            } else {
+                add_annotation_diagnostic(result, document,
+                    block_offset + value_begin + position + leading,
+                    "MTR-REQ-INVALID-DEPENDENCY",
+                    "invalid requirement ID in @depends: " +
+                    std::string{token.empty() ? std::string_view{"<empty>"} : token});
+            }
+            if (comma == std::string_view::npos) {
+                break;
+            }
+            position = comma + 1U;
+        }
+        search = end + 1U;
+    }
+}
+
 std::size_t requirement_body_end(std::span<const Heading> headings,
                                  std::size_t index,
                                  std::size_t document_size) noexcept {
@@ -268,27 +457,28 @@ std::optional<Requirement> parse_requirement(const RequirementDocument& document
         return std::nullopt;
     }
 
-    bool evidence_valid = true;
-    const auto expected_evidence = parse_evidence(heading.text, evidence_valid);
-    if (!evidence_valid) {
-        result.diagnostics.push_back(Diagnostic{.code = "MTR-REQ-INVALID-EVIDENCE", .severity = Severity::error,
-            .message = "invalid @evidence annotation",
-            .source = SourceLocation{document.path, heading.line, 1}});
-        return std::nullopt;
-    }
-
     const auto body_end = requirement_body_end(headings, index, document.content.size());
     const auto body_begin = heading.content_begin;
     const auto body = body_begin <= body_end
         ? document.content.substr(body_begin, body_end - body_begin) : std::string_view{};
-    return Requirement{
+    const auto block = document.content.substr(heading.line_begin, body_end - heading.line_begin);
+    Requirement requirement{
         .id = std::string{candidate},
         .title = normalized_title(heading.text, candidate),
         .body = trim_body(body),
         .source = SourceLocation{document.path, heading.line, 1},
         .heading_level = heading.level,
-        .expected_evidence = expected_evidence,
+        .expected_evidence = std::nullopt,
+        .dependencies = {},
     };
+    bool evidence_valid = true;
+    requirement.expected_evidence = parse_evidence(document, block, heading.line_begin, result,
+                                                    evidence_valid);
+    if (!evidence_valid) {
+        return std::nullopt;
+    }
+    parse_dependencies(document, block, heading.line_begin, requirement, result);
+    return requirement;
 }
 
 void append_requirement(RequirementParseResult& result, Requirement requirement) {
@@ -346,10 +536,12 @@ Node Requirement::as_node() const {
         .finding_state = {},
         .source = source,
         .expected_evidence = expected_evidence,
+        .body = body,
+        .status = {},
     };
 }
 
-// @req REQ-0006 REQ-0007 REQ-0009 REQ-0010 REQ-0011 REQ-0012 REQ-0013 REQ-0015 REQ-0084 REQ-0086
+// @req REQ-0006 REQ-0007 REQ-0009 REQ-0010 REQ-0011 REQ-0012 REQ-0013 REQ-0015 REQ-0084 REQ-0086 REQ-0129 REQ-0131
 RequirementParseResult parse_requirements(std::span<const RequirementDocument> documents) {
     RequirementParseResult result;
     for (const auto& document : documents) {

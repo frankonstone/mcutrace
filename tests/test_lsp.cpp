@@ -228,6 +228,81 @@ TEST(lsp, serves_core_backed_editor_features_and_live_diagnostics,
               std::string::npos);
 }
 
+TEST(lsp, reloads_configured_documents_on_refresh_and_file_changes,
+     "REQ-0105", "REQ-0106", "REQ-0126") {
+    constexpr std::string_view refreshes[] = {
+        R"({"jsonrpc":"2.0","method":"workspace/didChangeWatchedFiles","params":{"changes":[]}})",
+        R"({"jsonrpc":"2.0","id":2,"method":"workspace/executeCommand","params":{"command":"mcutrace.refresh"}})",
+        R"({"jsonrpc":"2.0","method":"workspace/didChangeConfiguration","params":{"settings":{}}})",
+    };
+    for (const auto refresh : refreshes) {
+        const auto workspace = create_workspace();
+        const auto config = workspace.root / "custom.toml";
+        const auto original = workspace.root / "original.md";
+        const auto added = workspace.root / "added.md";
+        ASSERT_TRUE(write_file(config,
+            "[project]\nrequirements = [\"original.md\"]\n"));
+        ASSERT_TRUE(write_file(original, "### REQ-0105 Original requirement\n"));
+        ASSERT_TRUE(write_file(added, "### REQ-0126 Added requirement\n"));
+
+        mcutrace::LanguageServer server;
+        const auto initialized = joined(server.handle(
+            "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":{"
+            "\"rootUri\":\"" + uri(workspace.root) + "\",\"initializationOptions\":{"
+            "\"configPath\":\"" + config.generic_string() + "\"}}}"));
+        ASSERT_NE(initialized.find("Original requirement"), std::string::npos);
+        ASSERT_EQ(initialized.find("Added requirement"), std::string::npos);
+        static_cast<void>(server.handle(
+            "{\"jsonrpc\":\"2.0\",\"method\":\"textDocument/didOpen\",\"params\":{"
+            "\"textDocument\":{\"uri\":\"" + uri(added) + "\",\"version\":1,"
+            "\"text\":\"### REQ-0126 Unsaved added requirement\\n\"}}}"));
+
+        ASSERT_TRUE(write_file(config,
+            "[project]\nrequirements = [\"original.md\", \"added.md\"]\n"));
+        const auto refreshed = joined(server.handle(refresh));
+        ASSERT_NE(refreshed.find("\"method\":\"mcutrace/publishTrace\""), std::string::npos);
+        ASSERT_NE(refreshed.find("Original requirement"), std::string::npos);
+        ASSERT_NE(refreshed.find("Unsaved added requirement"), std::string::npos);
+        ASSERT_NE(refreshed.find(uri(added)), std::string::npos);
+
+        ASSERT_TRUE(write_file(config,
+            "[project]\nrequirements = [\"added.md\"]\n"));
+        const auto removed = joined(server.handle(refresh));
+        ASSERT_EQ(removed.find("Original requirement"), std::string::npos);
+        ASSERT_NE(removed.find("Unsaved added requirement"), std::string::npos);
+    }
+}
+
+TEST(lsp, discovers_wildcard_inputs_on_watched_file_changes,
+     "REQ-0105", "REQ-0125", "REQ-0126") {
+    const auto workspace = create_workspace();
+    ASSERT_TRUE(write_file(workspace.root / "mcutrace.toml",
+        "[project]\nrequirements = [\"docs/*.md\"]\n"));
+    ASSERT_TRUE(write_file(workspace.root / "docs/original.md",
+        "### REQ-0105 Original requirement\n"));
+    mcutrace::LanguageServer server;
+    static_cast<void>(server.handle(
+        "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":{"
+        "\"rootUri\":\"" + uri(workspace.root) + "\"}}"));
+
+    const auto added = workspace.root / "docs/added.md";
+    ASSERT_TRUE(write_file(added, "### REQ-0126 Added requirement\n"));
+    const auto created = joined(server.handle(
+        "{\"jsonrpc\":\"2.0\",\"method\":\"workspace/didChangeWatchedFiles\",\"params\":{"
+        "\"changes\":[{\"uri\":\"" + uri(added) + "\",\"type\":1}]}}"));
+    ASSERT_NE(created.find("Added requirement"), std::string::npos);
+    ASSERT_NE(created.find("Original requirement"), std::string::npos);
+
+    std::error_code error;
+    ASSERT_TRUE(std::filesystem::remove(added, error));
+    const auto removed = joined(server.handle(
+        "{\"jsonrpc\":\"2.0\",\"method\":\"workspace/didChangeWatchedFiles\",\"params\":{"
+        "\"changes\":[{\"uri\":\"" + uri(added) + "\",\"type\":3}]}}"));
+    ASSERT_EQ(removed.find("Added requirement"), std::string::npos);
+    ASSERT_NE(removed.find("Original requirement"), std::string::npos);
+    ASSERT_EQ(removed.find("lsp.requirement_input"), std::string::npos);
+}
+
 TEST(lsp, uses_content_length_framing, "REQ-0103") {
     std::istringstream input(frame("{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":{}}") +
                              frame("{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"shutdown\",\"params\":{}}") +
@@ -255,6 +330,64 @@ TEST(lsp, rejects_invalid_transport_headers_and_unknown_requests, "REQ-0103", "R
     ASSERT_NE(missing_method.find("method is required"), std::string::npos);
 }
 
+TEST(lsp, exposes_live_dependencies_and_implementation_plans,
+     "REQ-0084", "REQ-0129", "REQ-0135", "REQ-0136", "REQ-0137") {
+    const auto workspace = create_workspace();
+    const auto config = workspace.root / "mcutrace.toml";
+    const auto requirements = workspace.root / "requirements.md";
+    const auto plans = workspace.root / "implementation-plan.md";
+    ASSERT_TRUE(write_file(config,
+        "[project]\nrequirements = [\"requirements.md\"]\n"
+        "plans = [\"implementation-plan.md\"]\n"));
+    ASSERT_TRUE(write_file(requirements,
+        "## REQ-0001 Consumer\n"
+        "Uses @depends(REQ-0002) here and @evidence(none).\n"
+        "## REQ-0002 Foundation\n"
+        "Body ends with @evidence(none)\n"));
+    ASSERT_TRUE(write_file(plans,
+        "## PLN-0001 Implement consumer\n"
+        "@link(REQ-0001, REQ-9999)\n"
+        "@status(in_progress)\n"));
+
+    mcutrace::LanguageServer server;
+    const auto initialized = joined(server.handle(
+        "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":{"
+        "\"rootUri\":\"" + uri(workspace.root) + "\"}}"));
+    ASSERT_NE(initialized.find("\"prerequisites\":[{\"id\":\"REQ-0002\""),
+              std::string::npos);
+    ASSERT_NE(initialized.find("\"plans\":[{\"id\":\"PLN-0001\""),
+              std::string::npos);
+    ASSERT_NE(initialized.find("\"kind\":\"plan\""), std::string::npos);
+    ASSERT_NE(initialized.find("\"status\":\"in_progress\""), std::string::npos);
+    ASSERT_NE(initialized.find("\"links\":[{\"id\":\"REQ-0001\",\"title\":\"Consumer\""),
+              std::string::npos);
+    ASSERT_NE(initialized.find("\"id\":\"REQ-9999\",\"location\":"),
+              std::string::npos);
+
+    const auto definition = joined(server.handle(
+        "{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"textDocument/definition\",\"params\":{"
+        "\"textDocument\":{\"uri\":\"" + uri(requirements) + "\"},"
+        "\"position\":{\"line\":1,\"character\":16}}}"));
+    ASSERT_NE(definition.find("requirements.md"), std::string::npos);
+    ASSERT_NE(definition.find("\"line\":2"), std::string::npos);
+
+    const auto completion = joined(server.handle(
+        "{\"jsonrpc\":\"2.0\",\"id\":3,\"method\":\"textDocument/completion\",\"params\":{}}"));
+    ASSERT_NE(completion.find("@depends(REQ-NNNN)"), std::string::npos);
+
+    const auto renamed = joined(server.handle(
+        "{\"jsonrpc\":\"2.0\",\"id\":4,\"method\":\"textDocument/rename\",\"params\":{"
+        "\"textDocument\":{\"uri\":\"" + uri(requirements) + "\"},"
+        "\"position\":{\"line\":0,\"character\":6},\"newName\":\"REQ-0003\"}}"));
+    ASSERT_NE(renamed.find("implementation-plan.md"), std::string::npos);
+
+    const auto changed = joined(server.handle(
+        "{\"jsonrpc\":\"2.0\",\"method\":\"textDocument/didOpen\",\"params\":{"
+        "\"textDocument\":{\"uri\":\"" + uri(plans) + "\",\"version\":2,"
+        "\"text\":\"## PLN-0001 Implement consumer\\n@link(REQ-0001)\\n@status(done)\\n\"}}}"));
+    ASSERT_NE(changed.find("\"status\":\"done\""), std::string::npos);
+}
+
 TEST(lsp, isolates_configuration_failures_and_handles_safe_editor_requests,
      "REQ-0105", "REQ-0107", "REQ-0110", "REQ-0111", "REQ-0121", "REQ-0122", "REQ-0123") {
     mcutrace::LanguageServer server;
@@ -268,8 +401,11 @@ TEST(lsp, isolates_configuration_failures_and_handles_safe_editor_requests,
         "{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"textDocument/codeAction\",\"params\":{}}"));
     ASSERT_NE(code_actions.find("\"result\":[]"), std::string::npos);
 
-    ASSERT_TRUE(server.handle(
-        "{\"jsonrpc\":\"2.0\",\"method\":\"workspace/didChangeWatchedFiles\",\"params\":{\"changes\":[]}}").empty());
+    const auto refreshed = joined(server.handle(
+        "{\"jsonrpc\":\"2.0\",\"method\":\"workspace/didChangeWatchedFiles\",\"params\":{\"changes\":[]}}"));
+    ASSERT_NE(refreshed.find("cannot read mcutrace configuration"), std::string::npos);
+    ASSERT_NE(refreshed.find("\"method\":\"mcutrace/publishTrace\""), std::string::npos);
+    ASSERT_NE(refreshed.find("\"documents\":[]"), std::string::npos);
 }
 
 }  // namespace

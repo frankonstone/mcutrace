@@ -14,9 +14,19 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  macos:
-    name: macOS / Apple Clang
-    runs-on: macos-latest
+  build-and-test:
+    name: ${{ matrix.name }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: macOS / Apple Clang
+            os: macos-latest
+          - name: Linux / GCC
+            os: ubuntu-latest
+          - name: Windows / MSVC
+            os: windows-latest
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v6
 

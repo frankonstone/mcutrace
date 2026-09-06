@@ -105,6 +105,59 @@ test('makes tests without artifact locations navigable by their mcutest name', (
   assert.deepEqual(tests.children[0].test, { name: 'component.works', location: undefined });
 });
 
+test('shows dependency and plan groups and standalone plan documents', () => {
+  const tree = buildTraceTree({ documents: [
+    {
+      path: '/project/docs/requirements.md',
+      uri: 'file:///project/docs/requirements.md',
+      headings: [{
+        kind: 'requirement', id: 'REQ-0001', title: 'Feature', headingLevel: 2,
+        trace: {
+          prerequisites: [{ id: 'REQ-0002', kind: 'requirement', label: 'Foundation' }],
+          dependents: [{ id: 'REQ-0003', kind: 'requirement', label: 'Consumer' }],
+          plans: [{ id: 'PLN-0001', kind: 'plan', label: 'Implement feature', status: 'in_progress' }],
+        },
+      }],
+    },
+    {
+      path: '/project/docs/implementation-plan.md',
+      uri: 'file:///project/docs/implementation-plan.md',
+      headings: [{
+        kind: 'plan', id: 'PLN-0001', title: 'Implement feature', status: 'in_progress',
+        headingLevel: 2,
+        links: [{
+          id: 'REQ-0001', title: 'Feature',
+          location: { uri: 'file:///project/docs/requirements.md' },
+        }, {
+          id: 'REQ-9999',
+          location: { uri: 'file:///project/docs/implementation-plan.md' },
+        }],
+      }],
+    },
+  ] });
+
+  const requirement = requirementNodes(tree)[0];
+  assert.deepEqual(requirement.children.map((node) => node.label),
+    ['Depends on', 'Required by', 'Implementation plans']);
+  assert.equal(requirement.children[2].children[0].description, 'in_progress');
+  const planDocument = tree[0].children[0].children.find(
+    (node) => node.label === 'implementation-plan.md');
+  assert.equal(planDocument.children[0].contextValue, 'mcutrace.plan');
+  assert.equal(planDocument.children[0].description, 'PLN-0001 · in_progress');
+  const linkedRequirements = planDocument.children[0].children[0];
+  assert.equal(linkedRequirements.label, 'Linked requirements');
+  assert.equal(linkedRequirements.description, '2');
+  assert.equal(linkedRequirements.children[0].label, 'Feature');
+  assert.equal(linkedRequirements.children[0].description, 'REQ-0001');
+  assert.equal(linkedRequirements.children[0].traceId, 'REQ-0001');
+  assert.equal(linkedRequirements.children[0].contextValue, 'mcutrace.requirementLink');
+  assert.deepEqual(linkedRequirements.children[0].location,
+    { uri: 'file:///project/docs/requirements.md' });
+  assert.equal(linkedRequirements.children[1].label, 'REQ-9999');
+  assert.equal(linkedRequirements.children[1].description, '');
+  assert.equal(requirementNodes(tree).length, 1);
+});
+
 test('finds a mcutest TEST declaration from its dotted artifact name', () => {
   const source = [
     '#include <mcutest/mcutest.hpp>',

@@ -173,6 +173,10 @@ std::expected<void, ConfigError> read_project_paths(const mcutoml::TomlRef proje
                                       result.requirement_files); !status) {
         return std::unexpected(status.error());
     }
+    const auto plans = project_or_document_value(project, document, "plans");
+    if (auto status = read_path_array(plans, "plans", result.root, result.plan_files); !status) {
+        return std::unexpected(status.error());
+    }
     const auto sources = project_or_document_value(project, document, "sources");
     if (auto status = read_path_array(sources, "sources", result.root, result.source_files); !status) {
         return std::unexpected(status.error());
@@ -311,7 +315,7 @@ std::expected<void, ConfigError> read_validation(const mcutoml::TomlRef validati
 
 }  // namespace
 
-// @req REQ-0004 REQ-0054 REQ-0062 REQ-0065 REQ-0093 REQ-0125
+// @req REQ-0004 REQ-0054 REQ-0062 REQ-0065 REQ-0093 REQ-0125 REQ-0137
 std::expected<ProjectConfig, ConfigError>
 parse_project_config(std::string_view content, std::string_view config_path) {
     const auto parsed = mcutoml::Toml::parse(content);

@@ -5,6 +5,7 @@
 
 #include "test_runner.hpp"
 
+#include <chrono>
 #include <cstddef>
 #include <expected>
 #include <fstream>
@@ -154,6 +155,50 @@ TEST(hardening, assembles_large_graph_deterministically, "REQ-0005", "REQ-0046",
     policy.missing_coverage.enabled = false;
     const auto validation = mcutrace::validate_trace(first, policy);
     ASSERT_FALSE(validation.failed);
+}
+
+TEST(hardening, benchmarks_large_graph_pipeline, "REQ-0078") {
+    constexpr std::size_t kCount = 5000U;
+    constexpr auto kMaximumDuration = std::chrono::seconds{15};
+    std::vector<mcutrace::Requirement> requirements;
+    requirements.reserve(kCount);
+    mcutrace::ImportFragment fragment{
+        .format = mcutrace::InputFormat{.producer = "benchmark", .schema = "stress", .version = "1"},
+    };
+    fragment.nodes.reserve(kCount);
+    fragment.edges.reserve(kCount);
+    for (std::size_t index = 1U; index <= kCount; ++index) {
+        const std::string req_id = requirement_id(index);
+        requirements.push_back(mcutrace::Requirement{.id = req_id, .title = "requirement"});
+        const std::string test_id = "test:benchmark:" + req_id;
+        fragment.nodes.push_back(mcutrace::Node{
+            .id = test_id,
+            .kind = mcutrace::NodeKind::test,
+            .label = test_id,
+            .evidence_state = mcutrace::EvidenceState::passed,
+        });
+        fragment.edges.push_back(mcutrace::Edge{
+            .source_id = test_id,
+            .target_id = req_id,
+            .type = mcutrace::RelationshipType::known(mcutrace::RelationshipKind::verifies),
+            .provenance = {.importer = "benchmark", .artifact = "generated"},
+        });
+    }
+    const std::vector<mcutrace::ImportFragment> fragments{std::move(fragment)};
+
+    const auto begin = std::chrono::steady_clock::now();
+    const auto trace = mcutrace::assemble_trace(requirements, fragments);
+    mcutrace::ValidationPolicy policy;
+    policy.missing_implementation.enabled = false;
+    policy.missing_coverage.enabled = false;
+    policy.static_finding.enabled = false;
+    const auto validation = mcutrace::validate_trace(trace, policy);
+    const auto elapsed = std::chrono::steady_clock::now() - begin;
+
+    ASSERT_EQ(trace.graph.nodes().size(), kCount * 2U);
+    ASSERT_EQ(trace.graph.edges().size(), kCount);
+    ASSERT_FALSE(validation.failed);
+    ASSERT_LT(elapsed, kMaximumDuration);
 }
 
 int main(int argc, char* argv[]) {

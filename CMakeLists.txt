@@ -7,6 +7,8 @@ project(
     LANGUAGES CXX
 )
 
+include(GNUInstallDirs)
+
 # @req REQ-0077 REQ-0094
 option(MCUTRACE_BUILD_TESTS "Build mcutrace tests" ON)
 option(MCUTRACE_DISABLE_EXCEPTIONS_RTTI "Disable exceptions and RTTI" ON)
@@ -71,10 +73,13 @@ add_library(mcutrace_core STATIC
     src/config.cpp
     src/importer.cpp
     src/lsp.cpp
+    src/mcp.cpp
     src/model.cpp
     src/output.cpp
     src/path_patterns.cpp
+    src/plans.cpp
     src/producer_importers.cpp
+    src/project.cpp
     src/requirements.cpp
     src/source_annotations.cpp
     src/trace_import.cpp
@@ -100,6 +105,14 @@ mcutrace_host_options(mcutrace)
 add_executable(mcutrace-lsp src/lsp_main.cpp)
 target_link_libraries(mcutrace-lsp PRIVATE mcutrace::core)
 mcutrace_host_options(mcutrace-lsp)
+
+# @req REQ-0138 REQ-0160 REQ-0161
+add_executable(mcutrace-mcp src/mcp_main.cpp)
+target_link_libraries(mcutrace-mcp PRIVATE mcutrace::core)
+mcutrace_host_options(mcutrace-mcp)
+
+install(TARGETS mcutrace mcutrace-lsp mcutrace-mcp
+    RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
 
 if(MCUTRACE_BUILD_TESTS)
     # @req REQ-0075 REQ-0076

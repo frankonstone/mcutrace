@@ -5,6 +5,7 @@
 #include <mcutrace/config.hpp>
 #include <mcutrace/output.hpp>
 #include <mcutrace/path_patterns.hpp>
+#include <mcutrace/plans.hpp>
 #include <mcutrace/requirements.hpp>
 #include <mcutrace/source_annotations.hpp>
 #include <mcutrace/trace_import.hpp>
@@ -193,6 +194,35 @@ load_requirements(const ProjectConfig& config, const CliOptions& options) {
     return parse_requirements(documents);
 }
 
+std::expected<PlanParseResult, CliError>
+load_plans(const ProjectConfig& config, const CliOptions& options) {
+    std::vector<std::string> paths = config.plan_files;
+    const std::string explicit_base =
+        std::filesystem::current_path().lexically_normal().generic_string();
+    for (const auto& pattern : options.plan_files) {
+        const auto expanded = expand_path_pattern(pattern, explicit_base);
+        if (!expanded) {
+            return std::unexpected(CliError{.message = expanded.error().detail});
+        }
+        paths.insert(paths.end(), expanded->begin(), expanded->end());
+    }
+    std::vector<std::string> contents;
+    contents.reserve(paths.size());
+    for (const auto& path : paths) {
+        auto content = read_text_file(path);
+        if (!content) {
+            return std::unexpected(content.error());
+        }
+        contents.push_back(std::move(*content));
+    }
+    std::vector<PlanDocument> documents;
+    documents.reserve(paths.size());
+    for (std::size_t index = 0U; index < paths.size(); ++index) {
+        documents.push_back(PlanDocument{.path = paths[index], .content = contents[index]});
+    }
+    return parse_plans(documents);
+}
+
 using FragmentLoader = std::expected<ImportFragment, CliError> (*)(const std::string&,
                                                                      const std::string&);
 
@@ -337,6 +367,11 @@ std::expected<void, CliError> configure_inputs(mcucli::Command* command,
                                             options.requirement_files); !status) {
         return std::unexpected(status.error());
     }
+    if (auto status = add_file_input_option(command, "-p, --plan",
+                                            "Additional implementation-plan Markdown file",
+                                            options.plan_files); !status) {
+        return std::unexpected(status.error());
+    }
     if (auto status = add_file_input_option(command, "-s, --source",
                                             "Additional annotated source or header file",
                                             options.source_files); !status) {
@@ -363,6 +398,7 @@ std::expected<void, CliError> configure_inputs(mcucli::Command* command,
 struct CliCommands final {
     mcucli::Command* validate = nullptr;
     mcucli::Command* show = nullptr;
+    mcucli::Command* context = nullptr;
 };
 
 std::expected<CliCommands, CliError> configure_commands(mcucli::Application& app,
@@ -376,6 +412,10 @@ std::expected<CliCommands, CliError> configure_commands(mcucli::Application& app
     if (!show) {
         return std::unexpected(CliError{.message = cli_error_text(show.error())});
     }
+    auto context = app.add_command("context", "Show a requirement and its prerequisite context");
+    if (!context) {
+        return std::unexpected(CliError{.message = cli_error_text(context.error())});
+    }
     auto config = app.add_option("-c, --config", "TOML configuration file", options.config_path);
     if (!config) {
         return std::unexpected(CliError{.message = cli_error_text(config.error())});
@@ -387,15 +427,23 @@ std::expected<CliCommands, CliError> configure_commands(mcucli::Application& app
     if (auto status = configure_inputs(*show, options, format); !status) {
         return std::unexpected(status.error());
     }
+    if (auto status = configure_inputs(*context, options, format); !status) {
+        return std::unexpected(status.error());
+    }
     if (auto requirement = (*show)->add_positional("REQ-NNNN", "Requirement identifier",
                                                     options.requirement_id); !requirement) {
         return std::unexpected(CliError{.message = cli_error_text(requirement.error())});
     }
-    return CliCommands{.validate = *validate, .show = *show};
+    if (auto requirement = (*context)->add_positional("REQ-NNNN", "Requirement identifier",
+                                                       options.requirement_id); !requirement) {
+        return std::unexpected(CliError{.message = cli_error_text(requirement.error())});
+    }
+    return CliCommands{.validate = *validate, .show = *show, .context = *context};
 }
 
-int render_requirement_result(const CliOptions& options, const TraceResult& trace) {
-    const auto report = build_requirement_trace_report(trace, options.requirement_id);
+int render_requirement_result(const CliOptions& options, const TraceResult& trace,
+                              const ValidationResult& validation) {
+    const auto report = build_requirement_trace_report(trace, validation, options.requirement_id);
     if (!report) {
         std::cerr << "unknown requirement: " << options.requirement_id << '\n';
         return 2;
@@ -413,9 +461,29 @@ int render_requirement_result(const CliOptions& options, const TraceResult& trac
     return 0;
 }
 
+int render_context_result(const CliOptions& options, const TraceResult& trace,
+                          const ValidationResult& validation) {
+    const auto report = build_requirement_context_report(trace, validation, options.requirement_id);
+    if (!report) {
+        std::cerr << "unknown requirement: " << options.requirement_id << '\n';
+        return 2;
+    }
+    if (options.output_format == OutputFormat::json) {
+        const auto json = render_requirement_context_json_report(*report);
+        if (!json) {
+            std::cerr << json.error().detail << '\n';
+            return 2;
+        }
+        std::cout << *json << '\n';
+    } else {
+        std::cout << render_requirement_context_text_report(*report);
+    }
+    return 0;
+}
+
 }  // namespace
 
-// @req REQ-0053 REQ-0064 REQ-0065 REQ-0066 REQ-0067 REQ-0068 REQ-0093
+// @req REQ-0053 REQ-0064 REQ-0065 REQ-0066 REQ-0067 REQ-0068 REQ-0093 REQ-0134 REQ-0137
 std::expected<CliOptions, CliError> parse_cli(int argc, const char* const* argv) {
     CliOptions options;
     std::string format = "text";
@@ -455,7 +523,11 @@ std::expected<CliOptions, CliError> parse_cli(int argc, const char* const* argv)
         options.action = CliAction::show;
         return options;
     }
-    return std::unexpected(CliError{.message = "a command is required; use 'mcutrace validate' or 'mcutrace show REQ-NNNN'"});
+    if (parsed->command() == commands->context->id()) {
+        options.action = CliAction::context;
+        return options;
+    }
+    return std::unexpected(CliError{.message = "a command is required; use 'mcutrace validate', 'mcutrace show REQ-NNNN', or 'mcutrace context REQ-NNNN'"});
 }
 
 // @req REQ-0001 REQ-0002 REQ-0067 REQ-0093 REQ-0125
@@ -479,8 +551,10 @@ int run_cli(const CliOptions& options) {
         std::cerr << requirements.error().message << '\n';
         return 2;
     }
-    for (const auto& diagnostic : requirements->diagnostics) {
-        print_diagnostic(diagnostic);
+    auto plans = load_plans(*config, options);
+    if (!plans) {
+        std::cerr << plans.error().message << '\n';
+        return 2;
     }
 
     auto fragments = load_fragments(*config, options);
@@ -489,10 +563,17 @@ int run_cli(const CliOptions& options) {
         return 2;
     }
 
-    const TraceResult trace = assemble_trace(requirements->requirements, *fragments);
+    std::vector<Diagnostic> parse_diagnostics = requirements->diagnostics;
+    parse_diagnostics.insert(parse_diagnostics.end(), plans->diagnostics.begin(),
+                             plans->diagnostics.end());
+    const TraceResult trace = assemble_trace(requirements->requirements, *fragments,
+                                             plans->plans, parse_diagnostics);
     const ValidationResult validation = validate_trace(trace, config->validation);
     if (options.action == CliAction::show) {
-        return render_requirement_result(options, trace);
+        return render_requirement_result(options, trace, validation);
+    }
+    if (options.action == CliAction::context) {
+        return render_context_result(options, trace, validation);
     }
     return render_validation_result(options, trace, validation);
 }

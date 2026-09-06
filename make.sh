@@ -32,6 +32,7 @@ VSCODE_NPM_CACHE="${MCUTRACE_VSCODE_NPM_CACHE:-$ROOT_DIR/build/vscode-npm-cache}
 TEST_TARGETS=(
   mcutrace_tests
   mcutrace_requirement_tests
+  mcutrace_plan_tests
   mcutrace_importer_tests
   mcutrace_producer_importer_tests
   mcutrace_trace_import_tests
@@ -45,6 +46,7 @@ TEST_TARGETS=(
   mcutrace_output_tests
   mcutrace_evidence_expectation_tests
   mcutrace_lsp_tests
+  mcutrace_mcp_tests
 )
 
 log() {

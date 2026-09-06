@@ -62,6 +62,7 @@ TEST(config, parses_project_inputs_and_normalizes_paths, "REQ-0004", "REQ-0044",
 root = ".."
 
 requirements = ["docs/requirements.md", "spec/feature.md"]
+plans = ["docs/implementation-plan.md"]
 sources = ["src/feature.cpp", "include/feature.hpp"]
 build_files = ["CMakeLists.txt", "cmake/dependencies.cmake"]
 
@@ -79,6 +80,8 @@ path = "build/cov.json"
     ASSERT_EQ(config->root, std::string("/work/project"));
     ASSERT_EQ(config->requirement_files.size(), static_cast<std::size_t>(2));
     ASSERT_EQ(config->requirement_files[0], std::string("/work/project/docs/requirements.md"));
+    ASSERT_EQ(config->plan_files.size(), static_cast<std::size_t>(1));
+    ASSERT_EQ(config->plan_files[0], std::string("/work/project/docs/implementation-plan.md"));
     ASSERT_EQ(config->source_files.size(), static_cast<std::size_t>(2));
     ASSERT_EQ(config->source_files[0], std::string("/work/project/src/feature.cpp"));
     ASSERT_EQ(config->build_files.size(), static_cast<std::size_t>(2));

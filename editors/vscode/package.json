@@ -2,7 +2,7 @@
   "name": "mcutrace-requirements",
   "displayName": "mcutrace Requirements",
   "description": "Language-server-powered requirement and traceability support for mcutrace.",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "publisher": "mcutrace",
   "license": "UNLICENSED",
   "repository": {

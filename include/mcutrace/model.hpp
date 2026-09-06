@@ -13,6 +13,7 @@ namespace mcutrace {
 
 enum class NodeKind : std::uint8_t {
     requirement,
+    plan,
     source,
     implementation,
     test,
@@ -51,6 +52,8 @@ struct Node final {
     std::string finding_state;
     std::optional<SourceLocation> source;
     std::optional<std::uint8_t> expected_evidence;
+    std::string body;
+    std::string status;
 
     friend bool operator==(const Node&, const Node&) = default;
 };
@@ -61,6 +64,8 @@ enum class RelationshipKind : std::uint8_t {
     implements,
     covers,
     reports,
+    depends_on,
+    plans,
     relates,
     custom,
 };

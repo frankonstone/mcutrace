@@ -52,4 +52,6 @@ Diagnostic `code` values are machine-facing stable identifiers. Once published f
 
 ## Portability
 
-Importer code should avoid platform-specific filesystem or process assumptions. P10 keeps CI macOS-only to conserve runner time; Linux and Windows CI can be enabled later without changing this contract.
+Importer code should avoid platform-specific filesystem or process assumptions.
+CI exercises the importer contract on macOS, Linux, and Windows without changing
+the producer-neutral interface.

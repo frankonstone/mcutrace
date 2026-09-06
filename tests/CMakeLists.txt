@@ -8,6 +8,11 @@ target_link_libraries(mcutrace_requirement_tests PRIVATE mcutrace::core mcutest:
 mcutrace_host_options(mcutrace_requirement_tests)
 add_test(NAME mcutrace_requirement_tests COMMAND mcutrace_requirement_tests)
 
+add_executable(mcutrace_plan_tests test_plans.cpp)
+target_link_libraries(mcutrace_plan_tests PRIVATE mcutrace::core mcutest::mcutest)
+mcutrace_host_options(mcutrace_plan_tests)
+add_test(NAME mcutrace_plan_tests COMMAND mcutrace_plan_tests)
+
 add_executable(mcutrace_importer_tests test_importer.cpp)
 target_link_libraries(mcutrace_importer_tests PRIVATE mcutrace::core mcutest::mcutest)
 mcutrace_host_options(mcutrace_importer_tests)
@@ -75,10 +80,23 @@ target_link_libraries(mcutrace_lsp_tests PRIVATE mcutrace::core mcutest::mcutest
 mcutrace_host_options(mcutrace_lsp_tests)
 add_test(NAME mcutrace_lsp_tests COMMAND mcutrace_lsp_tests)
 
+add_executable(mcutrace_mcp_tests test_mcp.cpp)
+target_link_libraries(mcutrace_mcp_tests PRIVATE mcutrace::core mcutest::mcutest)
+mcutrace_host_options(mcutrace_mcp_tests)
+add_test(NAME mcutrace_mcp_tests COMMAND mcutrace_mcp_tests)
+
+add_test(NAME mcutrace_mcp_stdio_smoke
+    COMMAND ${CMAKE_COMMAND}
+        -DMCUTRACE_MCP=$<TARGET_FILE:mcutrace-mcp>
+        -DMCUTRACE_MCP_CONFIG=${CMAKE_CURRENT_SOURCE_DIR}/fixtures/mcp-project/mcutrace.toml
+        -DMCUTRACE_MCP_REQUESTS=${CMAKE_CURRENT_SOURCE_DIR}/fixtures/mcp-project/requests.jsonl
+        -P ${CMAKE_CURRENT_SOURCE_DIR}/mcp_stdio_smoke.cmake)
+
 if(MCUTRACE_ENABLE_MCUCOV)
     foreach(target IN ITEMS
         mcutrace_tests
         mcutrace_requirement_tests
+        mcutrace_plan_tests
         mcutrace_importer_tests
         mcutrace_producer_importer_tests
         mcutrace_trace_import_tests
@@ -92,6 +110,7 @@ if(MCUTRACE_ENABLE_MCUCOV)
         mcutrace_output_tests
         mcutrace_evidence_expectation_tests
         mcutrace_lsp_tests
+        mcutrace_mcp_tests
     )
         target_sources(${target} PRIVATE coverage_dump.cpp)
         target_link_libraries(${target} PRIVATE mcucov::runtime)

@@ -55,6 +55,12 @@ bool node_less(const Node& lhs, const Node& rhs) noexcept {
     if (lhs.finding_state != rhs.finding_state) {
         return lhs.finding_state < rhs.finding_state;
     }
+    if (lhs.body != rhs.body) {
+        return lhs.body < rhs.body;
+    }
+    if (lhs.status != rhs.status) {
+        return lhs.status < rhs.status;
+    }
     if (lhs.expected_evidence != rhs.expected_evidence) {
         return lhs.expected_evidence < rhs.expected_evidence;
     }
@@ -100,20 +106,63 @@ Diagnostic duplicate_node_diagnostic(const Node& node) {
 }
 
 std::vector<Node> collect_nodes(std::span<const Requirement> requirements,
-                                std::span<const ImportFragment> fragments) {
+                                std::span<const ImportFragment> fragments,
+                                std::span<const PlanItem> plans) {
     std::vector<Node> nodes;
-    nodes.reserve(requirements.size());
+    nodes.reserve(requirements.size() + plans.size());
     for (const auto& requirement : requirements) {
         nodes.push_back(requirement.as_node());
     }
     for (const auto& fragment : fragments) {
         nodes.insert(nodes.end(), fragment.nodes.begin(), fragment.nodes.end());
     }
+    for (const auto& plan : plans) {
+        nodes.push_back(plan.as_node());
+    }
     for (auto& node : nodes) {
         canonicalize_node(node);
     }
     std::sort(nodes.begin(), nodes.end(), node_less);
     return nodes;
+}
+
+void collect_semantic_edges(std::vector<Edge>& edges,
+                            std::span<const Requirement> requirements,
+                            std::span<const PlanItem> plans) {
+    for (const auto& requirement : requirements) {
+        for (const auto& dependency : requirement.dependencies) {
+            edges.push_back(Edge{
+                .source_id = requirement.id,
+                .target_id = dependency.id,
+                .type = RelationshipType::known(RelationshipKind::depends_on),
+                .provenance = Provenance{
+                    .importer = "requirements",
+                    .artifact = requirement.source.path,
+                    .source = dependency.source,
+                    .scope = {},
+                    .symbol = {},
+                },
+                .source = dependency.source,
+            });
+        }
+    }
+    for (const auto& plan : plans) {
+        for (const auto& link : plan.requirement_links) {
+            edges.push_back(Edge{
+                .source_id = plan.id,
+                .target_id = link.id,
+                .type = RelationshipType::known(RelationshipKind::plans),
+                .provenance = Provenance{
+                    .importer = "implementation-plans",
+                    .artifact = plan.source.path,
+                    .source = link.source,
+                    .scope = {},
+                    .symbol = {},
+                },
+                .source = link.source,
+            });
+        }
+    }
 }
 
 // @req REQ-0046
@@ -180,14 +229,18 @@ void deduplicate_artifacts_and_diagnostics(TraceResult& result) {
 
 }  // namespace
 
-// @req REQ-0005 REQ-0019 REQ-0027 REQ-0029 REQ-0031
+// @req REQ-0005 REQ-0019 REQ-0027 REQ-0029 REQ-0031 REQ-0130 REQ-0137
 TraceResult assemble_trace(std::span<const Requirement> requirements,
-                           std::span<const ImportFragment> fragments) {
+                           std::span<const ImportFragment> fragments,
+                           std::span<const PlanItem> plans,
+                           std::span<const Diagnostic> diagnostics) {
     TraceResult result;
-    const auto nodes = collect_nodes(requirements, fragments);
+    result.diagnostics.insert(result.diagnostics.end(), diagnostics.begin(), diagnostics.end());
+    const auto nodes = collect_nodes(requirements, fragments, plans);
     insert_nodes(result.graph, result.diagnostics, nodes);
 
     std::vector<Edge> edges;
+    collect_semantic_edges(edges, requirements, plans);
     collect_fragment_data(result, edges, fragments);
     insert_edges(result.graph, result.diagnostics, edges);
     deduplicate_artifacts_and_diagnostics(result);

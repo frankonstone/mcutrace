@@ -257,6 +257,8 @@ void append_implementation_node(ImportFragment& fragment,
         .finding_state = {},
         .source = SourceLocation{.path = std::string(normalized_path), .line = target.line},
         .expected_evidence = std::nullopt,
+        .body = {},
+        .status = {},
     });
 }
 
@@ -402,6 +404,8 @@ import_source_annotations(const ArtifactInput& input) {
         .finding_state = {},
         .source = SourceLocation{.path = *normalized},
         .expected_evidence = std::nullopt,
+        .body = {},
+        .status = {},
     });
 
     ScannerState state{

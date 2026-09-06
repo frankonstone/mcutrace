@@ -7,6 +7,9 @@ const EVIDENCE_GROUPS = [
   ['coverage', 'Coverage', 'pie-chart'],
   ['builds', 'Build evidence', 'tools'],
   ['findings', 'Static analysis', 'search'],
+  ['prerequisites', 'Depends on', 'references'],
+  ['dependents', 'Required by', 'references'],
+  ['plans', 'Implementation plans', 'notebook'],
 ];
 
 function sourceLocation(source) {
@@ -59,6 +62,7 @@ function evidenceDescription(node) {
     node.evidence_state && node.evidence_state !== 'unknown' ? node.evidence_state : undefined,
     node.evidence_detail,
     node.finding_state,
+    node.status,
   ].filter(Boolean).join(' · ');
 }
 
@@ -122,11 +126,49 @@ function sectionNode(heading) {
   };
 }
 
+function linkedRequirementNode(requirement) {
+  return {
+    label: requirement.title || requirement.id,
+    description: requirement.title ? requirement.id : '',
+    tooltip: requirement.title
+      ? `${requirement.id} — ${requirement.title}`
+      : requirement.id,
+    icon: 'checklist',
+    contextValue: 'mcutrace.requirementLink',
+    traceId: requirement.id,
+    location: requirement.location,
+    children: [],
+  };
+}
+
+function planNode(plan) {
+  const links = Array.isArray(plan.links) ? plan.links : [];
+  return {
+    label: plan.title || plan.id,
+    description: [plan.id, plan.status].filter(Boolean).join(' · '),
+    tooltip: `${plan.id}${plan.title ? ` — ${plan.title}` : ''}${plan.status ? ` [${plan.status}]` : ''}`,
+    icon: plan.status === 'done' ? 'pass' : plan.status === 'blocked' ? 'error' : 'notebook',
+    contextValue: 'mcutrace.plan',
+    traceId: plan.id,
+    location: plan.location,
+    children: [],
+    requirementChildren: [],
+    evidenceChildren: links.length === 0 ? [] : [{
+      label: 'Linked requirements',
+      description: String(links.length),
+      icon: 'references',
+      contextValue: 'mcutrace.evidenceGroup',
+      children: links.map(linkedRequirementNode),
+    }],
+  };
+}
+
 function headingHierarchy(headings = []) {
   const roots = [];
   const stack = [];
   for (const heading of headings) {
-    const node = heading.kind === 'section' ? sectionNode(heading) : requirementNode(heading);
+    const node = heading.kind === 'section' ? sectionNode(heading)
+      : heading.kind === 'plan' ? planNode(heading) : requirementNode(heading);
     node.headingChildren = node.requirementChildren || [];
     delete node.requirementChildren;
     const level = Number.isInteger(heading.headingLevel) ? heading.headingLevel : 6;

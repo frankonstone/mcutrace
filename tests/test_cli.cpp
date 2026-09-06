@@ -130,6 +130,17 @@ TEST(cli, parses_requirement_evidence_query, "REQ-0055", "REQ-0064") {
     ASSERT_EQ(result->output_format, mcutrace::OutputFormat::json);
 }
 
+TEST(cli, parses_plan_input_and_requirement_context_query, "REQ-0134", "REQ-0137") {
+    const char* argv[] = {"mcutrace", "context", "REQ-0001", "--plan", "plan.md",
+                          "--format", "json"};
+    const auto result = mcutrace::parse_cli(static_cast<int>(std::size(argv)), argv);
+    ASSERT_TRUE(result.has_value());
+    ASSERT_EQ(result->action, mcutrace::CliAction::context);
+    ASSERT_EQ(result->plan_files.size(), std::size_t{1});
+    ASSERT_EQ(result->plan_files[0], std::string{"plan.md"});
+    ASSERT_EQ(result->output_format, mcutrace::OutputFormat::json);
+}
+
 TEST(cli, rejects_unknown_output_format, "REQ-0055", "REQ-0056", "REQ-0064") {
     const char* argv[] = {"mcutrace", "validate", "--format", "xml"};
     const auto result = mcutrace::parse_cli(static_cast<int>(std::size(argv)), argv);

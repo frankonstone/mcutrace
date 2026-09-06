@@ -83,6 +83,8 @@ void append_artifact_node(ImportFragment& fragment, std::string_view path, std::
         .finding_state = {},
         .source = SourceLocation{.path = std::string(path), .line = line},
         .expected_evidence = std::nullopt,
+        .body = {},
+        .status = {},
     });
 }
 
