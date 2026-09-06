@@ -14,8 +14,10 @@ requirements = [
   "req/dependencies.md",
   "req/language-server.md",
   "req/mcp-server.md",
+  "req/agent-skill.md",
   "req/source-annotations.md",
   "req/vscode.md",
+  "req/vscode-agent-integration.md",
 ]
 plans = ["plan/implementation-plan.md"]
 sources = [

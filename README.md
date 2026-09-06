@@ -102,7 +102,7 @@ Test, package, and install the extension locally with:
 To install an already packaged extension manually:
 
 ```sh
-code --install-extension editors/vscode/mcutrace-requirements-0.2.2-darwin-arm64.vsix --force
+code --install-extension editors/vscode/mcutrace-requirements-0.2.4-darwin-arm64.vsix --force
 ```
 
 The platform-specific VSIX includes `mcutrace-lsp` and uses the bundled server by

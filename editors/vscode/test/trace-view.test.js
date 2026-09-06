@@ -1,7 +1,9 @@
 'use strict';
 
 const assert = require('node:assert/strict');
+const path = require('node:path');
 const test = require('node:test');
+const { pathToFileURL } = require('node:url');
 
 const { buildTraceTree, findTestDeclaration, requirementAtLocation, requirementNodes } = require('../trace-view');
 
@@ -205,6 +207,68 @@ test('maps requirement diagnostics by identifier and propagates warning decorati
   assert.equal(requirementNodes(tree)[0].problemSeverity, 'warning');
   assert.equal(requirementNodes(tree)[0].problemBadge, 'W');
   assert.equal(tree[0].problemSeverity, 'warning');
+});
+
+test('assigns requirement diagnostics to definitions before relationship copies [REQ-0127]', () => {
+  const requirementPath = path.resolve('project/requirements.md');
+  const requirementUri = pathToFileURL(requirementPath).toString();
+  const tree = buildTraceTree({
+    diagnostics: [{
+      severity: 'warning',
+      code: 'validation.missing_test_evidence',
+      message: 'requirement has no linked test evidence: REQ-0042',
+      source: {
+        path: requirementPath,
+        uri: requirementUri,
+        range: { start: { line: 2, character: 0 }, end: { line: 2, character: 1 } },
+      },
+    }],
+    documents: [{
+      path: requirementPath,
+      uri: requirementUri,
+      headings: [{
+        kind: 'requirement', id: 'REQ-0042', title: 'Affected', headingLevel: 2,
+        location: {
+          uri: requirementUri,
+          range: { start: { line: 2, character: 0 }, end: { line: 2, character: 12 } },
+        },
+        trace: {
+          prerequisites: [{ id: 'REQ-0041', kind: 'requirement', label: 'Foundation' }],
+        },
+      }, {
+        kind: 'requirement', id: 'REQ-0041', title: 'Foundation', headingLevel: 2,
+        trace: {
+          dependents: [{
+            id: 'REQ-0042', kind: 'requirement', label: 'Affected',
+            source: { path: requirementPath, line: 3, column: 1 },
+          }],
+        },
+      }],
+    }, {
+      path: '/project/plan.md',
+      uri: 'file:///project/plan.md',
+      headings: [{
+        kind: 'plan', id: 'PLN-0001', title: 'Implement affected', status: 'planned',
+        headingLevel: 2,
+        links: [{ id: 'REQ-0042', title: 'Affected', location: { uri: requirementUri } }],
+      }],
+    }],
+  });
+
+  const canonical = requirementNodes(tree).find((node) => node.requirementId === 'REQ-0042');
+  assert.equal(canonical.directProblemSeverity, 'warning');
+  assert.equal(canonical.problemIconSeverity, 'warning');
+  const relationshipCopies = [];
+  const visit = (node) => {
+    if (node.traceId === 'REQ-0042') relationshipCopies.push(node);
+    node.children.forEach(visit);
+  };
+  tree.forEach(visit);
+  assert.ok(relationshipCopies.length >= 2);
+  assert.ok(relationshipCopies.every((node) => node.directProblemSeverity === undefined));
+  assert.ok(relationshipCopies.every((node) => node.problemIconSeverity === 'warning'));
+  assert.ok(relationshipCopies.every((node) => node.problemSeverity === 'warning'));
+  assert.ok(relationshipCopies.every((node) => node.problemTooltip.startsWith('Linked problems:')));
 });
 
 test('groups nested folders without merging equal filenames or workspace roots [REQ-0127]', () => {

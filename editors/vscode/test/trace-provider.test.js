@@ -134,3 +134,36 @@ test('renders neutral labels, filters problems, and reveals searched and active 
   assert.equal(state.view.badge, undefined);
   assert.equal(state.decorations.provideFileDecoration(affectedItem.resourceUri), undefined);
 });
+
+test('renders warning icons on linked requirement copies [REQ-0127]', async () => {
+  const { state, publish } = await activateExtension();
+  const uri = 'file:///work/docs/requirements.md';
+  publish({
+    documents: [{
+      path: '/work/docs/requirements.md', uri,
+      headings: [{
+        kind: 'requirement', id: 'REQ-0001', title: 'Affected', headingLevel: 2,
+        location: { uri, range: { start: { line: 1, character: 0 } } },
+      }, {
+        kind: 'requirement', id: 'REQ-0002', title: 'Consumer', headingLevel: 2,
+        trace: {
+          prerequisites: [{ id: 'REQ-0001', kind: 'requirement', label: 'Affected' }],
+        },
+      }],
+    }],
+    diagnostics: [{ severity: 'warning', code: 'missing', message: 'REQ-0001 has no test' }],
+  });
+
+  const provider = state.provider;
+  const [folder] = provider.getChildren();
+  const [document] = provider.getChildren(folder);
+  const [, consumer] = provider.getChildren(document);
+  const [dependsOn] = provider.getChildren(consumer);
+  const [linkedRequirement] = provider.getChildren(dependsOn);
+
+  const linkedItem = provider.getTreeItem(linkedRequirement);
+  assert.equal(linkedItem.iconPath.id, 'warning');
+  assert.equal(linkedItem.iconPath.color.id, 'problemsWarningIcon.foreground');
+  assert.equal(provider.getTreeItem(dependsOn).iconPath.id, 'references');
+  assert.equal(provider.getTreeItem(consumer).iconPath.id, 'checklist');
+});

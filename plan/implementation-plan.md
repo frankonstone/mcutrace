@@ -486,6 +486,245 @@ client documentation, and repository dogfooding. The complete local evidence
 workflow passed with 119 tests, including six MCP-specific native tests and the
 subprocess smoke test; hosted cross-platform CI was not run locally.
 
+## PLN-0015 Add the mcutrace agent skill
+@link(REQ-0162, REQ-0163, REQ-0164, REQ-0165, REQ-0166, REQ-0167, REQ-0168, REQ-0169, REQ-0170, REQ-0171, REQ-0172, REQ-0173, REQ-0174, REQ-0175, REQ-0176, REQ-0177)
+@status(planned)
+
+### Reason
+
+Agents working in mcutrace-enabled projects need a concise, reusable guide for
+obtaining the right traceability context through the MCP server and interpreting
+it correctly. The guide must preserve mcutrace's evidence and relationship
+semantics without dictating how each project writes its requirements or plans.
+
+### Design
+
+- Maintain the canonical portable skill at
+  `integrations/skills/mcutrace/SKILL.md`, independently of the VS Code
+  extension and the MCP server implementation.
+- Let the skill own activation, task-to-tool routing, context selection,
+  authorization boundaries, and handoff behavior; let the MCP server own project
+  data, exact schemas, supported syntax, and runtime rules.
+- Target projects with an existing working mcutrace configuration and MCP
+  connection in the first version. Treat initial installation, configuration,
+  and traceability-policy design as a separate future workflow.
+- Keep the entry point concise and retrieve version-specific details from
+  `mcutrace://rules`, `mcutrace://schema`, and `mcutrace://project`. Add no
+  scripts or supporting references unless implementation or testing demonstrates
+  a concrete need.
+- Keep automatic discovery enabled with a narrow description that selects the
+  skill for mcutrace-related work without capturing unrelated coding tasks.
+- Store client-specific metadata alongside the portable skill only where it does
+  not make the canonical `SKILL.md` dependent on one agent product.
+
+### Work
+
+- [ ] Define representative positive and negative activation scenarios and the
+  boundary between the skill, MCP server, project-local instructions, and normal
+  project tools.
+- [ ] Create the canonical `mcutrace` skill with valid frontmatter, a precise
+  discovery description, and portable instructions.
+- [ ] Describe the initial MCP orientation flow and how to use the rules, schema,
+  and project resources without loading unnecessary reference content.
+- [ ] Add task-oriented routing for overview, search, requirement detail,
+  prerequisite context, change impact, plan detail, and filtered validation.
+- [ ] Encode evidence, dependency, plan-status, diagnostic, completeness, and
+  analysis-revision invariants that materially change agent decisions.
+- [ ] Encode project-convention preservation, read-only MCP behavior, user
+  authorization boundaries, evidence freshness, and actionable degraded behavior.
+- [ ] Add supported agent metadata and an MCP dependency declaration where the
+  target packaging format can express it without reducing portability.
+- [ ] Document installation into another project or agent environment and the
+  connection to an explicitly selected `mcutrace.toml` through `mcutrace-mcp`.
+- [ ] Add only the supporting references or scripts shown to be necessary by the
+  behavioral scenarios, and route to each conditional resource from `SKILL.md`.
+
+### Verification
+
+- [ ] Run the skill structural validator and check naming, frontmatter,
+  discovery metadata, dependency metadata, and the absence of scaffold
+  placeholders.
+- [ ] Verify positive activation for traced implementation, requirement, plan,
+  evidence, dependency, impact, and diagnostic tasks, plus negative activation
+  for unrelated work in a repository that happens to contain `mcutrace.toml`.
+- [ ] Exercise tasks with a known requirement ID, a vague request requiring
+  search, prerequisite-sensitive work, change-impact review, and an explicitly
+  linked plan item.
+- [ ] Verify that bounded queries, continuation state, filtered results, and an
+  analysis revision change are handled without mixing snapshots or claiming
+  incomplete data is complete.
+- [ ] Verify that missing evidence, failed evidence, unresolved relationships,
+  plan status, and diagnostics remain distinct in the agent's conclusions.
+- [ ] Exercise requirement and plan edits under different fixture conventions
+  and verify that the skill follows those conventions without imposing its own
+  document structure or prose methodology.
+- [ ] Verify that MCP reads do not authorize file edits or evidence generation,
+  and that validation handoff reports whether tests, coverage, builds, and
+  analysis artifacts were regenerated.
+- [ ] Exercise an unavailable server, unsupported capability, invalid project
+  configuration, and partial project analysis; verify actionable reporting and
+  no fabricated fallback analysis.
+- [ ] Install the packaged skill into an isolated consumer fixture, connect it to
+  that fixture's `mcutrace-mcp`, and dogfood it against the mcutrace repository.
+- [ ] Run mcutrace trace validation and confirm that every skill requirement is
+  linked to this outstanding plan without treating the plan as evidence.
+
+## PLN-0016 Integrate the mcutrace skill and MCP server with VS Code
+@link(REQ-0178, REQ-0179, REQ-0180, REQ-0181, REQ-0182, REQ-0183, REQ-0184, REQ-0185, REQ-0186, REQ-0187, REQ-0188, REQ-0189, REQ-0190, REQ-0191)
+@status(planned)
+
+### Reason
+
+Users of the mcutrace VS Code extension should be able to give agents structured
+mcutrace context without separately installing a skill, writing MCP registration
+files, or locating packaged executables. The integration must remain transparent
+and configurable through ordinary workspace settings while preserving VS Code's
+trust and access controls.
+
+### Design
+
+- Package the canonical skill produced by PLN-0015 and contribute it with VS
+  Code's Agent Skills contribution point. Treat the packaged copy as generated
+  content so the extension cannot diverge semantically from the portable source.
+- Register `mcutrace-mcp` through a VS Code MCP server definition provider rather
+  than writing `.vscode/mcp.json` or another client-owned configuration file.
+- Add `mcutrace.agent.*` settings to `.vscode/settings.json` as the supported
+  control surface. Enable the integration by default only for folders with a
+  resolvable mcutrace configuration, while allowing independent skill and MCP
+  disablement and explicit launch overrides.
+- Resolve configuration per workspace folder and return one isolated MCP server
+  definition per eligible folder. Use direct process execution, an explicit
+  configuration path, the folder as `cwd`, and distinct labels in multi-root
+  workspaces.
+- Let VS Code own server startup, shutdown, trust, tool approval, and agent-skill
+  controls. The extension only contributes definitions and reports their status.
+- Extend the existing platform packaging pipeline so the LSP, MCP server, and
+  canonical skill are staged and verified together for the same extension target.
+
+### Work
+
+- [ ] Determine and declare the minimum VS Code engine version providing the
+  stable Agent Skills contribution and MCP server definition APIs used by the
+  extension.
+- [ ] Extend the manifest with the canonical skill contribution, MCP definition
+  provider contribution, agent integration settings, and a status command.
+- [ ] Stage the canonical `integrations/skills/mcutrace` content into the VSIX
+  without introducing a separately edited skill source.
+- [ ] Stage the platform-specific `mcutrace-mcp` binary alongside
+  `mcutrace-lsp`, and update packaging inputs and exclusions accordingly.
+- [ ] Add pure, testable setting and path resolution for the master, skill, and
+  MCP enablement settings; executable path; extra arguments; and configuration
+  path, including `${workspaceFolder}` and relative paths.
+- [ ] Implement the MCP server definition provider with direct stdio launch,
+  explicit `--config`, workspace `cwd`, stable version metadata, and unique
+  multi-root labels.
+- [ ] Compute project eligibility for every workspace folder and connect it to
+  the contributed skill's enablement condition without emitting startup noise for
+  ordinary non-mcutrace folders.
+- [ ] React to resource-scoped configuration, workspace-folder, and project
+  configuration changes by refreshing context keys and MCP definitions.
+- [ ] Respect untrusted workspaces and existing VS Code MCP, skill, and tool
+  controls without editing or attempting to override their settings.
+- [ ] Implement an Agent Integration status command and output-channel reporting
+  for resolved definitions, disabled components, missing files, unsupported APIs,
+  and provider failures.
+- [ ] Document the zero-configuration behavior and every `mcutrace.agent.*`
+  workspace setting, including single-folder, multi-root, custom-binary, disabled,
+  and troubleshooting examples.
+
+### Verification
+
+- [ ] Unit-test default, disabled, overridden, malformed, and resource-scoped
+  settings without depending on a running VS Code process.
+- [ ] Test placeholder expansion, relative and absolute paths, POSIX and Windows
+  executable names, argument preservation, explicit configuration selection, and
+  direct launch without shell interpretation.
+- [ ] Test zero, one, and multiple workspace folders; missing and custom
+  configurations; duplicate folder names; addition and removal; and strict
+  per-folder definition isolation.
+- [ ] Test manifest contribution paths, enablement conditions, stable provider
+  identifiers, definition labels, version metadata, and configuration-change
+  events with the VS Code API test doubles.
+- [ ] Verify that the master and component switches behave independently and that
+  agent settings never alter language-server settings or generated workspace
+  files.
+- [ ] Verify untrusted workspaces and unavailable VS Code APIs do not execute
+  workspace-controlled programs and produce actionable, non-repeating status
+  information.
+- [ ] Build every supported platform VSIX and inspect its contents for the
+  matching LSP binary, MCP binary, canonical skill, and required manifest entries.
+- [ ] Install a produced VSIX in an isolated VS Code test workspace, confirm skill
+  discovery and MCP definition discovery, and exercise an MCP query against a
+  fixture project without `.vscode/mcp.json` or a copied project skill.
+- [ ] Change `.vscode/settings.json` during the integration test and verify that
+  enablement and MCP definitions update without a reload where the selected VS
+  Code API supports it.
+- [ ] Run the extension regression suite and mcutrace trace validation, confirming
+  that all new requirements are linked to PLN-0016 and neither the plan nor the
+  contributed skill is treated as trace evidence before implementation exists.
+
+## PLN-0017 Attach trace diagnostics to canonical requirement nodes
+@link(REQ-0127)
+@status(done)
+
+### Reason
+
+Requirement identifiers occur both on their canonical definition nodes and on
+relationship copies under dependency and plan groups. The Trace view currently
+selects the deepest identifier match, causing a relationship copy to receive the
+direct diagnostic while the affected requirement retains its ordinary icon.
+
+### Work
+
+- [x] Prefer canonical requirement definitions when an identifier-based
+  diagnostic can match both a definition and a relationship copy.
+- [x] Preserve location-based ownership for evidence diagnostics, propagate
+  requirement problems to relationship copies, and propagate descendant severity
+  to ancestor badges and tooltips.
+
+### Verification
+
+- [x] Reproduce the issue with canonical, dependency, and plan-link copies of one
+  requirement and verify only the canonical requirement receives the direct
+  warning severity.
+- [x] Run the complete VS Code extension regression suite and trace validation.
+
+### Result
+
+Diagnostic ownership now prefers source-location matches and canonical
+requirement definitions over deeper relationship copies. A directly affected
+requirement therefore receives the severity icon, while dependency and plan-link
+copies retain linked-problem badges so their branches remain filterable. Folders,
+documents, sections, and other ancestors retain propagated neutral badges. The VS
+Code extension suite passes with 17 tests.
+
+## PLN-0018 Show severity icons on linked requirement copies
+@link(REQ-0127, REQ-0136)
+@status(done)
+
+### Reason
+
+Dependency and plan-link copies propagated requirement problems for filtering,
+badges, and tooltips, but the tree renderer only used direct diagnostic severity
+for icons. A linked requirement therefore kept its normal checklist icon.
+
+### Work
+
+- [x] Track icon severity for diagnostics owned directly by a node or linked from
+  its canonical requirement without applying severity icons to ancestors.
+- [x] Render linked requirement copies with the severity-colored problem icon.
+- [x] Add tree-model and provider regressions for linked warning icons.
+
+### Verification
+
+- [x] Run the complete VS Code extension regression suite.
+
+### Result
+
+Linked requirement copies now use the same severity icon and color as their
+canonical requirement. Structural ancestors continue to use their ordinary icons
+while retaining propagated problem badges, tooltips, and filter visibility.
+
 ## Implementation discipline
 
 Every implementation PR should identify the requirement IDs it satisfies or advances. New externally observable behavior should have a requirement before implementation. Tests should use requirement IDs in names or comments where doing so improves traceability without coupling the test framework to mcutrace itself.

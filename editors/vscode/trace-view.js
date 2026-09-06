@@ -1,5 +1,7 @@
 'use strict';
 
+const { fileURLToPath } = require('node:url');
+
 const EVIDENCE_GROUPS = [
   ['implementations', 'Implementations', 'symbol-method'],
   ['sources', 'Sources', 'file-code'],
@@ -197,7 +199,14 @@ function locationIdentity(location) {
     return {};
   }
   const source = location.source || location;
-  const path = source.path || source.uri;
+  let path = source.path || source.uri;
+  if (!source.path && typeof source.uri === 'string' && source.uri.startsWith('file:')) {
+    try {
+      path = fileURLToPath(source.uri);
+    } catch {
+      // Keep malformed or non-standard URIs comparable by their original value.
+    }
+  }
   const line = source.range?.start?.line ??
     (Number.isInteger(source.line) && source.line > 0 ? source.line - 1 : undefined);
   return { path, line };
@@ -213,13 +222,23 @@ function collectNodes(roots) {
   return result;
 }
 
+function isCanonicalRequirement({ node }) {
+  return Boolean(node.requirementId);
+}
+
+function preferDiagnosticOwner(left, right) {
+  const canonicalDifference = Number(isCanonicalRequirement(right)) -
+    Number(isCanonicalRequirement(left));
+  return canonicalDifference || right.depth - left.depth;
+}
+
 function identifierMatch(diagnostic, candidates) {
   const text = `${diagnostic.code} ${diagnostic.message}`;
   return candidates
     .filter(({ node }) =>
       (node.requirementId && text.includes(node.requirementId)) ||
       (node.traceId && text.includes(node.traceId)))
-    .sort((left, right) => right.depth - left.depth)[0];
+    .sort(preferDiagnosticOwner)[0];
 }
 
 function locationMatch(diagnostic, candidates) {
@@ -230,7 +249,7 @@ function locationMatch(diagnostic, candidates) {
   return candidates
     .filter(({ location }) => location.path === wanted.path &&
       (wanted.line === undefined || location.line === wanted.line))
-    .sort((left, right) => right.depth - left.depth)[0];
+    .sort(preferDiagnosticOwner)[0];
 }
 
 function severitySummary(diagnostics) {
@@ -249,10 +268,15 @@ function severitySummary(diagnostics) {
 
 function finishDecorations(node, path) {
   const directDiagnostics = node.directDiagnostics || [];
+  const linkedDiagnostics = node.linkedDiagnostics || [];
+  const ownDiagnostics = [...directDiagnostics, ...linkedDiagnostics];
   node.directProblemSeverity = directDiagnostics.reduce((severity, diagnostic) =>
     SEVERITY_RANK[diagnostic.severity] > (SEVERITY_RANK[severity] || 0)
       ? diagnostic.severity : severity, undefined);
-  const diagnostics = [...directDiagnostics];
+  node.problemIconSeverity = ownDiagnostics.reduce((severity, diagnostic) =>
+    SEVERITY_RANK[diagnostic.severity] > (SEVERITY_RANK[severity] || 0)
+      ? diagnostic.severity : severity, undefined);
+  const diagnostics = [...ownDiagnostics];
   node.children.forEach((child, index) => {
     finishDecorations(child, `${path}/${index}`);
     diagnostics.push(...child.aggregatedDiagnostics);
@@ -265,21 +289,30 @@ function finishDecorations(node, path) {
         ? diagnostic.severity : severity, 'note');
     node.problemBadge = node.problemSeverity === 'error' ? 'E'
       : node.problemSeverity === 'warning' ? 'W' : 'I';
-    const summary = `${directDiagnostics.length ? 'Trace problems' : 'Problems inside'}: ${severitySummary(diagnostics)}`;
-    const details = directDiagnostics.map(
+    const relationship = linkedDiagnostics.length > 0 && directDiagnostics.length === 0;
+    const summaryKind = directDiagnostics.length ? 'Trace problems'
+      : relationship ? 'Linked problems' : 'Problems inside';
+    const summary = `${summaryKind}: ${severitySummary(diagnostics)}`;
+    const details = [...directDiagnostics, ...linkedDiagnostics].map(
       (diagnostic) => `${diagnostic.code}: ${diagnostic.message}`).join('\n');
     node.problemTooltip = details ? `${summary}\n${details}` : summary;
   }
   delete node.directDiagnostics;
+  delete node.linkedDiagnostics;
 }
 
 function applyDiagnostics(roots, diagnostics = []) {
   const candidates = collectNodes(roots);
   for (const diagnostic of diagnostics) {
-    const match = identifierMatch(diagnostic, candidates) ||
-      locationMatch(diagnostic, candidates);
+    const match = locationMatch(diagnostic, candidates) ||
+      identifierMatch(diagnostic, candidates);
     if (match) {
       (match.node.directDiagnostics ||= []).push(diagnostic);
+      if (match.node.requirementId) {
+        candidates
+          .filter(({ node }) => node.traceId === match.node.requirementId)
+          .forEach(({ node }) => (node.linkedDiagnostics ||= []).push(diagnostic));
+      }
     }
   }
   roots.forEach((root, index) => finishDecorations(root, String(index)));

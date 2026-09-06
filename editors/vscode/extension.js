@@ -96,7 +96,7 @@ class TraceTreeProvider {
     item.description = element.description;
     item.tooltip = element.tooltip;
     item.contextValue = element.contextValue;
-    const severity = element.directProblemSeverity;
+    const severity = element.problemIconSeverity;
     item.iconPath = severity
       ? new vscode.ThemeIcon(severity === 'note' ? 'info' : severity,
         new vscode.ThemeColor(PROBLEM_COLORS[severity]))
