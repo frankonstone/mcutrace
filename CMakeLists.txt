@@ -114,6 +114,11 @@ mcutrace_host_options(mcutrace-mcp)
 install(TARGETS mcutrace mcutrace-lsp mcutrace-mcp
     RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
 
+# @req REQ-0162 REQ-0177
+install(DIRECTORY integrations/skills/mcutrace/
+    DESTINATION ${CMAKE_INSTALL_DATADIR}/mcutrace/skills/mcutrace
+    PATTERN "evals" EXCLUDE)
+
 if(MCUTRACE_BUILD_TESTS)
     # @req REQ-0075 REQ-0076
     enable_testing()

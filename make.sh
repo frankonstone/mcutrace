@@ -47,6 +47,7 @@ TEST_TARGETS=(
   mcutrace_evidence_expectation_tests
   mcutrace_lsp_tests
   mcutrace_mcp_tests
+  mcutrace_skill_tests
 )
 
 log() {

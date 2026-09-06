@@ -92,6 +92,13 @@ add_test(NAME mcutrace_mcp_stdio_smoke
         -DMCUTRACE_MCP_REQUESTS=${CMAKE_CURRENT_SOURCE_DIR}/fixtures/mcp-project/requests.jsonl
         -P ${CMAKE_CURRENT_SOURCE_DIR}/mcp_stdio_smoke.cmake)
 
+add_executable(mcutrace_skill_tests test_skill.cpp)
+target_link_libraries(mcutrace_skill_tests PRIVATE mcutrace::core mcutest::mcutest)
+target_compile_definitions(mcutrace_skill_tests PRIVATE
+    MCUTRACE_SKILL_DIRECTORY="${CMAKE_SOURCE_DIR}/integrations/skills/mcutrace")
+mcutrace_host_options(mcutrace_skill_tests)
+add_test(NAME mcutrace_skill_tests COMMAND mcutrace_skill_tests)
+
 if(MCUTRACE_ENABLE_MCUCOV)
     foreach(target IN ITEMS
         mcutrace_tests
@@ -111,6 +118,7 @@ if(MCUTRACE_ENABLE_MCUCOV)
         mcutrace_evidence_expectation_tests
         mcutrace_lsp_tests
         mcutrace_mcp_tests
+        mcutrace_skill_tests
     )
         target_sources(${target} PRIVATE coverage_dump.cpp)
         target_link_libraries(${target} PRIVATE mcucov::runtime)

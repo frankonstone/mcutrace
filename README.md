@@ -141,6 +141,50 @@ producers. See [`integrations/mcp/README.md`](integrations/mcp/README.md) for cl
 setup and tool usage, and [`req/mcp-server.md`](req/mcp-server.md) for the supported
 contract.
 
+## Agent skill
+
+The portable [`mcutrace` agent skill](integrations/skills/mcutrace/SKILL.md)
+teaches compatible coding agents to obtain bounded, revision-consistent project
+context from `mcutrace-mcp`. It applies to traced requirements, plans, evidence,
+dependencies, impact, and validation work without changing a consuming project's
+authoring conventions or treating MCP access as edit or build permission.
+
+The skill expects the consumer project to already have a working
+`mcutrace.toml` and an MCP client connection. To install it in a project using
+the standard Agent Skills project layout, copy the canonical directory:
+
+```sh
+mkdir -p /path/to/consumer/.agents/skills
+cp -R integrations/skills/mcutrace /path/to/consumer/.agents/skills/mcutrace
+```
+
+Alternatively, `cmake --install` places the runtime skill files under
+`share/mcutrace/skills/mcutrace` in the chosen install prefix. Copy or link that
+directory into the skill location supported by the target agent. The installed
+copy excludes the repository-only behavioral eval cases.
+
+Register the MCP server separately using an absolute executable and configuration
+path so the selected project is unambiguous:
+
+```json
+{
+  "mcpServers": {
+    "mcutrace": {
+      "command": "/absolute/path/to/mcutrace-mcp",
+      "args": ["--config", "/absolute/path/to/consumer/mcutrace.toml"]
+    }
+  }
+}
+```
+
+Client-specific skill and MCP registration locations vary. The portable skill's
+`compatibility` metadata and optional `agents/openai.yaml` declare the read-only
+`mcutrace` MCP dependency without embedding a consumer-specific executable path.
+See [`integrations/mcp/README.md`](integrations/mcp/README.md) for server behavior
+and troubleshooting. Initial mcutrace installation, project policy design,
+evidence-producer selection, and creation of `mcutrace.toml` remain outside the
+skill's first-version scope.
+
 ## Initial host stack
 
 - C++23

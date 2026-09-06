@@ -1,0 +1,11 @@
+interface:
+  display_name: "mcutrace"
+  short_description: "Query traced requirements and impact"
+  default_prompt: "Use $mcutrace to gather the traceability context for this requirement before making changes."
+dependencies:
+  tools:
+    - type: "mcp"
+      value: "mcutrace"
+      description: "Read-only project server provided by mcutrace-mcp"
+policy:
+  allow_implicit_invocation: true

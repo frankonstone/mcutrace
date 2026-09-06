@@ -488,7 +488,7 @@ subprocess smoke test; hosted cross-platform CI was not run locally.
 
 ## PLN-0015 Add the mcutrace agent skill
 @link(REQ-0162, REQ-0163, REQ-0164, REQ-0165, REQ-0166, REQ-0167, REQ-0168, REQ-0169, REQ-0170, REQ-0171, REQ-0172, REQ-0173, REQ-0174, REQ-0175, REQ-0176, REQ-0177)
-@status(planned)
+@status(done)
 
 ### Reason
 
@@ -519,55 +519,75 @@ semantics without dictating how each project writes its requirements or plans.
 
 ### Work
 
-- [ ] Define representative positive and negative activation scenarios and the
+- [x] Define representative positive and negative activation scenarios and the
   boundary between the skill, MCP server, project-local instructions, and normal
   project tools.
-- [ ] Create the canonical `mcutrace` skill with valid frontmatter, a precise
+- [x] Create the canonical `mcutrace` skill with valid frontmatter, a precise
   discovery description, and portable instructions.
-- [ ] Describe the initial MCP orientation flow and how to use the rules, schema,
+- [x] Describe the initial MCP orientation flow and how to use the rules, schema,
   and project resources without loading unnecessary reference content.
-- [ ] Add task-oriented routing for overview, search, requirement detail,
+- [x] Add task-oriented routing for overview, search, requirement detail,
   prerequisite context, change impact, plan detail, and filtered validation.
-- [ ] Encode evidence, dependency, plan-status, diagnostic, completeness, and
+- [x] Encode evidence, dependency, plan-status, diagnostic, completeness, and
   analysis-revision invariants that materially change agent decisions.
-- [ ] Encode project-convention preservation, read-only MCP behavior, user
+- [x] Encode project-convention preservation, read-only MCP behavior, user
   authorization boundaries, evidence freshness, and actionable degraded behavior.
-- [ ] Add supported agent metadata and an MCP dependency declaration where the
+- [x] Add supported agent metadata and an MCP dependency declaration where the
   target packaging format can express it without reducing portability.
-- [ ] Document installation into another project or agent environment and the
+- [x] Document installation into another project or agent environment and the
   connection to an explicitly selected `mcutrace.toml` through `mcutrace-mcp`.
-- [ ] Add only the supporting references or scripts shown to be necessary by the
+- [x] Add only the supporting references or scripts shown to be necessary by the
   behavioral scenarios, and route to each conditional resource from `SKILL.md`.
 
 ### Verification
 
-- [ ] Run the skill structural validator and check naming, frontmatter,
+- [x] Run the skill structural validator and check naming, frontmatter,
   discovery metadata, dependency metadata, and the absence of scaffold
   placeholders.
-- [ ] Verify positive activation for traced implementation, requirement, plan,
+- [x] Verify positive activation for traced implementation, requirement, plan,
   evidence, dependency, impact, and diagnostic tasks, plus negative activation
   for unrelated work in a repository that happens to contain `mcutrace.toml`.
-- [ ] Exercise tasks with a known requirement ID, a vague request requiring
+- [x] Exercise tasks with a known requirement ID, a vague request requiring
   search, prerequisite-sensitive work, change-impact review, and an explicitly
   linked plan item.
-- [ ] Verify that bounded queries, continuation state, filtered results, and an
+- [x] Verify that bounded queries, continuation state, filtered results, and an
   analysis revision change are handled without mixing snapshots or claiming
   incomplete data is complete.
-- [ ] Verify that missing evidence, failed evidence, unresolved relationships,
+- [x] Verify that missing evidence, failed evidence, unresolved relationships,
   plan status, and diagnostics remain distinct in the agent's conclusions.
-- [ ] Exercise requirement and plan edits under different fixture conventions
+- [x] Exercise requirement and plan edits under different fixture conventions
   and verify that the skill follows those conventions without imposing its own
   document structure or prose methodology.
-- [ ] Verify that MCP reads do not authorize file edits or evidence generation,
+- [x] Verify that MCP reads do not authorize file edits or evidence generation,
   and that validation handoff reports whether tests, coverage, builds, and
   analysis artifacts were regenerated.
-- [ ] Exercise an unavailable server, unsupported capability, invalid project
+- [x] Exercise an unavailable server, unsupported capability, invalid project
   configuration, and partial project analysis; verify actionable reporting and
   no fabricated fallback analysis.
-- [ ] Install the packaged skill into an isolated consumer fixture, connect it to
+- [x] Install the packaged skill into an isolated consumer fixture, connect it to
   that fixture's `mcutrace-mcp`, and dogfood it against the mcutrace repository.
-- [ ] Run mcutrace trace validation and confirm that every skill requirement is
-  linked to this outstanding plan without treating the plan as evidence.
+- [x] Run mcutrace trace validation and confirm that every skill requirement is
+  linked to this plan without treating the plan as evidence.
+
+### Result
+
+Added a portable `mcutrace` skill with precise automatic discovery, runtime MCP
+orientation, bounded task-to-tool routing, revision-consistency checks, faithful
+trace semantics, project-convention preservation, explicit authorization
+boundaries, validation handoff guidance, and actionable degraded behavior. Added
+optional OpenAI-facing metadata with a read-only MCP dependency while keeping the
+canonical `SKILL.md` client-neutral.
+
+Added twelve repeatable behavioral scenarios and five native structural and
+semantic tests covering the complete skill contract. Independent forward tests
+of known-ID, truncated-search, and unavailable-server behavior passed every
+skill-guided assertion; the unavailable-server case caught the intended
+Markdown-fallback failure in the no-skill baseline. The canonical skill passed
+the skill-creator validator, packaged successfully without repository-only evals,
+installed through CMake, and connected to the MCP fixture from an isolated
+consumer layout. The complete local evidence workflow passed with 124 tests and
+no PLN-0015 requirement diagnostics; hosted cross-platform CI was not run
+locally.
 
 ## PLN-0016 Integrate the mcutrace skill and MCP server with VS Code
 @link(REQ-0178, REQ-0179, REQ-0180, REQ-0181, REQ-0182, REQ-0183, REQ-0184, REQ-0185, REQ-0186, REQ-0187, REQ-0188, REQ-0189, REQ-0190, REQ-0191)
