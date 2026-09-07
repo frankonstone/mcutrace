@@ -105,11 +105,22 @@ To install an already packaged extension manually:
 code --install-extension editors/vscode/mcutrace-requirements-0.2.4-darwin-arm64.vsix --force
 ```
 
-The platform-specific VSIX includes `mcutrace-lsp` and uses the bundled server by
-default. Configure `mcutrace.languageServer.path` to override it with a
-workspace-local executable, for example
-`${workspaceFolder}/build/trace/mcutrace-lsp`. The server reads requirement and
-artifact inputs exclusively from `mcutrace.toml`.
+The platform-specific VSIX includes `mcutrace-lsp`, `mcutrace-mcp`, and the
+canonical mcutrace Agent Skill. It uses the bundled language server by default;
+configure `mcutrace.languageServer.path` to override it with a workspace-local
+executable, for example `${workspaceFolder}/build/trace/mcutrace-lsp`.
+
+In trusted workspaces that contain `mcutrace.toml`, the extension also contributes
+the skill to VS Code agents and provides one isolated MCP server per workspace
+folder. `mcutrace.agent.skill.enabled` and `mcutrace.agent.mcp.enabled` control the
+two parts independently. Use `mcutrace.agent.mcp.path`, `.arguments`, and
+`.configPath` for resource-scoped overrides; relative paths and
+`${workspaceFolder}` resolve separately for each folder. Run **mcutrace: Show Agent
+Integration Status** to see trust, API, resolved-path, and eligibility diagnostics.
+Agent integration is disabled in untrusted workspaces. Automatic integration
+never writes project files or starts an MCP process on its own; only the explicit
+Codex setup command described below writes the selected workspace's skill and
+project-scoped Codex configuration.
 
 Install the separate mcucov Coverage extension to display `mcucov.lcov` files in VS Code's native Test Coverage view and editor gutter.
 
@@ -158,13 +169,20 @@ mkdir -p /path/to/consumer/.agents/skills
 cp -R integrations/skills/mcutrace /path/to/consumer/.agents/skills/mcutrace
 ```
 
+When using the packaged VS Code extension, run **mcutrace: Set Up Codex in
+Workspace** from the Command Palette. For the selected trusted workspace, the
+command installs the skill and adds a project-scoped `mcutrace` MCP server to
+`.codex/config.toml`, backed by the packaged executable in stable extension
+storage. It leaves an existing skill or user-managed `mcutrace` MCP entry unchanged
+and can refresh only its own clearly marked configuration block.
+
 Alternatively, `cmake --install` places the runtime skill files under
 `share/mcutrace/skills/mcutrace` in the chosen install prefix. Copy or link that
 directory into the skill location supported by the target agent. The installed
 copy excludes the repository-only behavioral eval cases.
 
-Register the MCP server separately using an absolute executable and configuration
-path so the selected project is unambiguous:
+Without the VS Code setup command, register the MCP server separately using an
+absolute executable and configuration path so the selected project is unambiguous:
 
 ```json
 {

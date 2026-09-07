@@ -38,3 +38,55 @@ Implementation evidence shall satisfy a requirement only through an `implements`
 
 ### REQ-0097 Implementation trace output @evidence(implementation,test)
 Human-readable and machine-readable reports shall expose implementation links. Machine-readable relationship output shall include available provenance, including source path, annotation line, scope kind, and symbol name.
+
+### REQ-0192 Language-aware source annotation architecture @evidence(implementation,test) @depends(REQ-0089, REQ-0090, REQ-0091)
+mcutrace shall separate language-neutral annotation-to-model behavior from
+language-specific comment and declaration recognition so that a new source
+language can be added without changing implementation-node, relationship,
+provenance, or diagnostic semantics shared by existing languages.
+
+### REQ-0193 Deterministic source-language selection @evidence(implementation,test) @depends(REQ-0093, REQ-0192)
+mcutrace shall select a declaration scanner deterministically from the normalized
+source path. Existing language-neutral file-scoped annotation behavior shall remain
+available for configured source inputs, while a declaration-scoped annotation in a
+file without a supported scanner shall produce a stable diagnostic rather than be
+interpreted using another language's grammar.
+
+### REQ-0194 Backward-compatible C++ source scanning @evidence(implementation,test) @depends(REQ-0091, REQ-0092, REQ-0095, REQ-0192)
+Refactoring source annotation handling into language-specific scanners shall
+preserve the supported C++ source and header extensions, declaration targets,
+implementation identities, provenance, and diagnostics for existing project
+inputs.
+
+### REQ-0195 JavaScript source annotation support @evidence(implementation,test) @depends(REQ-0073, REQ-0089, REQ-0090, REQ-0192, REQ-0193)
+mcutrace shall recognize source annotations in JavaScript `.js`, `.mjs`, and
+`.cjs` files without executing the source, launching a JavaScript runtime, or
+introducing a third-party host parsing dependency.
+
+### REQ-0196 JavaScript declaration targets @evidence(implementation,test) @depends(REQ-0091, REQ-0195)
+A JavaScript `@req` annotation shall bind to the immediately following named
+function declaration, class declaration, class method, or variable declaration
+initialized with a function or arrow expression, including supported `export`,
+`default`, `async`, generator, `static`, getter, and setter modifiers. Targets
+without a deterministic declaration name shall be diagnosed rather than silently
+treated as file-scoped links.
+
+### REQ-0197 JavaScript lexical correctness @evidence(implementation,test) @depends(REQ-0089, REQ-0195)
+The JavaScript scanner shall recognize annotations only in line or block comments
+and shall not interpret marker-like text in quoted strings, template literals, or
+regular-expression literals as source annotations. Escapes, multiline constructs,
+and comments between an annotation and its declaration shall not change the
+selected target.
+
+### REQ-0198 JavaScript implementation identity and provenance @evidence(implementation,test) @depends(REQ-0092, REQ-0095, REQ-0196)
+JavaScript implementation nodes shall have deterministic identities that include
+the normalized path and sufficient lexical declaration scope to distinguish
+same-named methods or bindings in different containers. Their implementation
+relationships shall retain the annotation location, declaration kind, and symbol
+name.
+
+### REQ-0199 Mixed-language source analysis @evidence(implementation,test) @depends(REQ-0005, REQ-0193, REQ-0194, REQ-0195, REQ-0198)
+A project containing supported C++ and JavaScript source inputs shall produce one
+deterministically ordered trace graph. Syntax, scanner state, and diagnostics from
+one input language shall not alter the targets, identities, or diagnostics emitted
+for another input language.

@@ -15,32 +15,17 @@ requirements = [
   "req/language-server.md",
   "req/mcp-server.md",
   "req/agent-skill.md",
+  "req/agent-client-integration.md",
   "req/source-annotations.md",
   "req/vscode.md",
   "req/vscode-agent-integration.md",
 ]
 plans = ["plan/implementation-plan.md"]
 sources = [
-  "src/assembly.cpp",
-  "src/build_annotations.cpp",
-  "src/cli.cpp",
-  "src/config.cpp",
-  "src/importer.cpp",
-  "src/lsp.cpp",
-  "src/lsp_main.cpp",
-  "src/mcp.cpp",
-  "src/mcp_main.cpp",
-  "src/model.cpp",
-  "src/output.cpp",
-  "src/path_patterns.cpp",
-  "src/plans.cpp",
-  "src/producer_importers.cpp",
-  "src/project.cpp",
-  "src/requirements.cpp",
-  "src/source_annotations.cpp",
-  "src/trace_import.cpp",
-  "src/validation.cpp",
+  "src/*.cpp",
   "integrations/skills/mcutrace/SKILL.md",
+  "editors/vscode/agent-integration.js",
+  "editors/vscode/scripts/stage-server.js",
 ]
 build_files = ["CMakeLists.txt"]
 
@@ -65,6 +50,8 @@ fail_at_or_above = "error"
 excluded_paths = [
   "src/main.cpp",
   "integrations/skills/mcutrace/SKILL.md",
+  "editors/vscode/agent-integration.js",
+  "editors/vscode/scripts/stage-server.js",
 ]
 
 [validation.dangling_reference]

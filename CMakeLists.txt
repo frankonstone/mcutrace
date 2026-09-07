@@ -106,7 +106,7 @@ add_executable(mcutrace-lsp src/lsp_main.cpp)
 target_link_libraries(mcutrace-lsp PRIVATE mcutrace::core)
 mcutrace_host_options(mcutrace-lsp)
 
-# @req REQ-0138 REQ-0160 REQ-0161
+# @req REQ-0138 REQ-0160 REQ-0161 REQ-0190
 add_executable(mcutrace-mcp src/mcp_main.cpp)
 target_link_libraries(mcutrace-mcp PRIVATE mcutrace::core)
 mcutrace_host_options(mcutrace-mcp)
@@ -114,7 +114,7 @@ mcutrace_host_options(mcutrace-mcp)
 install(TARGETS mcutrace mcutrace-lsp mcutrace-mcp
     RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
 
-# @req REQ-0162 REQ-0177
+# @req REQ-0162 REQ-0177 REQ-0179 REQ-0190 REQ-0191
 install(DIRECTORY integrations/skills/mcutrace/
     DESTINATION ${CMAKE_INSTALL_DATADIR}/mcutrace/skills/mcutrace
     PATTERN "evals" EXCLUDE)

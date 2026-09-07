@@ -2,6 +2,7 @@
 root = "."
 requirements = ["requirements.md"]
 plans = ["plan.md"]
+sources = ["source.cpp"]
 
 [validation]
 fail_at_or_above = "error"

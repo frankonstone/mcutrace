@@ -16,8 +16,9 @@ async function activateExtension() {
   const state = {};
   const disposable = { dispose() {} };
   class EventEmitter {
+    constructor() { this.fireCount = 0; }
     event = () => disposable;
-    fire() {}
+    fire() { this.fireCount += 1; }
     dispose() {}
   }
   const vscode = {
@@ -68,6 +69,8 @@ async function activateExtension() {
     require: (name) => name === 'vscode' ? vscode : name === 'vscode-languageclient/node'
       ? { LanguageClient } : localRequire(name),
     Buffer,
+    clearTimeout,
+    setTimeout,
   };
   vm.runInNewContext(fs.readFileSync(filename, 'utf8'), sandbox, { filename });
   await sandbox.module.exports.activate({ extensionPath: '/extension', subscriptions: [] });
@@ -90,6 +93,7 @@ test('renders neutral labels, filters problems, and reveals searched and active 
     }],
     diagnostics: [{ severity: 'warning', code: 'missing', message: 'REQ-0001 has no test' }],
   });
+  state.provider.flushUpdates();
   const provider = state.provider;
   const [folder] = provider.getChildren();
   const [document] = provider.getChildren(folder);
@@ -130,6 +134,7 @@ test('renders neutral labels, filters problems, and reveals searched and active 
   assert.equal(state.revealed, affected);
   await commands.get('mcutrace.showTraceProblems')();
   publish({ documents: [] });
+  state.provider.flushUpdates();
   assert.equal(provider.getChildren().length, 0);
   assert.equal(state.view.badge, undefined);
   assert.equal(state.decorations.provideFileDecoration(affectedItem.resourceUri), undefined);
@@ -153,6 +158,7 @@ test('renders warning icons on linked requirement copies [REQ-0127]', async () =
     }],
     diagnostics: [{ severity: 'warning', code: 'missing', message: 'REQ-0001 has no test' }],
   });
+  state.provider.flushUpdates();
 
   const provider = state.provider;
   const [folder] = provider.getChildren();
@@ -166,4 +172,56 @@ test('renders warning icons on linked requirement copies [REQ-0127]', async () =
   assert.equal(linkedItem.iconPath.color.id, 'problemsWarningIcon.foreground');
   assert.equal(provider.getTreeItem(dependsOn).iconPath.id, 'references');
   assert.equal(provider.getTreeItem(consumer).iconPath.id, 'checklist');
+});
+
+test('coalesces trace bursts and skips identical refreshes [REQ-0220]', async () => {
+  const { state, publish } = await activateExtension();
+  const payload = (title, diagnostics = []) => ({
+    documents: [{
+      path: '/work/docs/requirements.md',
+      uri: 'file:///work/docs/requirements.md',
+      headings: [{
+        kind: 'requirement', id: 'REQ-0001', title, headingLevel: 2,
+      }],
+    }],
+    diagnostics,
+  });
+  const provider = state.provider;
+  const treeRefreshes = provider.changed.fireCount;
+  const decorationRefreshes = state.decorations.changed.fireCount;
+
+  publish(payload('Intermediate'));
+  publish(payload('Latest'));
+  assert.equal(provider.flushUpdates(), true);
+  assert.equal(provider.changed.fireCount, treeRefreshes + 1);
+  assert.equal(provider.getChildren()[0].children[0].children[0].label, 'Latest');
+  assert.equal(state.decorations.changed.fireCount, decorationRefreshes);
+
+  publish(payload('Latest'));
+  assert.equal(provider.flushUpdates(), false);
+  assert.equal(provider.changed.fireCount, treeRefreshes + 1);
+  assert.equal(state.decorations.changed.fireCount, decorationRefreshes);
+
+  publish(payload('Latest', [{
+    severity: 'warning', code: 'missing', message: 'REQ-0001 has no test',
+  }]));
+  assert.equal(provider.flushUpdates(), true);
+  assert.equal(provider.changed.fireCount, treeRefreshes + 2);
+  assert.equal(state.decorations.changed.fireCount, decorationRefreshes + 1);
+});
+
+test('applies a scheduled trace update after the bounded delay [REQ-0220]', async () => {
+  const { state, publish } = await activateExtension();
+  publish({
+    documents: [{
+      path: '/work/requirements.md',
+      uri: 'file:///work/requirements.md',
+      headings: [{
+        kind: 'requirement', id: 'REQ-0001', title: 'Rendered', headingLevel: 2,
+      }],
+    }],
+  });
+  assert.equal(state.provider.getChildren().length, 0);
+  await new Promise((resolve) => setTimeout(resolve, 125));
+  assert.equal(state.provider.getChildren()[0].children[0].label, 'Rendered');
 });

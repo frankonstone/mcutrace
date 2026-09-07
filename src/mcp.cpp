@@ -868,7 +868,9 @@ std::string validation_data(const ProjectSnapshot& snapshot,
 }
 
 std::string rules_resource() {
-    return R"(# mcutrace rules
+    constexpr std::string_view local_annotation = "@req";
+    constexpr std::string_view file_annotation = "@req-file";
+    return std::string(R"(# mcutrace rules
 
 mcutrace aggregates and validates traceability data; it does not run build, test,
 coverage, or static-analysis producers.
@@ -879,8 +881,8 @@ coverage, or static-analysis producers.
 - `@depends(REQ-NNNN, ...)` creates directed `depends_on` relationships from the
   dependent requirement to its prerequisites. Ordinary ID mentions create no link.
 - Dependency evidence is independent: prerequisites neither satisfy nor copy evidence.
-- Source `// @req` annotations attach implementation claims to declarations;
-  `// @req-file` is the explicit file-scoped fallback.
+- Source `// )") + std::string(local_annotation) + R"(` annotations attach implementation claims to declarations;
+  `// )" + std::string(file_annotation) + R"(` is the explicit file-scoped fallback.
 - CMake `# @req` annotations create build verification links.
 - Plan headings use canonical `PLN-NNNN` IDs with explicit `@link(REQ-NNNN, ...)`
   and one status: planned, in_progress, blocked, or done.

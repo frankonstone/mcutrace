@@ -48,6 +48,7 @@ TEST_TARGETS=(
   mcutrace_lsp_tests
   mcutrace_mcp_tests
   mcutrace_skill_tests
+  mcutrace_vscode_agent_tests
 )
 
 log() {
@@ -254,9 +255,9 @@ cmd_vscode() {
     return "$status"
   fi
 
-  log "Building bundled language server"
+  log "Building bundled VS Code runtimes"
   run cmake --preset host
-  run cmake --build --preset host --target mcutrace-lsp --parallel
+  run cmake --build --preset host --target mcutrace-lsp mcutrace-mcp --parallel
 
   pushd "$VSCODE_DIR" >/dev/null
   local package_name
@@ -274,8 +275,8 @@ cmd_vscode() {
   log "Running VS Code extension tests"
   run npm test
 
-  log "Staging bundled language server"
-  run npm run stage-server -- "$ROOT_DIR/build/host/mcutrace-lsp"
+  log "Staging bundled runtimes and Agent Skill"
+  run npm run stage-runtime -- "$ROOT_DIR/build/host"
 
   log "Packaging VS Code extension"
   run npx --yes --cache "$VSCODE_NPM_CACHE" @vscode/vsce package \

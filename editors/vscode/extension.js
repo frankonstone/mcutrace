@@ -4,6 +4,7 @@ const vscode = require('vscode');
 const { LanguageClient } = require('vscode-languageclient/node');
 
 const { clientOptions, serverOptions } = require('./client');
+const { activateAgentIntegration } = require('./agent-integration');
 const {
   buildTraceTree, findTestDeclaration, requirementAtLocation, requirementNodes,
 } = require('./trace-view');
@@ -15,6 +16,12 @@ const PROBLEM_COLORS = {
   warning: 'problemsWarningIcon.foreground',
   note: 'problemsInfoIcon.foreground',
 };
+const TRACE_UPDATE_DELAY_MS = 100;
+
+function sameDecoration(left, right) {
+  return left?.badge === right?.badge && left?.tooltip === right?.tooltip &&
+    left?.propagate === right?.propagate;
+}
 
 class TraceDecorationProvider {
   constructor() {
@@ -24,10 +31,10 @@ class TraceDecorationProvider {
   }
 
   update(roots) {
-    this.decorations.clear();
+    const next = new Map();
     const visit = (node) => {
       if (node.problemSeverity) {
-        this.decorations.set(node.decorationId, {
+        next.set(node.decorationId, {
           badge: node.problemBadge,
           tooltip: node.problemTooltip,
           propagate: false,
@@ -36,7 +43,13 @@ class TraceDecorationProvider {
       node.children.forEach(visit);
     };
     roots.forEach(visit);
-    this.changed.fire(undefined);
+    const changed = this.decorations.size !== next.size ||
+      [...next].some(([id, decoration]) =>
+        !sameDecoration(this.decorations.get(id), decoration));
+    this.decorations = next;
+    if (changed) {
+      this.changed.fire(undefined);
+    }
   }
 
   provideFileDecoration(uri) {
@@ -58,9 +71,33 @@ class TraceTreeProvider {
     this.updateBadge = updateBadge;
     this.changed = new vscode.EventEmitter();
     this.onDidChangeTreeData = this.changed.event;
+    this.pendingPayload = undefined;
+    this.updateTimer = undefined;
+    this.lastPayload = undefined;
   }
 
-  update(payload) {
+  // @req REQ-0220
+  scheduleUpdate(payload) {
+    this.pendingPayload = payload;
+    if (this.updateTimer === undefined) {
+      this.updateTimer = setTimeout(() => this.flushUpdates(), TRACE_UPDATE_DELAY_MS);
+    }
+  }
+
+  flushUpdates() {
+    if (this.updateTimer !== undefined) {
+      clearTimeout(this.updateTimer);
+      this.updateTimer = undefined;
+    }
+    if (this.pendingPayload === undefined) {
+      return false;
+    }
+    const payload = this.pendingPayload;
+    this.pendingPayload = undefined;
+    const serialized = JSON.stringify(payload);
+    if (serialized === this.lastPayload) {
+      return false;
+    }
     this.roots = buildTraceTree(payload, (path) => vscode.workspace.asRelativePath(path));
     this.parents.clear();
     const visit = (nodes, parent) => nodes.forEach((node) => {
@@ -70,7 +107,9 @@ class TraceTreeProvider {
     visit(this.roots);
     this.decorations.update(this.roots);
     this.updateBadge(Array.isArray(payload.diagnostics) ? payload.diagnostics.length : 0);
+    this.lastPayload = serialized;
     this.changed.fire();
+    return true;
   }
 
   getChildren(element) {
@@ -124,6 +163,10 @@ class TraceTreeProvider {
   }
 
   dispose() {
+    if (this.updateTimer !== undefined) {
+      clearTimeout(this.updateTimer);
+      this.updateTimer = undefined;
+    }
     this.changed.dispose();
   }
 }
@@ -214,6 +257,7 @@ async function activate(context) {
   const output = vscode.window.createOutputChannel('mcutrace Language Server');
   const configuration = vscode.workspace.getConfiguration('mcutrace');
   const watcher = vscode.workspace.createFileSystemWatcher('**/*');
+  await activateAgentIntegration(vscode, context, watcher);
   const server = serverOptions(configuration, workspaceFolderPath(), context.extensionPath);
   languageClient = new LanguageClient(
     'mcutraceLanguageServer',
@@ -273,7 +317,7 @@ async function activate(context) {
     }
   };
   const traceSubscription = languageClient.onNotification(
-    'mcutrace/publishTrace', (payload) => traceProvider.update(payload));
+    'mcutrace/publishTrace', (payload) => traceProvider.scheduleUpdate(payload));
 
   context.subscriptions.push(
     output,

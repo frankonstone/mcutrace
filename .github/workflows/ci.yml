@@ -22,10 +22,16 @@ jobs:
         include:
           - name: macOS / Apple Clang
             os: macos-latest
+            vscode_target: darwin-arm64
+            executable_suffix: ''
           - name: Linux / GCC
             os: ubuntu-latest
+            vscode_target: linux-x64
+            executable_suffix: ''
           - name: Windows / MSVC
             os: windows-latest
+            vscode_target: win32-x64
+            executable_suffix: .exe
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v6
@@ -67,3 +73,39 @@ jobs:
 
       - name: Test
         run: ctest --test-dir build -C Release --output-on-failure
+
+      - name: Install package inputs
+        run: cmake --install build --config Release --prefix build/install
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: editors/vscode/package-lock.json
+
+      - name: Test VS Code extension
+        working-directory: editors/vscode
+        run: |
+          npm ci --no-audit
+          npm test
+
+      - name: Stage and package VS Code extension
+        working-directory: editors/vscode
+        run: |
+          npm run stage-runtime -- "${{ github.workspace }}/build/install/bin"
+          npx --yes @vscode/vsce package --target "${{ matrix.vscode_target }}" --out "mcutrace-requirements-${{ matrix.vscode_target }}.vsix"
+
+      - name: Verify VS Code package contents
+        working-directory: editors/vscode
+        run: >-
+          cmake
+          -DMCUTRACE_VSIX=mcutrace-requirements-${{ matrix.vscode_target }}.vsix
+          -DMCUTRACE_VSIX_EXECUTABLE_SUFFIX=${{ matrix.executable_suffix }}
+          -P scripts/verify-vsix.cmake
+
+      - name: Preserve VS Code package
+        uses: actions/upload-artifact@v6
+        with:
+          name: mcutrace-vscode-${{ matrix.vscode_target }}
+          path: editors/vscode/mcutrace-requirements-${{ matrix.vscode_target }}.vsix
+          if-no-files-found: error

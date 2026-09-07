@@ -138,6 +138,9 @@ jobs:
             mcutrace_output_tests
             mcutrace_evidence_expectation_tests
             mcutrace_lsp_tests
+            mcutrace_mcp_tests
+            mcutrace_skill_tests
+            mcutrace_vscode_agent_tests
           )
 
           for test_name in "${test_names[@]}"; do
@@ -245,28 +248,37 @@ jobs:
             --source src/importer.cpp
             --source src/lsp.cpp
             --source src/lsp_main.cpp
+            --source src/mcp.cpp
+            --source src/mcp_main.cpp
             --source src/model.cpp
             --source src/output.cpp
             --source src/path_patterns.cpp
             --source src/plans.cpp
             --source src/producer_importers.cpp
+            --source src/project.cpp
             --source src/requirements.cpp
             --source src/source_annotations.cpp
             --source src/trace_import.cpp
             --source src/validation.cpp
+            --source integrations/skills/mcutrace/SKILL.md
+            --source editors/vscode/agent-integration.js
             --source editors/vscode/extension.js
+            --source editors/vscode/scripts/stage-server.js
             --source editors/vscode/trace-view.js
           )
           requirements=(
-            -r docs/requirements.md
-            -r docs/requirements-dependencies.md
-            -r docs/requirements-implementation-plans.md
-            -r docs/requirements-language-server.md
-            -r docs/requirements-links.md
-            -r docs/requirements-hardening.md
-            -r docs/requirements-evidence.md
-            -r docs/requirements-source-annotations.md
-            -r docs/requirements-vscode.md
+            -r req/mcutrace.md
+            -r req/evidence.md
+            -r req/hardening.md
+            -r req/implementation-plans.md
+            -r req/links.md
+            -r req/dependencies.md
+            -r req/language-server.md
+            -r req/mcp-server.md
+            -r req/agent-skill.md
+            -r req/source-annotations.md
+            -r req/vscode.md
+            -r req/vscode-agent-integration.md
           )
           artifacts=(
             -a dogfood/tests.json
@@ -278,7 +290,7 @@ jobs:
           ./build/mcutrace validate \
             "${requirements[@]}" \
             "${sources[@]}" \
-            --plan docs/implementation-plan.md \
+            --plan plan/implementation-plan.md \
             --build CMakeLists.txt \
             "${artifacts[@]}" \
             --format text > dogfood/report.txt 2> dogfood/diagnostics.txt
@@ -287,7 +299,7 @@ jobs:
           ./build/mcutrace validate \
             "${requirements[@]}" \
             "${sources[@]}" \
-            --plan docs/implementation-plan.md \
+            --plan plan/implementation-plan.md \
             --build CMakeLists.txt \
             "${artifacts[@]}" \
             --format json > dogfood/report.json 2>> dogfood/diagnostics.txt

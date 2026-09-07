@@ -1,6 +1,6 @@
 ---
 name: mcutrace
-description: Use the configured mcutrace MCP server for work involving mcutrace requirement IDs, implementation plans, trace evidence, dependencies, change impact, or validation diagnostics. Apply it when implementing or reviewing traced work, editing requirements or plans, investigating evidence state, or assessing prerequisite or dependent impact. Do not select it for unrelated project work merely because mcutrace.toml exists.
+description: Use the configured mcutrace MCP server for work involving mcutrace requirement IDs (`REQ-NNNN`), implementation plan IDs (`PLN-NNNN`), trace evidence, dependencies, change impact, or validation diagnostics. Apply it when implementing or reviewing traced work, editing requirements or plans, investigating evidence state, or assessing prerequisite or dependent impact. Do not select it for unrelated project work merely because mcutrace.toml exists.
 compatibility: Requires an accessible read-only mcutrace MCP server configured for the selected project.
 metadata:
   author: mcutrace

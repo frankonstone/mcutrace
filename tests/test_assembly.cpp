@@ -53,6 +53,32 @@ TEST(assembly, merges_requirements_and_imported_nodes, "REQ-0001", "REQ-0019", "
     ASSERT_EQ(result.graph.nodes()[2].id, std::string("test:alpha"));
 }
 
+TEST(assembly, emits_typed_dependency_edges_with_direction_and_provenance, "REQ-0130") {
+    auto dependent = requirement("REQ-0002", "Dependent", 8);
+    dependent.dependencies.push_back(mcutrace::RequirementReference{
+        .id = "REQ-0001",
+        .source = mcutrace::SourceLocation{
+            .path = "requirements.md", .line = 9, .column = 18,
+        },
+    });
+    auto prerequisite = requirement("REQ-0001", "Prerequisite", 3);
+    prerequisite.source.path = "prerequisites.md";
+    const std::array requirements{dependent, prerequisite};
+
+    const auto result = mcutrace::assemble_trace(requirements, {});
+
+    ASSERT_EQ(result.graph.edges().size(), static_cast<std::size_t>(1));
+    const auto& edge = result.graph.edges().front();
+    ASSERT_EQ(edge.source_id, std::string("REQ-0002"));
+    ASSERT_EQ(edge.target_id, std::string("REQ-0001"));
+    ASSERT_EQ(edge.type.kind, mcutrace::RelationshipKind::depends_on);
+    ASSERT_EQ(edge.provenance.importer, std::string("requirements"));
+    ASSERT_EQ(edge.provenance.artifact, std::string("requirements.md"));
+    ASSERT_TRUE(edge.source.has_value());
+    ASSERT_EQ(edge.source->line, static_cast<std::uint32_t>(9));
+    ASSERT_EQ(edge.source->column, static_cast<std::uint32_t>(18));
+}
+
 TEST(assembly, preserves_multiple_provenance_sources_for_same_relationship, "REQ-0029", "REQ-0031") {
     mcutrace::ImportFragment first;
     first.edges.push_back(verifies("test:alpha", "REQ-0001", "a.json"));

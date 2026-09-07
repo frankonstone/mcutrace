@@ -32,6 +32,28 @@ std::string_view trim(std::string_view text) noexcept {
 
 bool starts_fence(std::string_view line, char marker) noexcept;
 
+bool inline_code_position(std::string_view line, std::size_t position) noexcept {
+    std::size_t delimiter = 0U;
+    std::size_t index = 0U;
+    while (index < position && index < line.size()) {
+        if (line[index] != '`') {
+            ++index;
+            continue;
+        }
+        std::size_t run = 1U;
+        while (index + run < line.size() && line[index + run] == '`') {
+            ++run;
+        }
+        if (delimiter == 0U) {
+            delimiter = run;
+        } else if (run >= delimiter) {
+            delimiter = 0U;
+        }
+        index += run;
+    }
+    return delimiter != 0U;
+}
+
 bool markdown_code_position(std::string_view text, std::size_t position) noexcept {
     bool fenced = false;
     char fence_marker = '\0';
@@ -57,26 +79,7 @@ bool markdown_code_position(std::string_view text, std::size_t position) noexcep
             if (fenced) {
                 return true;
             }
-            std::size_t delimiter = 0U;
-            std::size_t index = 0U;
-            const auto local_position = position - line_begin;
-            while (index < local_position && index < line.size()) {
-                if (line[index] != '`') {
-                    ++index;
-                    continue;
-                }
-                std::size_t run = 1U;
-                while (index + run < line.size() && line[index + run] == '`') {
-                    ++run;
-                }
-                if (delimiter == 0U) {
-                    delimiter = run;
-                } else if (run >= delimiter) {
-                    delimiter = 0U;
-                }
-                index += run;
-            }
-            return delimiter != 0U;
+            return inline_code_position(line, position - line_begin);
         }
         if (newline == std::string_view::npos) {
             break;

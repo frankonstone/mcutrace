@@ -11,7 +11,18 @@
     "directory": "editors/vscode"
   },
   "engines": {
-    "vscode": "^1.85.0"
+    "vscode": "^1.109.0"
+  },
+  "capabilities": {
+    "untrustedWorkspaces": {
+      "supported": "limited",
+      "description": "Requirement browsing remains available, but agent integration is disabled until the workspace is trusted.",
+      "restrictedConfigurations": [
+        "mcutrace.agent.mcp.path",
+        "mcutrace.agent.mcp.arguments",
+        "mcutrace.agent.mcp.configPath"
+      ]
+    }
   },
   "categories": [
     "Programming Languages",
@@ -32,6 +43,19 @@
     "onView:mcutrace.traceView"
   ],
   "contributes": {
+    "chatSkills": [
+      {
+        "path": "./skills/mcutrace/SKILL.md",
+        "when": "mcutrace.agent.skillAvailable"
+      }
+    ],
+    "mcpServerDefinitionProviders": [
+      {
+        "id": "mcutrace.agent.mcp",
+        "label": "mcutrace",
+        "when": "mcutrace.agent.mcpAvailable"
+      }
+    ],
     "viewsContainers": {
       "activitybar": [
         {
@@ -111,6 +135,16 @@
         "command": "mcutrace.showAllTraceItems",
         "title": "mcutrace: Show All Trace Items",
         "icon": "$(filter-filled)"
+      },
+      {
+        "command": "mcutrace.showAgentIntegrationStatus",
+        "title": "mcutrace: Show Agent Integration Status",
+        "icon": "$(server-process)"
+      },
+      {
+        "command": "mcutrace.setupCodex",
+        "title": "mcutrace: Set Up Codex in Workspace",
+        "icon": "$(cloud-download)"
       }
     ],
     "configuration": {
@@ -128,6 +162,45 @@
           },
           "default": [],
           "description": "Arguments passed to the mcutrace language server. `${workspaceFolder}` is supported."
+        },
+        "mcutrace.agent.enabled": {
+          "type": "boolean",
+          "default": true,
+          "scope": "resource",
+          "description": "Enable mcutrace agent integration for this workspace folder."
+        },
+        "mcutrace.agent.skill.enabled": {
+          "type": "boolean",
+          "default": true,
+          "scope": "resource",
+          "description": "Contribute the bundled mcutrace Agent Skill for this workspace folder."
+        },
+        "mcutrace.agent.mcp.enabled": {
+          "type": "boolean",
+          "default": true,
+          "scope": "resource",
+          "description": "Provide the mcutrace MCP server for this workspace folder."
+        },
+        "mcutrace.agent.mcp.path": {
+          "type": "string",
+          "default": "",
+          "scope": "resource",
+          "description": "Optional path to mcutrace-mcp. Relative paths and `${workspaceFolder}` are resolved per workspace folder."
+        },
+        "mcutrace.agent.mcp.arguments": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [],
+          "scope": "resource",
+          "description": "Additional arguments passed directly to mcutrace-mcp. `${workspaceFolder}` is supported."
+        },
+        "mcutrace.agent.mcp.configPath": {
+          "type": "string",
+          "default": "",
+          "scope": "resource",
+          "description": "Optional mcutrace configuration path. Defaults to mcutrace.toml in each workspace folder; relative paths and `${workspaceFolder}` are supported."
         }
       }
     }
@@ -136,6 +209,7 @@
     "vscode-languageclient": "9.0.1"
   },
   "scripts": {
+    "stage-runtime": "node scripts/stage-server.js",
     "stage-server": "node scripts/stage-server.js",
     "test": "node --test test/*.test.js"
   }

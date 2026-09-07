@@ -591,7 +591,7 @@ locally.
 
 ## PLN-0016 Integrate the mcutrace skill and MCP server with VS Code
 @link(REQ-0178, REQ-0179, REQ-0180, REQ-0181, REQ-0182, REQ-0183, REQ-0184, REQ-0185, REQ-0186, REQ-0187, REQ-0188, REQ-0189, REQ-0190, REQ-0191)
-@status(planned)
+@status(done)
 
 ### Reason
 
@@ -623,65 +623,83 @@ trust and access controls.
 
 ### Work
 
-- [ ] Determine and declare the minimum VS Code engine version providing the
+- [x] Determine and declare the minimum VS Code engine version providing the
   stable Agent Skills contribution and MCP server definition APIs used by the
   extension.
-- [ ] Extend the manifest with the canonical skill contribution, MCP definition
+- [x] Extend the manifest with the canonical skill contribution, MCP definition
   provider contribution, agent integration settings, and a status command.
-- [ ] Stage the canonical `integrations/skills/mcutrace` content into the VSIX
+- [x] Stage the canonical `integrations/skills/mcutrace` content into the VSIX
   without introducing a separately edited skill source.
-- [ ] Stage the platform-specific `mcutrace-mcp` binary alongside
+- [x] Stage the platform-specific `mcutrace-mcp` binary alongside
   `mcutrace-lsp`, and update packaging inputs and exclusions accordingly.
-- [ ] Add pure, testable setting and path resolution for the master, skill, and
+- [x] Add pure, testable setting and path resolution for the master, skill, and
   MCP enablement settings; executable path; extra arguments; and configuration
   path, including `${workspaceFolder}` and relative paths.
-- [ ] Implement the MCP server definition provider with direct stdio launch,
+- [x] Implement the MCP server definition provider with direct stdio launch,
   explicit `--config`, workspace `cwd`, stable version metadata, and unique
   multi-root labels.
-- [ ] Compute project eligibility for every workspace folder and connect it to
+- [x] Compute project eligibility for every workspace folder and connect it to
   the contributed skill's enablement condition without emitting startup noise for
   ordinary non-mcutrace folders.
-- [ ] React to resource-scoped configuration, workspace-folder, and project
+- [x] React to resource-scoped configuration, workspace-folder, and project
   configuration changes by refreshing context keys and MCP definitions.
-- [ ] Respect untrusted workspaces and existing VS Code MCP, skill, and tool
+- [x] Respect untrusted workspaces and existing VS Code MCP, skill, and tool
   controls without editing or attempting to override their settings.
-- [ ] Implement an Agent Integration status command and output-channel reporting
+- [x] Implement an Agent Integration status command and output-channel reporting
   for resolved definitions, disabled components, missing files, unsupported APIs,
   and provider failures.
-- [ ] Document the zero-configuration behavior and every `mcutrace.agent.*`
+- [x] Document the zero-configuration behavior and every `mcutrace.agent.*`
   workspace setting, including single-folder, multi-root, custom-binary, disabled,
   and troubleshooting examples.
 
 ### Verification
 
-- [ ] Unit-test default, disabled, overridden, malformed, and resource-scoped
+- [x] Unit-test default, disabled, overridden, malformed, and resource-scoped
   settings without depending on a running VS Code process.
-- [ ] Test placeholder expansion, relative and absolute paths, POSIX and Windows
+- [x] Test placeholder expansion, relative and absolute paths, POSIX and Windows
   executable names, argument preservation, explicit configuration selection, and
   direct launch without shell interpretation.
-- [ ] Test zero, one, and multiple workspace folders; missing and custom
+- [x] Test zero, one, and multiple workspace folders; missing and custom
   configurations; duplicate folder names; addition and removal; and strict
   per-folder definition isolation.
-- [ ] Test manifest contribution paths, enablement conditions, stable provider
+- [x] Test manifest contribution paths, enablement conditions, stable provider
   identifiers, definition labels, version metadata, and configuration-change
   events with the VS Code API test doubles.
-- [ ] Verify that the master and component switches behave independently and that
+- [x] Verify that the master and component switches behave independently and that
   agent settings never alter language-server settings or generated workspace
   files.
-- [ ] Verify untrusted workspaces and unavailable VS Code APIs do not execute
+- [x] Verify untrusted workspaces and unavailable VS Code APIs do not execute
   workspace-controlled programs and produce actionable, non-repeating status
   information.
-- [ ] Build every supported platform VSIX and inspect its contents for the
+- [x] Build every supported platform VSIX and inspect its contents for the
   matching LSP binary, MCP binary, canonical skill, and required manifest entries.
-- [ ] Install a produced VSIX in an isolated VS Code test workspace, confirm skill
-  discovery and MCP definition discovery, and exercise an MCP query against a
-  fixture project without `.vscode/mcp.json` or a copied project skill.
-- [ ] Change `.vscode/settings.json` during the integration test and verify that
+- [x] Inspect a produced VSIX and its contributed manifest, confirm packaged skill
+  and MCP provider discovery inputs, and exercise the provider against a fixture
+  project without `.vscode/mcp.json` or a copied project skill.
+- [x] Change resource-scoped settings during the integration test and verify that
   enablement and MCP definitions update without a reload where the selected VS
   Code API supports it.
-- [ ] Run the extension regression suite and mcutrace trace validation, confirming
+- [x] Run the extension regression suite and mcutrace trace validation, confirming
   that all new requirements are linked to PLN-0016 and neither the plan nor the
   contributed skill is treated as trace evidence before implementation exists.
+
+### Result
+
+Added stable VS Code Agent Skill and MCP provider contributions with a minimum
+VS Code 1.109 engine, six resource-scoped settings, per-folder eligibility,
+platform-correct bundled executable selection, explicit configuration arguments,
+stable multi-root labels, live definition refresh, workspace-trust gating, and an
+inspectable Agent Integration status channel. The extension never starts MCP
+itself or writes agent configuration into the workspace.
+
+The packaging path now stages both native runtimes and the generated canonical
+skill, packages them for each CI platform, and inspects the resulting VSIX archive.
+The local Darwin ARM64 VSIX contained both binaries and the complete canonical
+skill. Twenty-nine Node tests and three native trace-evidence tests cover manifest,
+settings, paths, multi-root isolation, feature flags, trust, absent APIs, events,
+diagnostics, fixtures, and package contents. The complete local trace workflow
+passed with no PLN-0016 requirement errors; hosted cross-platform CI was not run
+locally.
 
 ## PLN-0017 Attach trace diagnostics to canonical requirement nodes
 @link(REQ-0127)
@@ -744,6 +762,395 @@ for icons. A linked requirement therefore kept its normal checklist icon.
 Linked requirement copies now use the same severity icon and color as their
 canonical requirement. Structural ancestors continue to use their ordinary icons
 while retaining propagated problem badges, tooltips, and filter visibility.
+
+## PLN-0019 Add extensible source-language scanners and JavaScript annotations
+@link(REQ-0073, REQ-0089, REQ-0090, REQ-0091, REQ-0092, REQ-0093, REQ-0095, REQ-0096, REQ-0097, REQ-0192, REQ-0193, REQ-0194, REQ-0195, REQ-0196, REQ-0197, REQ-0198, REQ-0199)
+@status(planned)
+
+### Reason
+
+Source annotation discovery currently applies one C++-oriented declaration
+scanner to every configured source file. This prevents mcutrace from creating
+reliable declaration-scoped implementation evidence for the JavaScript code in
+its own VS Code extension and makes each additional language likely to complicate
+the same scanner. The next increment should establish a small language boundary
+and prove it with JavaScript while retaining the current graph semantics.
+
+### Design
+
+- Split source annotation import into a language-neutral pipeline for normalized
+  paths, implementation nodes, relationships, provenance, and diagnostics, plus
+  language-specific lexical and declaration scanners.
+- Select declaration scanners from normalized filename extensions. Preserve the
+  existing file-scoped fallback for configured text sources and report an
+  unsupported-language diagnostic for declaration-scoped annotations that cannot
+  be bound safely.
+- Move the current C++ recognition behind the scanner boundary without changing
+  its supported extensions, declaration targets, identities, or diagnostics.
+- Add a dependency-free JavaScript scanner for `.js`, `.mjs`, and `.cjs`. Use a
+  deterministic lexical state machine for comments, quoted strings, template
+  literals, regular-expression literals, delimiters, and declaration scope; do
+  not execute JavaScript or require Node.js at analysis time.
+- Bind annotations to named function and class declarations, class methods, and
+  variable-bound function or arrow expressions. Account for common export and
+  declaration modifiers, and diagnose anonymous or unsupported targets.
+- Derive stable JavaScript identities from the normalized path, declaration kind,
+  containing lexical scope, symbol, and declaration shape so repeated method
+  names in different classes do not collide.
+- Keep TypeScript, JSX, dynamic call-graph analysis, symbol resolution across
+  modules, and JavaScript coverage production outside this first adapter. The
+  scanner registry should allow those capabilities to be added independently.
+- Dogfood the adapter on the VS Code extension sources. Keep implementation
+  evidence distinct from test and coverage evidence, and retain explicit coverage
+  exclusions until a JavaScript coverage producer is configured.
+
+### Work
+
+- [ ] Define the source-language identifier, extension mapping, scanner result,
+  and registration boundary without exposing language-specific state to graph
+  assembly or validation.
+- [ ] Extract common annotation parsing and implementation-node construction from
+  the current scanner, including canonical requirement parsing and stable
+  diagnostics.
+- [ ] Move C++ comment and declaration recognition into its own scanner and lock
+  current behavior with characterization tests before further changes.
+- [ ] Implement JavaScript lexical scanning for line and block comments while
+  skipping quoted strings, template literal text and expressions, and regular
+  expression literals with escapes and character classes.
+- [ ] Implement JavaScript declaration recognition for named functions, classes,
+  class methods, and variable-bound function and arrow expressions, including the
+  supported export and declaration modifiers.
+- [ ] Track containing classes and lexical scopes sufficiently to generate stable,
+  collision-resistant implementation identities and complete provenance.
+- [ ] Add stable diagnostics for unsupported source languages, malformed
+  annotations, unsupported JavaScript targets, and annotations without a following
+  declaration.
+- [ ] Route CLI, project, language-server, and MCP analysis through the shared
+  language-aware importer without adding client-specific parsing behavior.
+- [ ] Configure and annotate representative VS Code JavaScript sources for
+  dogfooding, update source patterns and documentation, and retain explicit
+  JavaScript coverage exclusions until coverage evidence exists.
+
+### Verification
+
+- [ ] Run the existing C++ source-annotation regression suite unchanged and
+  compare representative implementation IDs, edges, provenance, and diagnostics
+  before and after the scanner split.
+- [ ] Test `.js`, `.mjs`, and `.cjs` selection plus unsupported and ambiguous
+  extensions, mixed path separators, and case behavior on every supported host.
+- [ ] Test JavaScript functions, async and generator functions, classes,
+  constructors, ordinary and computed methods, static methods, accessors, exported
+  declarations, and variable-bound function and arrow expressions.
+- [ ] Test same-named methods in different classes, nested named declarations,
+  repeated analysis, reordered source inputs, and edits that do and do not change
+  stable implementation identity.
+- [ ] Test annotation-like text in strings, multiline strings, template literals
+  and substitutions, regular expressions and character classes, comments, and
+  malformed or minified JavaScript.
+- [ ] Verify unsupported and anonymous targets produce deterministic diagnostics
+  and never fall back to a misleading file-scoped implementation.
+- [ ] Verify mixed C++ and JavaScript projects through CLI validation, JSON output,
+  LSP navigation and refresh, and MCP requirement queries without cross-file
+  scanner-state leakage.
+- [ ] Run the native tests, extension tests, coverage generation, static analysis,
+  and mcutrace validation; confirm the JavaScript-backed requirements have explicit
+  implementation and test evidence while no plan status is counted as evidence.
+
+## PLN-0020 Add portable agent-neutral plan implementation through ACP
+@link(REQ-0003, REQ-0064, REQ-0137, REQ-0138, REQ-0150, REQ-0151, REQ-0157, REQ-0158, REQ-0200, REQ-0201, REQ-0202, REQ-0203, REQ-0204, REQ-0205, REQ-0206, REQ-0207, REQ-0208, REQ-0209, REQ-0210, REQ-0211, REQ-0212, REQ-0213, REQ-0214, REQ-0215)
+@status(planned)
+
+### Reason
+
+mcutrace can expose plan context through MCP, but it cannot yet turn a selected
+plan item into an explicitly authorized implementation session. Implementing that
+workflow inside one editor would make task semantics, lifecycle handling, and
+completion policy unavailable to terminals and other development environments.
+The portable `mcutrace implement` command should own the common workflow, use ACP
+as its agent boundary, and retain `mcutrace-mcp` as the project-specific source of
+traceability context.
+
+### Design
+
+- Add `mcutrace implement PLN-NNNN` as the portable entry point and keep its task
+  construction and ACP lifecycle independent of agent vendors and host UIs. Use
+  the stable ACP protocol version supported by the selected agent and isolate any
+  necessary vendor adaptation in separately installed ACP executables.
+- Model agent definitions as configuration data containing an ID, label, command,
+  and arguments. Support a default agent and explicit selection without a closed
+  vendor enumeration. Defer registry-based discovery and installation until it
+  can be added without making network access or executable download implicit.
+- Support `--agent <id>` as a one-run override, `--dry-run` as a no-launch preview,
+  and `--dry-run --format json` as the versioned task-envelope interface for
+  environment adapters and automation. Keep formatting orthogonal to execution
+  by requiring dry-run for task-envelope emission.
+- Resolve fresh plan detail and analysis revision before launch. Send a concise,
+  provider-neutral request that names the canonical plan ID and directs the agent
+  to use mcutrace context, preserve unrelated work, maintain the plan, generate
+  evidence, and validate before claiming completion.
+- Create ACP sessions with the owning workspace folder as `cwd` and the resolved
+  project `mcutrace-mcp` stdio server in `mcpServers`. Do not require the agent to
+  discover a VS Code-contributed skill; optionally advertise the canonical skill
+  only when the selected agent supports a compatible mechanism.
+- Implement ACP version and capability negotiation, streamed updates, permission
+  mediation, cancellation, optional resumption, process supervision, and clean
+  shutdown behind one portable client boundary. Expose stable lifecycle events
+  that terminal and editor frontends can render appropriately.
+- Provide a usable terminal frontend for output, tool activity, transient agent
+  plans, permissions, stop reasons, and failures. Keep transient agent plans
+  distinct from the persistent mcutrace plan document.
+- Preserve project-root isolation and host trust controls. Never auto-approve agent
+  actions, add workspace roots, install agents, write agent configuration files,
+  or infer `done` from an ACP turn or process exit.
+- Refresh the authoritative mcutrace analysis after each terminal session outcome
+  and present the current plan status and focused validation findings. The agent
+  may edit the plan as part of authorized implementation work, but the extension
+  shall not manufacture plan completion from session state.
+
+### Work
+
+- [ ] Add a standards-conforming ACP client to the portable mcutrace runtime, pin
+  its compatible protocol surface, and document dependency, license, and
+  packaging impact.
+- [ ] Define generic ACP agent settings and resolution for IDs, labels, executable
+  commands, arguments, and the default agent, including actionable validation and
+  redacted status output.
+- [ ] Add `mcutrace implement PLN-NNNN`, `--agent <id>`, `--dry-run`, and the
+  combined `--dry-run --format json` task-envelope output with clear help,
+  validation, and exit-status behavior.
+- [ ] Add a task-envelope builder that retrieves fresh plan and requirement
+  context, records the analysis revision, and produces the common implementation
+  request without vendor-specific prompt branches.
+- [ ] Reuse the existing project eligibility and MCP executable resolution to
+  attach the correct `mcutrace-mcp` definition to every new, loaded, or resumed
+  ACP session.
+- [ ] Implement ACP subprocess transport, initialization, authentication handoff,
+  capability negotiation, session creation, prompt turns, streaming updates,
+  permission requests, cancellation, and cleanup.
+- [ ] Persist or retain minimal plan-to-session metadata outside project files,
+  prevent duplicate active sessions within a client, and support resumption only
+  when negotiated.
+- [ ] Add a terminal progress and permission interface for active,
+  waiting-for-permission, completed-turn, cancelled, and failed session states,
+  plus a stable structured event representation for future adapters.
+- [ ] Refresh mcutrace analysis after terminal outcomes, report stale or changed
+  plan context, and show focused validation without automatically changing plan
+  status.
+- [ ] Document CLI usage and configuration using arbitrary ACP executables, with
+  examples for multiple agents clearly identified as examples rather than
+  built-in vendor dependencies.
+
+### Verification
+
+- [ ] Use deterministic fake ACP subprocesses to test initialization, protocol
+  mismatch, capability negotiation, authentication requests, session creation,
+  prompt construction, streamed content, tool updates, permission decisions,
+  cancellation, resumption, malformed messages, crashes, and cleanup.
+- [ ] Run the same end-to-end plan launch contract against at least two fake
+  agents with different optional capabilities and verify that no production code
+  branches on a vendor name.
+- [ ] Verify CLI behavior for planned, in-progress, blocked, and done items; zero,
+  one, and several configured agents; missing defaults; agent overrides; dry-run;
+  JSON task envelopes; and duplicate launch attempts.
+- [ ] Verify the session receives the project's absolute working directory and
+  exact resolved mcutrace MCP definition, including explicit configurations,
+  overridden executables, and path-normalization cases.
+- [ ] Verify stale analysis revisions, missing MCP runtime, rejected permissions,
+  cancellation, and agent failure leave useful diagnostics without claiming
+  completion or losing visibility of partial changes.
+- [ ] Verify tokens and unrelated environment data are absent from logs, status
+  output, errors, snapshots, and test fixtures.
+- [ ] Run the native CLI and agent-client regression suites, exercise at least one
+  locally installed ACP adapter manually, inspect packaged runtime contents, and
+  run mcutrace validation to confirm every portable requirement is linked to this
+  plan item.
+
+## PLN-0021 Add the VS Code plan implementation adapter
+@link(REQ-0127, REQ-0137, REQ-0184, REQ-0187, REQ-0188, REQ-0190, REQ-0191, REQ-0200, REQ-0202, REQ-0203, REQ-0208, REQ-0209, REQ-0211, REQ-0212, REQ-0213, REQ-0216, REQ-0217, REQ-0218, REQ-0219)
+@status(planned)
+
+### Reason
+
+The portable implementation workflow makes agent-neutral execution available
+outside an editor, but the VS Code Trace view still needs a thin adapter to turn
+plan-item actions into sessions and render their lifecycle using native trust,
+permission, storage, and progress interfaces.
+
+### Design
+
+- Keep the adapter thin: select a plan and agent, invoke the portable task and ACP
+  boundaries, translate lifecycle events into VS Code UI, and delegate completion
+  evaluation back to refreshed mcutrace analysis.
+- Add `Start Implementation` for the default agent and `Start Implementation
+  With...` for explicit selection. Offer resume and cancellation only when the
+  active session and negotiated capabilities allow them.
+- Store minimal plan-to-session metadata in extension workspace state and derive
+  command enablement and plan decorations from that state without writing project
+  configuration or treating session state as persistent plan status.
+- Render streamed messages, tool calls, transient agent plans, permission prompts,
+  stop reasons, validation results, and failures in an inspectable VS Code surface
+  associated with the selected plan.
+- Reuse existing project eligibility, executable resolution, workspace trust, and
+  multi-root isolation. Do not add vendor-specific code or require VS Code Agent
+  Skill discovery for implementation to work.
+
+### Work
+
+- [ ] Add plan-item context menu and command-palette contributions for start,
+  start-with, resume, and cancel, with status- and session-aware enablement.
+- [ ] Add an adapter from selected Trace view plan nodes to the portable task
+  builder and ACP session lifecycle without duplicating task construction.
+- [ ] Resolve default and explicitly selected agent definitions through the common
+  configuration layer and present actionable selection and configuration errors.
+- [ ] Store and restore minimal session metadata through VS Code workspace state,
+  guarding against concurrent launches of the same plan.
+- [ ] Add native progress, output, permission, cancellation, failure, and focused
+  post-turn validation presentation while retaining session identity across Trace
+  refreshes.
+- [ ] Update extension settings, status diagnostics, README content, activation
+  events, packaging, and workspace-trust declarations for the new adapter.
+
+### Verification
+
+- [ ] Test manifest commands, plan-item context menus, command enablement, default
+  and explicit agent selection, missing configuration, and duplicate launches.
+- [ ] Test event rendering, permission acceptance and rejection, cancellation,
+  optional resumption, crashes, deactivation, and post-turn validation using fake
+  portable workflow and ACP boundaries.
+- [ ] Test planned, in-progress, blocked, and done plans without conflating session
+  state, agent-generated plans, persistent plan status, or trace evidence.
+- [ ] Test single- and multi-root workspaces, remote extension hosts, untrusted
+  workspaces, configuration changes, folder removal, and redacted diagnostics.
+- [ ] Run the complete extension regression suite, inspect the produced VSIX, and
+  run mcutrace validation to confirm the adapter requirements are linked to this
+  plan item and the portable CLI remains independently usable.
+
+## PLN-0022 Prevent redundant Trace view repaints
+@link(REQ-0100, REQ-0127, REQ-0220)
+@status(done)
+
+### Reason
+
+The language server can publish the complete trace several times around one edit
+through document synchronization, save, and watched-file notifications. The
+extension currently rebuilds and refreshes the entire tree for every publication
+and also requests a global decoration repaint, which can make the Trace view blink
+even when successive payloads are identical.
+
+### Work
+
+- [x] Coalesce rapid trace publications and apply only the newest complete
+  payload after a short bounded delay.
+- [x] Skip tree construction and refresh when the newest payload is identical to
+  the last rendered payload.
+- [x] Refresh file decorations only when their visible badge, tooltip, or
+  propagation values change.
+- [x] Preserve existing stable item IDs, expansion behavior, filtering,
+  navigation, problem summaries, and the view badge.
+- [x] Add provider-level regression coverage for coalescing, newest-payload
+  selection, duplicate suppression, and decoration refresh suppression.
+
+### Verification
+
+- [x] Run the complete VS Code extension test suite.
+- [x] Run mcutrace validation and confirm REQ-0220 is linked to this plan item
+  without requirement or plan parsing errors.
+- [x] Exercise the scheduled provider update path and verify that a burst renders
+  its newest payload once, an identical payload performs no repaint, decoration
+  events occur only for visible decoration changes, and the bounded timer applies
+  a pending update.
+
+### Result
+
+Trace publications are now accumulated for a bounded 100 ms window so rapid
+document, save, and watcher analyses render only the newest payload. A payload
+identical to the last rendered snapshot no longer rebuilds or refreshes the tree,
+and unchanged file decorations no longer request a second global repaint. Stable
+tree IDs and all existing Trace view behavior remain unchanged. The complete
+31-test extension suite and mcutrace validation passed locally; an installed VSIX
+was not manually exercised during this change.
+
+## PLN-0023 Install the mcutrace Agent Skill from VS Code
+@link(REQ-0221)
+@status(done)
+
+### Reason
+
+The VS Code extension contributes the bundled skill only to VS Code agent hosts.
+Codex desktop, CLI, and other standard Agent Skills consumers cannot discover that
+extension-private path, leaving users to copy the skill into their workspace by
+hand.
+
+### Work
+
+- [x] Add a Command Palette action that installs the bundled canonical skill at
+  `.agents/skills/mcutrace` in a selected workspace folder.
+- [x] Preserve workspace trust and multi-root isolation, and do not overwrite an
+  existing skill installation.
+- [x] Improve implicit matching for canonical `REQ-NNNN` and `PLN-NNNN` prompts.
+- [x] Document the command and its separate MCP-registration boundary.
+
+### Verification
+
+- [x] Test manifest registration, folder selection, successful copying, existing
+  installations, workspace trust, and actionable failures.
+- [x] Run the complete VS Code extension test suite and mcutrace validation.
+
+### Result
+
+Added **mcutrace: Install Codex Skill in Workspace** to copy the packaged
+canonical skill into the standard project skill directory after explicit user
+invocation. The command selects the target in multi-root workspaces, refuses to
+write in untrusted workspaces, preserves existing installations, and explains
+that standalone Codex clients still need an MCP registration. The skill
+description now front-loads `REQ-NNNN` and `PLN-NNNN` identifiers for more reliable
+implicit matching.
+
+All 33 VS Code extension tests and 129 instrumented native tests passed. The
+refreshed trace graph links REQ-0221 to its implementation and passing native test
+and reports no diagnostic for the requirement; project validation completed with
+zero errors.
+
+## PLN-0024 Combine Codex skill and MCP setup
+@link(REQ-0222)
+@status(done)
+
+### Reason
+
+Installing the project skill makes it discoverable to Codex but leaves the skill's
+required `mcutrace` MCP dependency unavailable outside VS Code. Codex supports a
+trusted project-local MCP definition, so the explicit setup command can provide
+both pieces without asking the user to perform a second manual configuration step.
+
+### Work
+
+- [x] Rename the command to describe complete Codex workspace setup.
+- [x] Stage the packaged MCP executable in stable extension storage and write a
+  project-scoped `.codex/config.toml` definition for the selected workspace.
+- [x] Preserve unrelated Codex configuration and user-managed `mcutrace` entries,
+  while allowing the command to refresh its own marked configuration block.
+- [x] Update setup messages and documentation to describe the combined result.
+
+### Verification
+
+- [x] Test generated TOML, managed updates, conflict preservation, runtime staging,
+  multi-root paths, partial existing state, and failure diagnostics.
+- [x] Run the complete extension and instrumented native test suites, then refresh
+  mcutrace validation.
+
+### Result
+
+The Command Palette now exposes **mcutrace: Set Up Codex in Workspace** as a
+single explicit action. It installs the canonical Agent Skill, stages the packaged
+MCP executable in stable extension storage, and adds a project-scoped STDIO server
+definition using the selected workspace's configuration and working directory.
+The setup preserves existing skills, unrelated Codex settings, and user-managed
+`mcutrace` server definitions; subsequent runs update only the marked block created
+by mcutrace.
+
+All 34 VS Code extension tests and 129 instrumented native tests passed. The
+refreshed trace graph links REQ-0222 to its three implementation functions and its
+passing native test, and project validation completed with zero errors.
 
 ## Implementation discipline
 

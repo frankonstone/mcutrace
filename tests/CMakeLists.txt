@@ -99,6 +99,13 @@ target_compile_definitions(mcutrace_skill_tests PRIVATE
 mcutrace_host_options(mcutrace_skill_tests)
 add_test(NAME mcutrace_skill_tests COMMAND mcutrace_skill_tests)
 
+add_executable(mcutrace_vscode_agent_tests test_vscode_agent_integration.cpp)
+target_link_libraries(mcutrace_vscode_agent_tests PRIVATE mcutrace::core mcutest::mcutest)
+target_compile_definitions(mcutrace_vscode_agent_tests PRIVATE
+    MCUTRACE_REPOSITORY_ROOT="${CMAKE_SOURCE_DIR}")
+mcutrace_host_options(mcutrace_vscode_agent_tests)
+add_test(NAME mcutrace_vscode_agent_tests COMMAND mcutrace_vscode_agent_tests)
+
 if(MCUTRACE_ENABLE_MCUCOV)
     foreach(target IN ITEMS
         mcutrace_tests
@@ -119,6 +126,7 @@ if(MCUTRACE_ENABLE_MCUCOV)
         mcutrace_lsp_tests
         mcutrace_mcp_tests
         mcutrace_skill_tests
+        mcutrace_vscode_agent_tests
     )
         target_sources(${target} PRIVATE coverage_dump.cpp)
         target_link_libraries(${target} PRIVATE mcucov::runtime)

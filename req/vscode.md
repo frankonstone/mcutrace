@@ -23,3 +23,30 @@ The mcutrace VS Code extension shall display trace evidence in a dedicated Trace
 
 ### REQ-0128 Test evidence navigation @evidence(implementation)
 Clicking test evidence in the Trace view shall navigate to the producer-supplied source location. If an mcutest artifact does not contain source metadata, the extension shall resolve slash-separated and legacy dotted test names to the corresponding `TEST` declaration in the workspace.
+
+### REQ-0220 Stable Trace view refresh @evidence(implementation,test) @depends(REQ-0100, REQ-0127)
+The VS Code extension shall coalesce a burst of trace publications into one Trace
+view update that applies the newest complete payload, shall suppress a publication
+identical to the last rendered payload, and shall refresh file decorations only
+when their visible values change. Refresh optimization shall not lose the final
+analysis state, delay an update indefinitely, or change stable tree identities,
+problem filtering, navigation, badges, or tooltips.
+
+### REQ-0221 Workspace Agent Skill installation @evidence(implementation,test) @depends(REQ-0179, REQ-0187, REQ-0190)
+The VS Code extension shall provide an explicit command that installs its bundled
+canonical mcutrace Agent Skill into `.agents/skills/mcutrace` in a selected trusted
+workspace folder so Codex sessions outside VS Code can discover it. The command
+shall support multi-root folder selection, shall not overwrite an existing skill,
+and shall report successful installation, existing content, missing workspace or
+trust, and copy failures with an actionable message.
+
+### REQ-0222 Combined Codex workspace setup @evidence(implementation,test) @depends(REQ-0142, REQ-0182, REQ-0187, REQ-0190, REQ-0221)
+The VS Code workspace setup command shall also make the packaged `mcutrace-mcp`
+runtime available from a stable extension storage location and add a project-scoped
+`mcutrace` STDIO server to `.codex/config.toml` using the selected folder's resolved
+configuration and working directory. It shall update only a clearly marked block
+that it previously generated, preserve unrelated configuration and an existing
+user-managed `mcutrace` server, and report the resulting skill and MCP states. A
+missing project configuration, packaged runtime, trust decision, or writable Codex
+configuration shall fail with an actionable diagnostic rather than leave a claimed
+complete setup.
