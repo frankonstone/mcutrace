@@ -71,7 +71,9 @@ add_library(mcutrace_core STATIC
     src/build_annotations.cpp
     src/cli.cpp
     src/config.cpp
+    src/cpp_source_scanner.cpp
     src/importer.cpp
+    src/javascript_source_scanner.cpp
     src/lsp.cpp
     src/mcp.cpp
     src/model.cpp

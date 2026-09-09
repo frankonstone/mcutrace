@@ -82,12 +82,14 @@
     },
     {
       "id": 8,
-      "prompt": "Set up mcutrace from scratch in this unconfigured repository, choose our evidence policy, and create the initial mcutrace.toml.",
-      "expected_output": "The first-version skill does not claim responsibility for installation, policy design, evidence-producer selection, or initial configuration.",
+      "prompt": "Create a new mcutrace project for a Rust CLI named pulse in this empty directory. Put requirements in requirements/requirements.md; we have no product requirements or evidence producers yet. Use only the minimal validation policy.",
+      "expected_output": "Creates the requested Rust project scaffold and a minimal valid mcutrace foundation without inventing requirements, producers, or stricter policy, then validates with available tooling and reports any missing executable or MCP connection.",
       "files": [],
       "expectations": [
-        "Recognizes that initial installation and policy design are outside this skill's enabled-project boundary.",
-        "Does not invent project policy or choose evidence producers on the user's behalf."
+        "Uses the project-setup workflow before requiring MCP orientation.",
+        "Creates the requested project structure, requirements/requirements.md, and mcutrace.toml with only real inputs.",
+        "Does not invent product requirements, evidence artifacts, or non-minimal validation policy.",
+        "Runs CLI validation when available and gives an actionable remaining step when the executable or MCP connection is unavailable."
       ]
     },
     {
@@ -134,6 +136,18 @@
         "Treats complete=false and the continuation cursor as an incomplete result.",
         "Refreshes affected pages after the analysis revision changes instead of mixing snapshots.",
         "Does not claim complete project health from partial analysis."
+      ]
+    },
+    {
+      "id": 13,
+      "prompt": "Add mcutrace to this existing JavaScript project. It already has docs/requirements.md with REQ headings, src/**/*.js, and a user-managed .codex/config.toml entry named mcutrace. There are no mcutrace evidence producers. Preserve all existing configuration.",
+      "expected_output": "Inspects and preserves the repository, creates or minimally updates mcutrace.toml for the real requirement and supported source inputs, leaves the user-managed MCP entry untouched, and validates without fabricating producer artifacts.",
+      "files": [],
+      "expectations": [
+        "Inspects existing project conventions and version-control state before editing.",
+        "Configures only the intended existing requirement and supported JavaScript source inputs.",
+        "Preserves the user-managed MCP configuration and does not add nonexistent evidence producers.",
+        "Validates the setup and distinguishes configuration failures, validation findings, and an unavailable MCP connection."
       ]
     }
   ]

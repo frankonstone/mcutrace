@@ -6,12 +6,21 @@ It reads requirements, annotated source files, and machine-readable outputs from
 
 ## Source requirement annotations
 
-Implementation links can live next to the declaration or definition they describe:
+Implementation links can live next to the declaration or definition they describe.
+The built-in scanner registry supports C/C++ (`.c`, `.cc`, `.cpp`, `.cxx`, `.h`,
+`.hh`, `.hpp`, and `.hxx`) and JavaScript (`.js`, `.mjs`, and `.cjs`):
 
 ```cpp
 // @req REQ-0043 REQ-0044
 std::expected<std::string, ImportError>
 normalize_artifact_path(...);
+```
+
+```javascript
+// @req REQ-0184
+export async function collectFolderStates() {
+  // ...
+}
 ```
 
 This creates a first-class implementation node for the declaration and connects it to both requirements with `implements` relationships. File-level annotations remain available as an explicit fallback when a requirement genuinely applies to a complete source or header file:
@@ -20,7 +29,16 @@ This creates a first-class implementation node for the declaration and connects 
 // @req-file REQ-0078
 ```
 
-Multiple canonical `REQ-NNNN` identifiers may be listed on either annotation. Source links identify where a requirement is implemented; tests and other evidence independently establish whether it is verified.
+Multiple canonical `REQ-NNNN` identifiers may be listed on either annotation.
+JavaScript annotations can target named functions and classes, class methods, or
+variables initialized with functions and arrow expressions. Marker-like text in
+strings, template literals, and regular expressions is ignored. File-level
+annotations remain language-neutral; declaration annotations in other extensions
+produce an unsupported-language diagnostic instead of being parsed with the wrong
+grammar. Extension matching is case-sensitive.
+
+Source links identify where a requirement is implemented; tests and other
+evidence independently establish whether it is verified.
 
 Annotated files can be configured with `sources = ["src/foo.cpp", "include/foo.hpp"]` in the project configuration or supplied explicitly with repeatable `--source FILE` options.
 
@@ -155,14 +173,18 @@ contract.
 ## Agent skill
 
 The portable [`mcutrace` agent skill](integrations/skills/mcutrace/SKILL.md)
-teaches compatible coding agents to obtain bounded, revision-consistent project
-context from `mcutrace-mcp`. It applies to traced requirements, plans, evidence,
-dependencies, impact, and validation work without changing a consuming project's
-authoring conventions or treating MCP access as edit or build permission.
+teaches compatible coding agents to create a new mcutrace project, add mcutrace
+to an existing project, and obtain bounded, revision-consistent project context
+from `mcutrace-mcp`. Setup inspects and preserves existing project conventions,
+creates a minimal `mcutrace.toml`, configures only real trace inputs and authorized
+producers, validates with available tooling, and then orients to the connected MCP
+project. It does not treat MCP access as edit or build permission.
 
-The skill expects the consumer project to already have a working
-`mcutrace.toml` and an MCP client connection. To install it in a project using
-the standard Agent Skills project layout, copy the canonical directory:
+For trace queries, the skill expects the consumer project to have a working
+`mcutrace.toml` and MCP client connection. During project setup those pieces may
+not exist yet; the skill uses ordinary project tools until it can validate and
+connect the new configuration. To install it in a project using the standard
+Agent Skills project layout, copy the canonical directory:
 
 ```sh
 mkdir -p /path/to/consumer/.agents/skills
@@ -199,9 +221,10 @@ Client-specific skill and MCP registration locations vary. The portable skill's
 `compatibility` metadata and optional `agents/openai.yaml` declare the read-only
 `mcutrace` MCP dependency without embedding a consumer-specific executable path.
 See [`integrations/mcp/README.md`](integrations/mcp/README.md) for server behavior
-and troubleshooting. Initial mcutrace installation, project policy design,
-evidence-producer selection, and creation of `mcutrace.toml` remain outside the
-skill's first-version scope.
+and troubleshooting. The skill can create project-local configuration and client
+integration, but it does not silently install external software, invent product
+requirements, choose application architecture, or select project policy and
+evidence producers without user direction.
 
 ## Initial host stack
 

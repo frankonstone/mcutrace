@@ -72,7 +72,7 @@ std::filesystem::path setup_workspace(const TemporaryWorkspace& workspace) {
         "root = \".\"\n"
         "requirements = [\"requirements.md\"]\n"
         "plans = [\"plan.md\"]\n"
-        "sources = [\"component.cpp\"]\n"
+        "sources = [\"component.cpp\", \"component.js\"]\n"
         "\n"
         "[validation]\n"
         "fail_at_or_above = \"error\"\n"));
@@ -91,6 +91,9 @@ std::filesystem::path setup_workspace(const TemporaryWorkspace& workspace) {
     static_cast<void>(write_file(workspace.root / "component.cpp",
         "// @req REQ-0138\n"
         "void component() {}\n"));
+    static_cast<void>(write_file(workspace.root / "component.js",
+        "// @req REQ-0139\n"
+        "export function javascriptComponent() {}\n"));
     return config;
 }
 
@@ -150,6 +153,8 @@ TEST(mcp, exposes_read_only_core_backed_tools_and_resources,
     ASSERT_NE(requirement.find("\"prerequisites\""), std::string::npos);
     ASSERT_NE(requirement.find("REQ-0138"), std::string::npos);
     ASSERT_NE(requirement.find("PLN-0014"), std::string::npos);
+    ASSERT_NE(requirement.find("javascriptComponent"), std::string::npos);
+    ASSERT_NE(requirement.find("component.js"), std::string::npos);
 
     const auto context = tool_call(server, 6, "requirement_context",
                                    R"({"id":"REQ-0139"})");

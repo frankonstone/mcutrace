@@ -1,0 +1,154 @@
+{
+  "skill_name": "mcutrace",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "Implement REQ-0241 in this mcutrace-enabled project. The MCP connection is working. Explain the context you gather before editing and what you verify at handoff.",
+      "expected_output": "Uses runtime rules and project orientation, obtains requirement and prerequisite context, compares revisions, validates relevant results, and accurately reports evidence freshness.",
+      "files": [],
+      "expectations": [
+        "Reads mcutrace://rules and orients to the selected project before relying on semantics.",
+        "Queries requirement detail and prerequisite context for REQ-0241.",
+        "Compares analysis_revision values across combined results.",
+        "Uses filtered validation and does not claim that validation ran evidence producers."
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "The checkout flow requirement is changing, but I do not know its ID. Find the relevant traced item and tell me what else could be affected. The search result is truncated and includes a next cursor.",
+      "expected_output": "Uses bounded search and necessary continuation, then requirement detail and reverse change impact without presenting partial results as complete.",
+      "files": [],
+      "expectations": [
+        "Starts with project orientation or bounded search because no canonical ID is known.",
+        "Follows the continuation cursor only as needed and retains the truncated or complete state.",
+        "Uses change_impact after resolving the requirement ID.",
+        "Distinguishes direct dependents from transitive dependents."
+      ]
+    },
+    {
+      "id": 3,
+      "prompt": "Update PLN-0032 in a repository whose plans use one flat prose paragraph followed by inline @link and @status annotations; it does not use user stories, checklists, or named design sections. Preserve that convention and add its explicit requirement link. Do not run builds or tests.",
+      "expected_output": "Inspects plan data and neighboring project conventions, uses server-derived link syntax, edits only because requested, and reports that evidence was not regenerated.",
+      "files": [],
+      "expectations": [
+        "Uses plan detail and reads project files only to observe local authoring conventions or edit them.",
+        "Uses mcutrace://rules for explicit relationship syntax and does not invent implied links.",
+        "Does not impose a generic plan template.",
+        "Respects the instruction not to run builds or tests and reports potentially stale evidence."
+      ]
+    },
+    {
+      "id": 4,
+      "prompt": "Two MCP results disagree: requirement detail is revision a81 and validation is revision b07. Summarize the state of REQ-0048.",
+      "expected_output": "Does not merge snapshots and refreshes the affected context before summarizing.",
+      "files": [],
+      "expectations": [
+        "Detects the analysis_revision mismatch.",
+        "Refreshes affected queries before presenting a unified conclusion.",
+        "Does not claim the mixed results are one consistent snapshot."
+      ]
+    },
+    {
+      "id": 5,
+      "prompt": "REQ-0084 has no coverage artifact, REQ-0085 has a failed coverage artifact, and PLN-0012 is done. Are all three requirements verified?",
+      "expected_output": "Preserves absent-versus-failed evidence and does not count a done plan as verification.",
+      "files": [],
+      "expectations": [
+        "Distinguishes missing evidence from failed evidence.",
+        "Does not treat plan status or a plan link as verification evidence.",
+        "Does not infer correctness solely from diagnostics or plan status."
+      ]
+    },
+    {
+      "id": 6,
+      "prompt": "The mcutrace MCP server is unavailable after I asked for impact analysis on REQ-0190. Continue with anything safe and tell me what to do next.",
+      "expected_output": "Reports the missing authoritative context, offers actionable setup checks, avoids fabricated impact analysis, and keeps any other work within the original authorization.",
+      "files": [],
+      "expectations": [
+        "Identifies server availability as the blocking condition for trace impact analysis.",
+        "Provides an actionable connection, configuration, or server-version troubleshooting step.",
+        "Does not parse Markdown or guess the dependency graph as a fallback.",
+        "Does not expand authority for edits, builds, or evidence generation."
+      ]
+    },
+    {
+      "id": 7,
+      "prompt": "Refactor the local string helper in src/text.cpp. This repository happens to contain mcutrace.toml, but the task has no requirement, plan, evidence, dependency, impact, or trace-validation scope.",
+      "expected_output": "The mcutrace skill should not activate for unrelated project work solely because configuration exists.",
+      "files": [],
+      "expectations": [
+        "Does not introduce an mcutrace workflow solely because mcutrace.toml exists."
+      ]
+    },
+    {
+      "id": 8,
+      "prompt": "Create a new mcutrace project for a Rust CLI named pulse in this empty directory. Put requirements in requirements/requirements.md; we have no product requirements or evidence producers yet. Use only the minimal validation policy.",
+      "expected_output": "Creates the requested Rust project scaffold and a minimal valid mcutrace foundation without inventing requirements, producers, or stricter policy, then validates with available tooling and reports any missing executable or MCP connection.",
+      "files": [],
+      "expectations": [
+        "Uses the project-setup workflow before requiring MCP orientation.",
+        "Creates the requested project structure, requirements/requirements.md, and mcutrace.toml with only real inputs.",
+        "Does not invent product requirements, evidence artifacts, or non-minimal validation policy.",
+        "Runs CLI validation when available and gives an actionable remaining step when the executable or MCP connection is unavailable."
+      ]
+    },
+    {
+      "id": 9,
+      "prompt": "Add a requirement for retrying telemetry uploads. This project uses level-four REQ headings, two short prose paragraphs, and puts @evidence and @depends at the end of the second paragraph; it has no acceptance-criteria sections. Preserve those conventions.",
+      "expected_output": "Uses runtime rules for syntax while preserving the project's distinct requirement structure and prose conventions.",
+      "files": [],
+      "expectations": [
+        "Reads mcutrace://rules before choosing identifiers or annotations.",
+        "Inspects neighboring requirements and follows the stated heading, prose, and annotation placement.",
+        "Does not add a user-story form, acceptance-criteria section, or other generic template.",
+        "Creates only explicit relationships supported by the running rules."
+      ]
+    },
+    {
+      "id": 10,
+      "prompt": "The connected server does not advertise change_impact, but I need the downstream impact of REQ-0107. Give me the result anyway.",
+      "expected_output": "Reports the missing capability and compatible-server next step without guessing or reconstructing reverse impact.",
+      "files": [],
+      "expectations": [
+        "Identifies the absent capability as blocking authoritative downstream impact.",
+        "Recommends checking or updating the server and client compatibility.",
+        "Does not infer dependents from Markdown, reports, or textual references."
+      ]
+    },
+    {
+      "id": 11,
+      "prompt": "project_overview reports project.configuration for the selected mcutrace.toml. Summarize the project's validation health and proceed with the implementation.",
+      "expected_output": "Treats invalid configuration as a project-loading failure, avoids claiming complete validation state, and limits any continued work to what was otherwise authorized.",
+      "files": [],
+      "expectations": [
+        "Reports the configuration failure and an actionable correction step.",
+        "Does not fabricate a validation-health summary from project files.",
+        "Makes the missing trace context explicit if other authorized implementation work continues."
+      ]
+    },
+    {
+      "id": 12,
+      "prompt": "The MCP project loaded partially: one configured artifact failed to read, validation returned 25 diagnostics with complete=false and a next cursor, and the analysis revision changed before page two. Tell me whether the project is healthy.",
+      "expected_output": "Preserves partial-loading, pagination, completeness, and revision state and refuses to collapse the available page into a complete health conclusion.",
+      "files": [],
+      "expectations": [
+        "Distinguishes the project-loading failure from the returned validation findings.",
+        "Treats complete=false and the continuation cursor as an incomplete result.",
+        "Refreshes affected pages after the analysis revision changes instead of mixing snapshots.",
+        "Does not claim complete project health from partial analysis."
+      ]
+    },
+    {
+      "id": 13,
+      "prompt": "Add mcutrace to this existing JavaScript project. It already has docs/requirements.md with REQ headings, src/**/*.js, and a user-managed .codex/config.toml entry named mcutrace. There are no mcutrace evidence producers. Preserve all existing configuration.",
+      "expected_output": "Inspects and preserves the repository, creates or minimally updates mcutrace.toml for the real requirement and supported source inputs, leaves the user-managed MCP entry untouched, and validates without fabricating producer artifacts.",
+      "files": [],
+      "expectations": [
+        "Inspects existing project conventions and version-control state before editing.",
+        "Configures only the intended existing requirement and supported JavaScript source inputs.",
+        "Preserves the user-managed MCP configuration and does not add nonexistent evidence producers.",
+        "Validates the setup and distinguishes configuration failures, validation findings, and an unavailable MCP connection."
+      ]
+    }
+  ]
+}

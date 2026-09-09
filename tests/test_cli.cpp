@@ -224,6 +224,36 @@ TEST(cli, expands_wildcard_requirement_and_source_overrides, "REQ-0125") {
               std::string::npos);
 }
 
+TEST(cli, reports_javascript_implementations_from_explicit_inputs,
+     "REQ-0093", "REQ-0195", "REQ-0199") {
+    TemporaryProject project;
+    ASSERT_FALSE(project.setup_error());
+    project.write(project.root() / "requirements" / "top.md",
+                  "## REQ-0195 JavaScript support @evidence(none)\nBody\n");
+    project.write(project.root() / "src" / "feature.js",
+                  "// @req REQ-0195\nexport const javascriptFeature = () => {};\n");
+
+    const std::string requirement =
+        (project.root() / "requirements" / "top.md").generic_string();
+    const std::string source = (project.root() / "src" / "feature.js").generic_string();
+    const char* argv[] = {"mcutrace", "show", "REQ-0195", "--requirement",
+                          requirement.c_str(), "--source", source.c_str(), "--format", "json"};
+    const auto options = mcutrace::parse_cli(static_cast<int>(std::size(argv)), argv);
+    ASSERT_TRUE(options.has_value());
+
+    int status = 0;
+    std::string output;
+    {
+        const StreamCapture capture;
+        status = mcutrace::run_cli(*options);
+        output = capture.output();
+    }
+    ASSERT_EQ(status, 0);
+    ASSERT_NE(output.find("javascriptFeature"), std::string::npos);
+    ASSERT_NE(output.find("feature.js"), std::string::npos);
+    ASSERT_NE(output.find("implementations"), std::string::npos);
+}
+
 int main(int argc, char* argv[]) {
     mcutest::Runner<mcutest::JsonOutput> runner;
     return mcutrace::test::run(argc, argv, runner);

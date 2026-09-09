@@ -77,6 +77,7 @@ TEST(lsp, serves_core_backed_editor_features_and_live_diagnostics,
     const auto config = workspace.root / "mcutrace.toml";
     const auto requirements = workspace.root / "docs/requirements.md";
     const auto source = workspace.root / "src/component.cpp";
+    const auto javascript_source = workspace.root / "src/component.js";
     constexpr std::string_view requirement_text =
         "### REQ-0103 First definition\n"
         "The server shall use the shared parser.\n"
@@ -90,7 +91,7 @@ TEST(lsp, serves_core_backed_editor_features_and_live_diagnostics,
         "[project]\n"
         "root = \".\"\n"
         "requirements = [\"docs/requirements.md\"]\n"
-        "sources = [\"src/component.cpp\"]\n"
+        "sources = [\"src/component.cpp\", \"src/component.js\"]\n"
         "\n"
         "[[artifacts]]\n"
         "path = \"artifacts/tests.json\"\n"
@@ -112,6 +113,8 @@ TEST(lsp, serves_core_backed_editor_features_and_live_diagnostics,
     ASSERT_TRUE(write_file(config, config_text));
     ASSERT_TRUE(write_file(requirements, requirement_text));
     ASSERT_TRUE(write_file(source, "// @req REQ-0103\nvoid component() {}\n"));
+    ASSERT_TRUE(write_file(javascript_source,
+                           "// @req REQ-0104\nexport const javascriptComponent = () => {};\n"));
     ASSERT_TRUE(write_file(workspace.root / "artifacts/tests.json",
                            R"({"format":"mcutest-results","version":1,"tests":[{"name":"component.works","status":"passed","requirements":["REQ-0103"]},{"name":"component.fails","status":"failed","requirements":["REQ-0103"]}]})"));
     ASSERT_TRUE(write_file(workspace.root / "artifacts/coverage.json",
@@ -142,6 +145,8 @@ TEST(lsp, serves_core_backed_editor_features_and_live_diagnostics,
               std::string::npos);
     ASSERT_NE(initialize_output.find("\"end\":{\"line\":1,\"character\":4}"),
               std::string::npos);
+    ASSERT_NE(initialize_output.find("javascriptComponent"), std::string::npos);
+    ASSERT_NE(initialize_output.find("component.js"), std::string::npos);
 
     const auto definition = joined(server.handle(
         "{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"textDocument/definition\",\"params\":{"

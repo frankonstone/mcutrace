@@ -1,0 +1,11 @@
+interface:
+  display_name: "mcutrace"
+  short_description: "Set up projects and query requirement traces"
+  default_prompt: "Use $mcutrace to set up or inspect this project's requirement traceability."
+dependencies:
+  tools:
+    - type: "mcp"
+      value: "mcutrace"
+      description: "Read-only project server used after setup, provided by mcutrace-mcp"
+policy:
+  allow_implicit_invocation: true

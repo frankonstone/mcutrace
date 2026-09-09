@@ -1,14 +1,15 @@
 # mcutrace Agent Skill Requirements
 
-The mcutrace agent skill teaches an AI agent how to use mcutrace in a project
-that already has a working mcutrace configuration and MCP server. The skill
-routes project questions to the MCP server, preserves mcutrace semantics, and
-helps the agent gather the traceability context relevant to its assigned work.
+The mcutrace agent skill teaches an AI agent how to create or enable an mcutrace
+project and how to use mcutrace once the project has a working configuration and
+MCP server. The skill routes project questions to the MCP server, preserves
+mcutrace semantics, and helps the agent gather the traceability context relevant
+to its assigned work.
 
 The skill does not define an ideal prose structure, template, planning method,
 or development process for requirements and implementation plans. Those choices
-belong to the consuming project and its users. Initial mcutrace installation and
-project configuration are outside the first version of the skill.
+belong to the consuming project and its users. Setup workflows shall preserve
+those choices instead of inventing a product structure or traceability policy.
 
 ## Distribution and scope
 
@@ -20,16 +21,37 @@ repository and shall identify the MCP integration it requires.
 
 ### REQ-0163 Precise skill discovery @evidence(implementation,test)
 The skill name and discovery description shall select the skill for tasks that
-involve mcutrace requirements, implementation plans, trace evidence,
-dependencies, change impact, or validation diagnostics. The description shall
-not cause the skill to be selected for unrelated project work merely because a
-project contains an mcutrace configuration.
+create a new mcutrace project, add mcutrace to an existing project, or involve
+mcutrace requirements, implementation plans, trace evidence, dependencies,
+change impact, or validation diagnostics. The description shall not cause the
+skill to be selected for unrelated project work merely because a project
+contains an mcutrace configuration.
 
-### REQ-0164 Enabled-project boundary @evidence(implementation,test)
-The first version of the skill shall support projects that already have an
-accessible `mcutrace-mcp` server configured for the project. It shall not claim
-to install mcutrace, design a project's traceability policy, create an initial
-`mcutrace.toml`, or choose evidence producers on the project's behalf.
+### REQ-0164 Setup and enabled-project boundary @evidence(implementation,test)
+The skill shall support setup before an MCP connection exists as well as projects
+that already have an accessible `mcutrace-mcp` server. During setup it may use
+ordinary project tools when the user's request authorizes changes, but it shall
+not silently install external software, choose a product architecture, invent
+product requirements, or select a traceability or evidence policy on the
+project's behalf.
+
+## Project setup
+
+### REQ-0223 New mcutrace project creation @evidence(implementation,test)
+When asked to create a new mcutrace project, the skill shall create the requested
+project scaffold and a minimal valid mcutrace foundation. It shall use the user's
+stated technology and project choices, create only non-invented trace inputs, and
+verify the configuration with available mcutrace tooling. If choices essential to
+the requested project are absent, it shall obtain them rather than substituting
+an unrelated application template.
+
+### REQ-0224 Existing project integration @evidence(implementation,test)
+When asked to add mcutrace to an existing project, the skill shall inspect and
+preserve the project's files and conventions, configure only trace inputs and
+evidence producers that actually exist or that the user authorizes it to add,
+and avoid overwriting user-managed skill or MCP configuration. It shall validate
+the resulting project and report any unavailable executable, MCP connection, or
+evidence producer needed to complete the integration.
 
 ## MCP context acquisition
 
@@ -128,4 +150,5 @@ it to that project's `mcutrace-mcp` process. Automated structural validation and
 repeatable behavioral scenarios shall cover positive and negative skill
 selection, MCP orientation and routing, bounded context, revision changes,
 semantic interpretation, project-convention preservation, authorization
-boundaries, validation handoff, and unavailable or invalid MCP projects.
+boundaries, validation handoff, new-project creation, existing-project
+integration, and unavailable or invalid MCP projects.

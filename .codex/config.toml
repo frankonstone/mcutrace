@@ -1,0 +1,21 @@
+# BEGIN mcutrace VS Code managed MCP
+[mcp_servers.mcutrace]
+command = "/Users/frank/Library/Application Support/Code/User/globalStorage/mcutrace.mcutrace-requirements/bin/mcutrace-mcp"
+args = ["--config", "/Users/frank/Projects/pocs/mcutrace/mcutrace.toml"]
+cwd = "/Users/frank/Projects/pocs/mcutrace"
+
+[mcp_servers.mcutrace.tools.plan]
+approval_mode = "approve"
+
+[mcp_servers.mcutrace.tools.requirement]
+approval_mode = "approve"
+
+[mcp_servers.mcutrace.tools.validate]
+approval_mode = "approve"
+
+[mcp_servers.mcutrace.tools.requirement_context]
+approval_mode = "approve"
+
+[mcp_servers.mcutrace.tools.change_impact]
+approval_mode = "approve"
+# END mcutrace VS Code managed MCP

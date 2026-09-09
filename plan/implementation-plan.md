@@ -765,7 +765,7 @@ while retaining propagated problem badges, tooltips, and filter visibility.
 
 ## PLN-0019 Add extensible source-language scanners and JavaScript annotations
 @link(REQ-0073, REQ-0089, REQ-0090, REQ-0091, REQ-0092, REQ-0093, REQ-0095, REQ-0096, REQ-0097, REQ-0192, REQ-0193, REQ-0194, REQ-0195, REQ-0196, REQ-0197, REQ-0198, REQ-0199)
-@status(planned)
+@status(done)
 
 ### Reason
 
@@ -806,55 +806,69 @@ and prove it with JavaScript while retaining the current graph semantics.
 
 ### Work
 
-- [ ] Define the source-language identifier, extension mapping, scanner result,
+- [x] Define the source-language identifier, extension mapping, scanner result,
   and registration boundary without exposing language-specific state to graph
   assembly or validation.
-- [ ] Extract common annotation parsing and implementation-node construction from
+- [x] Extract common annotation parsing and implementation-node construction from
   the current scanner, including canonical requirement parsing and stable
   diagnostics.
-- [ ] Move C++ comment and declaration recognition into its own scanner and lock
+- [x] Move C++ comment and declaration recognition into its own scanner and lock
   current behavior with characterization tests before further changes.
-- [ ] Implement JavaScript lexical scanning for line and block comments while
+- [x] Implement JavaScript lexical scanning for line and block comments while
   skipping quoted strings, template literal text and expressions, and regular
   expression literals with escapes and character classes.
-- [ ] Implement JavaScript declaration recognition for named functions, classes,
+- [x] Implement JavaScript declaration recognition for named functions, classes,
   class methods, and variable-bound function and arrow expressions, including the
   supported export and declaration modifiers.
-- [ ] Track containing classes and lexical scopes sufficiently to generate stable,
+- [x] Track containing classes and lexical scopes sufficiently to generate stable,
   collision-resistant implementation identities and complete provenance.
-- [ ] Add stable diagnostics for unsupported source languages, malformed
+- [x] Add stable diagnostics for unsupported source languages, malformed
   annotations, unsupported JavaScript targets, and annotations without a following
   declaration.
-- [ ] Route CLI, project, language-server, and MCP analysis through the shared
+- [x] Route CLI, project, language-server, and MCP analysis through the shared
   language-aware importer without adding client-specific parsing behavior.
-- [ ] Configure and annotate representative VS Code JavaScript sources for
+- [x] Configure and annotate representative VS Code JavaScript sources for
   dogfooding, update source patterns and documentation, and retain explicit
   JavaScript coverage exclusions until coverage evidence exists.
 
 ### Verification
 
-- [ ] Run the existing C++ source-annotation regression suite unchanged and
+- [x] Run the existing C++ source-annotation regression suite unchanged and
   compare representative implementation IDs, edges, provenance, and diagnostics
   before and after the scanner split.
-- [ ] Test `.js`, `.mjs`, and `.cjs` selection plus unsupported and ambiguous
+- [x] Test `.js`, `.mjs`, and `.cjs` selection plus unsupported and ambiguous
   extensions, mixed path separators, and case behavior on every supported host.
-- [ ] Test JavaScript functions, async and generator functions, classes,
+- [x] Test JavaScript functions, async and generator functions, classes,
   constructors, ordinary and computed methods, static methods, accessors, exported
   declarations, and variable-bound function and arrow expressions.
-- [ ] Test same-named methods in different classes, nested named declarations,
+- [x] Test same-named methods in different classes, nested named declarations,
   repeated analysis, reordered source inputs, and edits that do and do not change
   stable implementation identity.
-- [ ] Test annotation-like text in strings, multiline strings, template literals
+- [x] Test annotation-like text in strings, multiline strings, template literals
   and substitutions, regular expressions and character classes, comments, and
   malformed or minified JavaScript.
-- [ ] Verify unsupported and anonymous targets produce deterministic diagnostics
+- [x] Verify unsupported and anonymous targets produce deterministic diagnostics
   and never fall back to a misleading file-scoped implementation.
-- [ ] Verify mixed C++ and JavaScript projects through CLI validation, JSON output,
+- [x] Verify mixed C++ and JavaScript projects through CLI validation, JSON output,
   LSP navigation and refresh, and MCP requirement queries without cross-file
   scanner-state leakage.
-- [ ] Run the native tests, extension tests, coverage generation, static analysis,
+- [x] Run the native tests, extension tests, coverage generation, static analysis,
   and mcutrace validation; confirm the JavaScript-backed requirements have explicit
   implementation and test evidence while no plan status is counted as evidence.
+
+### Result
+
+Source annotation import now selects registered C/C++ and JavaScript scanners by
+normalized, case-sensitive extension while retaining language-neutral file-scoped
+annotations. The JavaScript scanner lexes comments without interpreting marker
+text in strings, templates, or regular expressions; recognizes the planned named
+declaration forms; and produces stable scope-aware identities and diagnostics.
+The existing CLI, project, LSP, and MCP paths consume the shared importer, and the
+configured VS Code JavaScript sources now provide declaration-scoped dogfood.
+
+Native and extension tests pass, coverage and mcutest evidence were regenerated,
+static analysis reports no warnings, and focused trace validation reports complete
+implementation and test evidence for `REQ-0192` through `REQ-0199`.
 
 ## PLN-0020 Add portable agent-neutral plan implementation through ACP
 @link(REQ-0003, REQ-0064, REQ-0137, REQ-0138, REQ-0150, REQ-0151, REQ-0157, REQ-0158, REQ-0200, REQ-0201, REQ-0202, REQ-0203, REQ-0204, REQ-0205, REQ-0206, REQ-0207, REQ-0208, REQ-0209, REQ-0210, REQ-0211, REQ-0212, REQ-0213, REQ-0214, REQ-0215)
@@ -1151,6 +1165,49 @@ by mcutrace.
 All 34 VS Code extension tests and 129 instrumented native tests passed. The
 refreshed trace graph links REQ-0222 to its three implementation functions and its
 passing native test, and project validation completed with zero errors.
+
+## PLN-0025 Add project creation and integration to the mcutrace skill
+@link(REQ-0163, REQ-0164, REQ-0173, REQ-0175, REQ-0177, REQ-0223, REQ-0224)
+@status(done)
+
+### Reason
+
+The portable skill currently assumes that `mcutrace.toml` and the MCP connection
+already exist. It must also support the two setup paths that precede that state:
+creating a new mcutrace project and adding mcutrace to an existing project.
+
+### Work
+
+- [x] Extend discovery and compatibility metadata to include project setup.
+- [x] Route setup requests to focused project-creation and existing-project
+  integration guidance without requiring MCP before it can be configured.
+- [x] Preserve project choices, user-managed configuration, authorization
+  boundaries, and the distinction between setup failures and trace findings.
+- [x] Add behavioral scenarios and native structural tests for both setup paths.
+- [x] Update user documentation to describe the expanded skill scope.
+
+### Verification
+
+- [x] Run the skill structural validator.
+- [x] Build and run the skill test target.
+- [x] Validate the affected requirements in the refreshed mcutrace graph.
+
+### Result
+
+The skill now routes new-project and existing-project setup to a focused
+reference before MCP orientation. The workflow creates a minimal configuration,
+uses only real project inputs, preserves user-managed integration, separates
+policy choices from setup defaults, validates locally, and then confirms the
+connected MCP project. Discovery metadata, Codex-facing metadata, documentation,
+requirements, behavioral scenarios, and the workspace-installed skill copy were
+updated consistently.
+
+The skill structural validator passed. The instrumented build and all mcutest
+binaries passed, including six skill tests, and refreshed mcutest evidence links
+both new requirements to their passing setup test. Focused MCP validation of all
+PLN-0025 requirements returned zero diagnostics at one analysis revision.
+Coverage and static-analysis artifacts were not regenerated for this
+documentation-and-test-only change.
 
 ## Implementation discipline
 

@@ -1,20 +1,35 @@
 ---
 name: mcutrace
-description: Use the configured mcutrace MCP server for work involving mcutrace requirement IDs (`REQ-NNNN`), implementation plan IDs (`PLN-NNNN`), trace evidence, dependencies, change impact, or validation diagnostics. Apply it when implementing or reviewing traced work, editing requirements or plans, investigating evidence state, or assessing prerequisite or dependent impact. Do not select it for unrelated project work merely because mcutrace.toml exists.
-compatibility: Requires an accessible read-only mcutrace MCP server configured for the selected project.
+description: Create a new mcutrace project, add mcutrace to an existing project, or use the configured mcutrace MCP server for work involving requirement IDs (`REQ-NNNN`), plan IDs (`PLN-NNNN`), trace evidence, dependencies, change impact, or validation diagnostics. Apply it for mcutrace setup and traced work. Do not select it for unrelated project work merely because mcutrace.toml exists.
 metadata:
   author: mcutrace
   version: "1"
 ---
 
-<!-- // @req-file REQ-0162 REQ-0163 REQ-0164 REQ-0165 REQ-0166 REQ-0167 REQ-0168 REQ-0169 REQ-0170 REQ-0171 REQ-0172 REQ-0173 REQ-0174 REQ-0175 REQ-0176 REQ-0177 -->
+<!-- // @req-file REQ-0162 REQ-0163 REQ-0164 REQ-0165 REQ-0166 REQ-0167 REQ-0168 REQ-0169 REQ-0170 REQ-0171 REQ-0172 REQ-0173 REQ-0174 REQ-0175 REQ-0176 REQ-0177 REQ-0223 REQ-0224 -->
 
 # mcutrace
 
-Use mcutrace as the source of truth for an existing project's analyzed
-traceability graph. The server is a read-only context service; ordinary project
-tools remain responsible for authorized edits, builds, tests, and evidence
-generation.
+Use mcutrace to establish a project's traceability foundation and as the source
+of truth for an enabled project's analyzed graph. The server is a read-only
+context service; ordinary project tools remain responsible for authorized edits,
+builds, tests, and evidence generation.
+
+Setup requires ordinary local project tools and available mcutrace executables.
+Analyzed project workflows require an accessible read-only mcutrace MCP server.
+
+## Choose the operating mode
+
+- For a request to create a new mcutrace project or add mcutrace to an existing
+  project, read [references/project-setup.md](references/project-setup.md) and
+  follow its setup workflow. An absent MCP connection is expected during
+  bootstrap; once the server is connected, continue with the orientation below.
+- For an already-enabled project, begin with MCP orientation.
+
+Do not turn setup into permission to download software, modify global client
+configuration, choose an application architecture, invent product requirements,
+or select evidence policy. Make those changes only when the request authorizes
+them; obtain a missing choice when it would materially change the project.
 
 ## Establish the project context
 
