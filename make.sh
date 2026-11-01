@@ -37,6 +37,7 @@ TEST_TARGETS=(
   mcutrace_producer_importer_tests
   mcutrace_trace_import_tests
   mcutrace_source_annotation_tests
+  mcutrace_tcl_tests
   mcutrace_build_annotation_tests
   mcutrace_hardening_tests
   mcutrace_assembly_tests

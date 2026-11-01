@@ -248,6 +248,18 @@ load_project_snapshot(const std::string_view config_path) {
         }
         fragments.push_back(std::move(*fragment));
     }
+    for (const auto& path : snapshot.config.test_source_files) {
+        auto content = read_text_file(path);
+        if (!content)
+            return std::unexpected(content.error());
+        remember_input(snapshot, revision, "test_source", path, *content);
+        auto fragment = import_test_annotations(ArtifactInput{
+            .path = path, .base_directory = snapshot.config.root, .content = std::move(*content)});
+        if (!fragment)
+            return std::unexpected(ProjectLoadError{.code = "project.test_source_import",
+                                                    .detail = fragment.error().detail});
+        fragments.push_back(std::move(*fragment));
+    }
     for (const auto& path : snapshot.config.build_files) {
         auto fragment = load_build(path, snapshot.config.root, snapshot, revision);
         if (!fragment) {

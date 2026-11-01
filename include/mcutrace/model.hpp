@@ -54,6 +54,7 @@ struct Node final {
     std::optional<std::uint8_t> expected_evidence;
     std::string body;
     std::string status;
+    std::string source_digest{};
 
     friend bool operator==(const Node&, const Node&) = default;
 };

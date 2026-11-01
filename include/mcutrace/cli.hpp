@@ -16,6 +16,7 @@ struct CliOptions final {
     std::vector<std::string> requirement_files;
     std::vector<std::string> plan_files;
     std::vector<std::string> source_files;
+    std::vector<std::string> test_source_files;
     std::vector<std::string> build_files;
     std::vector<std::string> artifact_files;
     std::string requirement_id;

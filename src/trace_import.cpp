@@ -93,6 +93,8 @@ void augment_mcutest(ImportFragment& fragment, const mcujson::Json& root,
         if (!test.is_object() || !test["name"].is_string()) {
             continue;
         }
+        if (test["language"].is_string() && test["language"].get<std::string_view>() == "tcl")
+            continue;
         const std::string evidence_id = "test:mcutest:" + test["name"].get<std::string>();
         append_requirement_links(fragment, test["requirements"], evidence_id,
                                  RelationshipKind::verifies, input);

@@ -181,6 +181,11 @@ std::expected<void, ConfigError> read_project_paths(const mcutoml::TomlRef proje
     if (auto status = read_path_array(sources, "sources", result.root, result.source_files); !status) {
         return std::unexpected(status.error());
     }
+    const auto tests = project_or_document_value(project, document, "test_sources");
+    if (auto status = read_path_array(tests, "test_sources", result.root, result.test_source_files);
+        !status) {
+        return std::unexpected(status.error());
+    }
     const auto builds = project_or_document_value(project, document, "build_files");
     return read_path_array(builds, "build_files", result.root, result.build_files);
 }

@@ -118,6 +118,9 @@ void write_node(Object& object, const Node& node) {
         ("kind", node_kind_name(node.kind))
         ("label", node.label)
         ("evidence_state", evidence_state_name(node.evidence_state));
+    if (!node.source_digest.empty()) {
+        object("source_digest", node.source_digest);
+    }
     if (!node.evidence_detail.empty()) {
         object("evidence_detail", node.evidence_detail);
     }
@@ -164,7 +167,7 @@ void write_node(Object& object, const Node& node) {
 std::size_t node_buffer_size(const Node& node) {
     return 512U + node.id.size() + node.label.size() + node.body.size() +
            node.evidence_detail.size() + node.finding_state.size() + node.status.size() +
-           (node.source ? node.source->path.size() : 0U);
+           node.source_digest.size() + (node.source ? node.source->path.size() : 0U);
 }
 
 std::size_t nodes_buffer_size(std::span<const Node> nodes) {

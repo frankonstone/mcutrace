@@ -122,6 +122,25 @@ load_source(const std::string& path, const std::string& base_directory) {
     return std::move(*fragment);
 }
 
+std::expected<ImportFragment, CliError> load_test_source(const std::string& path,
+                                                         const std::string& base_directory) {
+    auto content = read_text_file(path);
+    if (!content) {
+        return std::unexpected(content.error());
+    }
+    auto fragment = import_test_annotations(ArtifactInput{
+        .path = path,
+        .base_directory = base_directory,
+        .content = std::move(*content),
+    });
+    if (!fragment) {
+        return std::unexpected(CliError{
+            .message = "source annotation import error: " + fragment.error().detail,
+        });
+    }
+    return std::move(*fragment);
+}
+
 std::expected<ImportFragment, CliError>
 load_build(const std::string& path, const std::string& base_directory) {
     auto content = read_text_file(path);
@@ -302,6 +321,17 @@ load_fragments(const ProjectConfig& config, const CliOptions& options) {
         !status) {
         return std::unexpected(status.error());
     }
+    if (auto status = append_path_fragments(fragments, config.test_source_files, config.root,
+                                            load_test_source);
+        !status)
+        return std::unexpected(status.error());
+    const auto explicit_tests = expand_explicit_paths(options.test_source_files, explicit_base);
+    if (!explicit_tests)
+        return std::unexpected(explicit_tests.error());
+    if (auto status =
+            append_path_fragments(fragments, *explicit_tests, explicit_base, load_test_source);
+        !status)
+        return std::unexpected(status.error());
     if (auto status = append_path_fragments(fragments, config.build_files, config.root, load_build);
         !status) {
         return std::unexpected(status.error());
@@ -375,6 +405,12 @@ std::expected<void, CliError> configure_inputs(mcucli::Command* command,
     if (auto status = add_file_input_option(command, "-s, --source",
                                             "Additional annotated source or header file",
                                             options.source_files); !status) {
+        return std::unexpected(status.error());
+    }
+    if (auto status =
+            add_file_input_option(command, "--test-source", "Additional annotated Tcl test script",
+                                  options.test_source_files);
+        !status) {
         return std::unexpected(status.error());
     }
     if (auto status = add_file_input_option(command, "-b, --build",

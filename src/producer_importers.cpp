@@ -1,6 +1,7 @@
 #include <mcutrace/producer_importers.hpp>
 
 #include <mcutrace/requirements.hpp>
+#include <mcutrace/source_annotations.hpp>
 
 #include <algorithm>
 #include <optional>
@@ -176,6 +177,7 @@ ImportFragment make_fragment(InputFormat format) {
     };
 }
 
+// @req REQ-0227
 void append_mcutest_test(ImportFragment& fragment,
                          const mcujson::JsonRef& test,
                          const ArtifactInput& input) {
@@ -191,12 +193,14 @@ void append_mcutest_test(ImportFragment& fragment,
 
     const std::string name = test["name"].get<std::string>();
     const std::string status = test["status"].get<std::string>();
+    const bool tcl =
+        test["language"].is_string() && test["language"].get<std::string_view>() == "tcl";
     EvidenceState evidence = EvidenceState::unknown;
     if (status == "passed") {
         evidence = EvidenceState::passed;
     } else if (status == "failed") {
         evidence = EvidenceState::failed;
-    } else {
+    } else if (!(tcl && (status == "skipped" || status == "incomplete"))) {
         fragment.diagnostics.push_back(Diagnostic{
             .code = "import.mcutest.unknown_status",
             .severity = Severity::warning,
@@ -225,7 +229,39 @@ void append_mcutest_test(ImportFragment& fragment,
             node.source = SourceLocation{.path = *path, .line = line};
         }
     }
-    add_node_once(fragment.nodes, std::move(node));
+    if (tcl) {
+        if (!node.source || source_language_for_path(node.source->path) != SourceLanguage::tcl) {
+            fragment.diagnostics.push_back(
+                Diagnostic{.code = "import.mcutest.invalid_tcl_source",
+                           .severity = Severity::error,
+                           .message = "Tcl result requires a .tcl file path",
+                           .source = SourceLocation{.path = input.path}});
+            return;
+        }
+        node.id = "test:tcl:" + node.source->path;
+        node.label = node.source->path;
+        node.source->line = 1;
+        node.status = status;
+        if (status == "passed" &&
+            (!test["checks"].is_int() || test["checks"].get<long long>() <= 0 ||
+             !test["outcome"].is_string() ||
+             test["outcome"].get<std::string_view>() != "completed")) {
+            node.evidence_state = EvidenceState::unknown;
+            node.status = "incomplete";
+            fragment.diagnostics.push_back(Diagnostic{
+                .code = "import.mcutest.incomplete_tcl_result",
+                .severity = Severity::error,
+                .message = "passing Tcl result requires completed outcome and positive check count",
+                .source = SourceLocation{.path = input.path}});
+        }
+        if (test["source_digest"].is_string())
+            node.source_digest = test["source_digest"].get<std::string>();
+    }
+    // Do not silently discard contradictory executions of the same script.
+    if (node.id.starts_with("test:tcl:"))
+        fragment.nodes.push_back(std::move(node));
+    else
+        add_node_once(fragment.nodes, std::move(node));
 }
 
 std::expected<ImportFragment, ImportError>

@@ -132,3 +132,8 @@ if(MCUTRACE_ENABLE_MCUCOV)
         target_link_libraries(${target} PRIVATE mcucov::runtime)
     endforeach()
 endif()
+
+add_executable(mcutrace_tcl_tests test_tcl.cpp)
+target_link_libraries(mcutrace_tcl_tests PRIVATE mcutrace::core mcutest::mcutest)
+mcutrace_host_options(mcutrace_tcl_tests)
+add_test(NAME mcutrace_tcl_tests COMMAND mcutrace_tcl_tests)

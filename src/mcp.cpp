@@ -150,6 +150,9 @@ std::string node_json(const Node& node, bool include_body = true) {
     object.string("kind", node_kind_name(node.kind));
     object.string("title", node.label);
     object.string("evidence_state", evidence_state_name(node.evidence_state));
+    if (!node.source_digest.empty()) {
+        object.string("source_digest", node.source_digest);
+    }
     if (!node.evidence_detail.empty()) {
         object.string("evidence_detail", node.evidence_detail);
     }
@@ -881,8 +884,14 @@ coverage, or static-analysis producers.
 - `@depends(REQ-NNNN, ...)` creates directed `depends_on` relationships from the
   dependent requirement to its prerequisites. Ordinary ID mentions create no link.
 - Dependency evidence is independent: prerequisites neither satisfy nor copy evidence.
-- Source `// )") + std::string(local_annotation) + R"(` annotations attach implementation claims to declarations;
-  `// )" + std::string(file_annotation) + R"(` is the explicit file-scoped fallback.
+- Source `// )") +
+           std::string(local_annotation) +
+           R"(` annotations attach implementation claims to declarations;
+  `// )" + std::string(file_annotation) +
+           R"(` is the explicit file-scoped fallback.
+- Tcl `.tcl` outer-script `# @req-file` comments are supported.
+- `test_sources` / `--test-source` declare Tcl verification intent; matching
+  mcutest `language: tcl` results require a matching `source_digest` to verify.
 - CMake `# @req` annotations create build verification links.
 - Plan headings use canonical `PLN-NNNN` IDs with explicit `@link(REQ-NNNN, ...)`
   and one status: planned, in_progress, blocked, or done.

@@ -227,6 +227,71 @@ void deduplicate_artifacts_and_diagnostics(TraceResult& result) {
                              result.diagnostics.end());
 }
 
+// @req REQ-0192 REQ-0227
+void reconcile_test_sources(std::vector<Node>& nodes, std::vector<Diagnostic>& diagnostics) {
+    std::vector<Node> result;
+    std::vector<std::string> handled;
+    for (const auto& node : nodes) {
+        if (!node.id.starts_with("test:tcl:")) {
+            result.push_back(node);
+            continue;
+        }
+        if (std::find(handled.begin(), handled.end(), node.id) != handled.end())
+            continue;
+        handled.push_back(node.id);
+        const Node* declaration = nullptr;
+        const Node* execution = nullptr;
+        bool conflict = false;
+        for (const auto& candidate : nodes) {
+            if (candidate.id != node.id)
+                continue;
+            if (candidate.status == "declared") {
+                if (declaration && *declaration != candidate)
+                    conflict = true;
+                declaration = &candidate;
+            } else if (!execution)
+                execution = &candidate;
+            else if (*execution != candidate)
+                conflict = true;
+        }
+        auto checked = execution ? *execution : node;
+        std::string issue;
+        if (conflict)
+            issue = "conflicting_results";
+        else if (!declaration)
+            issue = "undeclared";
+        else if (!execution)
+            issue = "not_executed";
+        else if (execution->source_digest.empty())
+            issue = "missing_digest";
+        else if (execution->source_digest != declaration->source_digest)
+            issue = "stale";
+        else if (execution->evidence_state == EvidenceState::unknown)
+            issue = "incomplete";
+        if (!issue.empty()) {
+            checked.evidence_state = EvidenceState::unknown;
+            checked.status = issue;
+            if (conflict && declaration)
+                checked = *declaration;
+            checked.evidence_state = EvidenceState::unknown;
+            checked.status = issue;
+            checked.evidence_detail =
+                issue + (!conflict && execution ? " (recorded " + execution->status + ")" : "");
+            if (conflict && !declaration)
+                checked.source_digest.clear();
+            const bool warning = issue == "not_executed" || issue == "incomplete";
+            diagnostics.push_back(
+                Diagnostic{.code = "test_source." + issue,
+                           .severity = warning ? Severity::warning : Severity::error,
+                           .message = "Tcl test cannot verify current source: " + node.label +
+                                      " (" + issue + ")",
+                           .source = node.source});
+        }
+        result.push_back(std::move(checked));
+    }
+    nodes = std::move(result);
+}
+
 }  // namespace
 
 // @req REQ-0005 REQ-0019 REQ-0027 REQ-0029 REQ-0031 REQ-0130 REQ-0137
@@ -236,7 +301,8 @@ TraceResult assemble_trace(std::span<const Requirement> requirements,
                            std::span<const Diagnostic> diagnostics) {
     TraceResult result;
     result.diagnostics.insert(result.diagnostics.end(), diagnostics.begin(), diagnostics.end());
-    const auto nodes = collect_nodes(requirements, fragments, plans);
+    auto nodes = collect_nodes(requirements, fragments, plans);
+    reconcile_test_sources(nodes, result.diagnostics);
     insert_nodes(result.graph, result.diagnostics, nodes);
 
     std::vector<Edge> edges;

@@ -42,6 +42,66 @@ evidence independently establish whether it is verified.
 
 Annotated files can be configured with `sources = ["src/foo.cpp", "include/foo.hpp"]` in the project configuration or supplied explicitly with repeatable `--source FILE` options.
 
+## Tcl scripts and test evidence
+
+The `.tcl` scanner supports outer-script file annotations:
+
+```tcl
+# @req-file REQ-0042 REQ-0043
+emu load_elf firmware.elf
+emu reset
+emu expect_memory32 0x20000000 42
+```
+
+List production Tcl files under `sources` for implementation claims. List test
+scenarios under `test_sources` for verification intent:
+
+```toml
+[project]
+test_sources = ["tests/retention.tcl"]
+
+[[artifacts]]
+path = "build/mcutest-tcl.json"
+importer = "mcutest"
+```
+
+`--test-source FILE` is the repeatable CLI equivalent. Test declarations create
+unknown-result test nodes, not implementation or passing-test evidence. Each
+script execution is a mcutest test entry with these additional fields:
+
+```json
+{
+  "name": "retention",
+  "language": "tcl",
+  "file": "tests/retention.tcl",
+  "status": "passed",
+  "outcome": "completed",
+  "checks": 8,
+  "source_digest": "fnv1a64:0123456789abcdef"
+}
+```
+
+The digest above is illustrative. Compute FNV-1a-64 over the exact UTF-8 script
+bytes (including comments and line endings), with offset basis
+14695981039346656037 and prime 1099511628211, unsigned 64-bit wrapping; encode
+16 lowercase hexadecimal digits after `fnv1a64:`. This is a non-cryptographic
+content fingerprint for stale-result detection. It does not authenticate a
+producer or cover firmware/other inputs. Result `file` paths resolve against the
+artifact base directory; test names do not determine script identity.
+
+Requirements come from current annotations, not copied runtime claims.
+A changed script invalidates its older execution. Missing executions and
+skipped/incomplete runs remain unknown; failed runs remain failed. Missing
+fingerprints, stale/undeclared results, contradictory executions and internally
+incomplete passing results produce errors. Tcl entries must be whole-script
+results; multiple different cases within one file are not supported yet.
+
+The scanner follows [Tcl 9 comment/word rules](https://www.tcl-lang.org/man/tcl9.0/TclCmd/Tcl.html)
+without evaluating scripts. The initial profile ignores annotations inside
+braced/quoted words, substitutions and procedure bodies; put whole-script tags
+in an outer comment. Declaration-level `@req` and nesting beyond 128 levels are
+diagnosed. C/C++ and JavaScript declaration scanning is unchanged.
+
 ## Requirement metadata and implementation plans
 
 Requirements may declare evidence expectations and prerequisites in either their

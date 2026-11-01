@@ -31,10 +31,12 @@ constexpr std::array<std::string_view, 8> kCppExtensions{
 constexpr std::array<std::string_view, 3> kJavascriptExtensions{
     ".js", ".mjs", ".cjs",
 };
-const std::array<ScannerRegistration, 2> kScannerRegistry{
+constexpr std::array<std::string_view, 1> kTclExtensions{".tcl"};
+const std::array<ScannerRegistration, 3> kScannerRegistry{
+    ScannerRegistration{SourceLanguage::tcl, kTclExtensions, detail::scan_tcl_source},
     ScannerRegistration{SourceLanguage::cpp, kCppExtensions, detail::scan_cpp_source},
-    ScannerRegistration{
-        SourceLanguage::javascript, kJavascriptExtensions, detail::scan_javascript_source},
+    ScannerRegistration{SourceLanguage::javascript, kJavascriptExtensions,
+                        detail::scan_javascript_source},
 };
 
 std::string_view source_extension(std::string_view path) noexcept {
@@ -366,6 +368,52 @@ import_source_annotations(const ArtifactInput& input) {
     for (const auto& marker : scan.markers) {
         append_marker(fragment, input, *normalized, marker);
     }
+    return fragment;
+}
+
+// @req REQ-0192 REQ-0193 REQ-0227
+std::string source_digest(std::string_view content) { return "fnv1a64:" + stable_hash(content); }
+
+// @req REQ-0090 REQ-0093 REQ-0192 REQ-0226
+std::expected<ImportFragment, ImportError> import_test_annotations(const ArtifactInput& input) {
+    auto path = normalize_artifact_path(input.path, input.base_directory);
+    if (!path)
+        return std::unexpected(path.error());
+    if (source_language_for_path(*path) != SourceLanguage::tcl) {
+        return std::unexpected(
+            ImportError{.code = ImportErrorCode::invalid_artifact,
+                        .detail = "test_sources currently supports .tcl scripts only",
+                        .source = SourceLocation{.path = input.path}});
+    }
+    auto fragment = import_source_annotations(input);
+    if (!fragment)
+        return fragment;
+    const auto digest = source_digest(input.content);
+    for (auto& node : fragment->nodes) {
+        if (node.kind == NodeKind::implementation) {
+            node.id = "test:tcl:" + *path;
+            node.kind = NodeKind::test;
+            node.label = *path;
+            node.source = SourceLocation{.path = *path, .line = 1};
+            node.status = "declared";
+            node.source_digest = digest;
+        }
+    }
+    for (auto& edge : fragment->edges) {
+        edge.source_id = "test:tcl:" + *path;
+        edge.type = RelationshipType::known(RelationshipKind::verifies);
+        edge.provenance.importer = "test-annotations";
+    }
+    fragment->nodes.erase(
+        std::remove_if(fragment->nodes.begin(), fragment->nodes.end(),
+                       [](const auto& node) { return node.kind == NodeKind::source; }),
+        fragment->nodes.end());
+    if (fragment->nodes.empty())
+        fragment->diagnostics.push_back(
+            Diagnostic{.code = "test_source.missing_annotation",
+                       .severity = Severity::warning,
+                       .message = "configured Tcl test has no supported @req-file annotation",
+                       .source = SourceLocation{.path = *path}});
     return fragment;
 }
 

@@ -90,3 +90,25 @@ A project containing supported C++ and JavaScript source inputs shall produce on
 deterministically ordered trace graph. Syntax, scanner state, and diagnostics from
 one input language shall not alter the targets, identities, or diagnostics emitted
 for another input language.
+
+### REQ-0225 Tcl file annotation scanning @evidence(implementation,test) @depends(REQ-0192, REQ-0193)
+mcutrace shall recognize `.tcl` source inputs and file-scoped `# @req-file`
+annotations in outer-script comments. Quoted/braced data, escaped separators,
+variable indexes, command substitutions and deferred procedure bodies shall not
+create outer-script claims. Unsupported declaration targets, unbalanced input
+and excessive nesting shall be diagnosed without executing Tcl.
+
+### REQ-0226 Tcl test source declarations @evidence(implementation,test) @depends(REQ-0090, REQ-0093, REQ-0225)
+mcutrace shall accept Tcl `test_sources` and repeatable `--test-source` inputs.
+Their annotations shall declare first-class tests and `verifies` relationships,
+with normalized script identity and annotation provenance, independently of
+production Tcl implementation claims. A declaration alone shall not claim a
+passing execution or production-source coverage.
+
+### REQ-0227 Tcl execution evidence and source freshness @evidence(implementation,test) @depends(REQ-0226)
+mcutrace shall join Tcl-tagged mcutest results to configured test declarations by
+normalized file identity. Only completed results with positive check counts and
+matching content fingerprints may establish passing verification. Missing,
+skipped, incomplete, failed, stale, undeclared and conflicting results shall
+remain distinguishable; stale or conflicting results shall not pass validation.
+CLI, LSP and MCP shall use the same reconciliation and validation behavior.

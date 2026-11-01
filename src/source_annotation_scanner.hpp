@@ -50,6 +50,7 @@ void append_comment_markers(SourceScanResult& result,
 
 [[nodiscard]] SourceScanResult scan_cpp_source(const ArtifactInput& input);
 [[nodiscard]] SourceScanResult scan_javascript_source(const ArtifactInput& input);
+[[nodiscard]] SourceScanResult scan_tcl_source(const ArtifactInput& input);
 [[nodiscard]] SourceScanResult scan_generic_source(const ArtifactInput& input);
 
 }  // namespace mcutrace::detail

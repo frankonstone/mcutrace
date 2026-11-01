@@ -622,6 +622,24 @@ struct LanguageServer::State final {
         }
     }
 
+    void import_test_source_fragments(std::vector<ImportFragment>& fragments) {
+        for (const auto& path : config->test_source_files) {
+            auto content = text_for(path);
+            if (!content) {
+                append_trace_input_failure("lsp.source_read", "cannot read source input: " + path,
+                                           path);
+                continue;
+            }
+            auto fragment = import_test_annotations(ArtifactInput{
+                .path = path, .base_directory = config->root, .content = std::move(*content)});
+            if (!fragment) {
+                append_trace_input_failure("lsp.source_import", fragment.error().detail, path);
+                continue;
+            }
+            fragments.push_back(std::move(*fragment));
+        }
+    }
+
     void import_build_fragments(std::vector<ImportFragment>& fragments) {
         for (const auto& path : config->build_files) {
             auto content = text_for(path);
@@ -680,6 +698,7 @@ struct LanguageServer::State final {
             fragments.reserve(config->source_files.size() + config->build_files.size() +
                               config->artifacts.size());
             import_source_fragments(fragments);
+            import_test_source_fragments(fragments);
             import_build_fragments(fragments);
             import_artifact_fragments(fragments);
             validate_fragments(fragments);
@@ -929,6 +948,7 @@ struct LanguageServer::State final {
             result.insert(config->requirement_files.begin(), config->requirement_files.end());
             result.insert(config->plan_files.begin(), config->plan_files.end());
             result.insert(config->source_files.begin(), config->source_files.end());
+            result.insert(config->test_source_files.begin(), config->test_source_files.end());
             for (const auto& artifact : config->artifacts) {
                 result.insert(artifact.path);
             }
