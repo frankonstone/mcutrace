@@ -83,9 +83,13 @@ run **mcutrace: Set Up Codex in Workspace** from the Command Palette. In a
 multi-root workspace, select the target folder. The explicit command copies the
 canonical skill to `.agents/skills/mcutrace`, stages the packaged `mcutrace-mcp`
 executable in stable extension storage, and adds a project-scoped server definition
-to `.codex/config.toml`. It runs only in a trusted workspace, never overwrites an
-existing skill or user-managed `mcutrace` server, and updates only its own marked
-configuration block. Start a new Codex session in that folder after setup.
+to `.codex/config.toml`. If the workspace has no default `mcutrace.toml`, it also
+creates a minimal configuration and a neutral `requirements.md`; an existing
+requirements document is preserved. It runs only in a trusted workspace, never
+overwrites an existing skill or user-managed `mcutrace` server, and updates only
+its own marked configuration block. A missing explicitly configured custom
+`mcutrace.agent.mcp.configPath` remains an error. Start a new Codex session in that
+folder after setup.
 
 For a multi-root workspace, put folder-specific overrides in each folder's
 `.vscode/settings.json`; equal folder names are disambiguated by their resolved

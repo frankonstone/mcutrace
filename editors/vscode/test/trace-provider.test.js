@@ -174,6 +174,47 @@ test('renders warning icons on linked requirement copies [REQ-0127]', async () =
   assert.equal(provider.getTreeItem(consumer).iconPath.id, 'checklist');
 });
 
+test('excludes informative diagnostics from the tree problem count [REQ-0127]', async () => {
+  const { state, publish } = await activateExtension();
+  publish({
+    documents: [],
+    diagnostics: [
+      { severity: 'note', code: 'info', message: 'Informative context' },
+      { severity: 'warning', code: 'warning', message: 'Action required' },
+    ],
+  });
+  state.provider.flushUpdates();
+
+  assert.equal(state.view.badge.value, 1);
+  assert.equal(state.view.badge.tooltip, '1 trace problem');
+
+  publish({
+    documents: [],
+    diagnostics: [{ severity: 'note', code: 'info', message: 'Informative context' }],
+  });
+  state.provider.flushUpdates();
+  assert.equal(state.view.badge, undefined);
+});
+
+test('renders an in-progress icon for plan items [REQ-0127]', async () => {
+  const { state, publish } = await activateExtension();
+  publish({
+    documents: [{
+      path: '/work/implementation-plan.md',
+      uri: 'file:///work/implementation-plan.md',
+      headings: [{
+        kind: 'plan', id: 'PLN-0001', title: 'Implement feature',
+        status: 'in_progress', headingLevel: 2,
+      }],
+    }],
+  });
+  state.provider.flushUpdates();
+
+  const [document] = state.provider.getChildren();
+  const [plan] = state.provider.getChildren(document);
+  assert.equal(state.provider.getTreeItem(plan).iconPath.id, 'loading~spin');
+});
+
 test('coalesces trace bursts and skips identical refreshes [REQ-0220]', async () => {
   const { state, publish } = await activateExtension();
   const payload = (title, diagnostics = []) => ({

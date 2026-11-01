@@ -18,6 +18,7 @@ const {
   formatStatus,
   installWorkspaceSkill,
   mergeMcpConfig,
+  ensureWorkspaceProject,
   runSetupCodexCommand,
   activateAgentIntegration,
 } = require('../agent-integration');
@@ -186,6 +187,48 @@ test('merges managed MCP configuration without replacing user-owned entries [REQ
   );
 });
 
+test('initializes a minimal project without replacing existing files [REQ-0222]', async () => {
+  const project = folder('app', '/work/app');
+  const vscode = mockVscode({ folders: [project] });
+  const state = {
+    configPath: '/work/app/mcutrace.toml',
+    settings: { configPath: '' },
+  };
+
+  const initialized = await ensureWorkspaceProject(vscode, project, state);
+  assert.equal(initialized.status, 'initialized');
+  assert.equal(vscode.files.get('/work/app/requirements.md'), '# Requirements\n');
+  assert.equal(vscode.files.get('/work/app/mcutrace.toml'), [
+    '[project]',
+    'root = "."',
+    'requirements = ["requirements.md"]',
+    '',
+    '[validation]',
+    'fail_at_or_above = "error"',
+    '',
+  ].join('\n'));
+
+  const existing = await ensureWorkspaceProject(vscode, project, state);
+  assert.equal(existing.status, 'existing');
+
+  const preservedFiles = new Map([
+    ['/work/app/requirements.md', '# Existing requirements\n'],
+  ]);
+  const preserving = mockVscode({ folders: [project], files: preservedFiles });
+  const preservingResult = await ensureWorkspaceProject(preserving, project, state);
+  assert.equal(preservingResult.status, 'initialized');
+  assert.equal(preserving.files.get('/work/app/requirements.md'), '# Existing requirements\n');
+  assert.ok(preserving.files.has('/work/app/mcutrace.toml'));
+
+  await assert.rejects(
+    ensureWorkspaceProject(vscode, project, {
+      configPath: '/work/app/config/custom.toml',
+      settings: { configPath: 'config/custom.toml' },
+    }),
+    /selected mcutrace configuration does not exist/
+  );
+});
+
 test('setup command installs both skill and MCP configuration and reports edge cases [REQ-0221] [REQ-0222]', async () => {
   const first = folder('one', '/work/one');
   const second = folder('two', '/work/two');
@@ -215,10 +258,10 @@ test('setup command installs both skill and MCP configuration and reports edge c
   assert.match(files.get('/work/two/.codex/config.toml'), /\[mcp_servers\.mcutrace\]/);
   assert.match(files.get('/work/two/.codex/config.toml'), /command = "\/storage\/bin\/mcutrace-mcp"/);
   assert.match(files.get('/work/two/.codex/config.toml'), /"--config", "\/work\/two\/mcutrace.toml"/);
-  assert.match(messages.information[0], /Codex setup completed.*skill installed; MCP installed/);
+  assert.match(messages.information[0], /Codex setup completed.*project already present; skill installed; MCP installed/);
 
   await runSetupCodexCommand(vscode, context);
-  assert.match(messages.information[1], /skill already present; MCP already current/);
+  assert.match(messages.information[1], /project already present; skill already present; MCP already current/);
 
   const untrusted = mockVscode({ folders: [first], trusted: false, existing });
   untrusted.window = vscode.window;
@@ -236,6 +279,20 @@ test('setup command installs both skill and MCP configuration and reports edge c
   });
   unconfigured.window = vscode.window;
   await runSetupCodexCommand(unconfigured, context);
+  assert.match(messages.information[3], /project initialized; skill installed; MCP installed/);
+  assert.equal(unconfigured.files.get('/work/one/requirements.md'), '# Requirements\n');
+  assert.match(unconfigured.files.get('/work/one/mcutrace.toml'), /requirements = \["requirements\.md"\]/);
+
+  const customSettings = new Map([['/work/one', configuration({
+    'agent.mcp.configPath': 'config/custom.toml',
+  })]]);
+  const customMissing = mockVscode({
+    folders: [first],
+    settings: customSettings,
+    existing: new Set(['/extension/skills/mcutrace', '/extension/bin/mcutrace-mcp']),
+  });
+  customMissing.window = vscode.window;
+  await runSetupCodexCommand(customMissing, context);
   assert.match(messages.errors[0], /selected mcutrace configuration does not exist/);
 
   const missing = mockVscode({

@@ -1209,6 +1209,47 @@ PLN-0025 requirements returned zero diagnostics at one analysis revision.
 Coverage and static-analysis artifacts were not regenerated for this
 documentation-and-test-only change.
 
+## PLN-0026 Initialize new projects from the Codex setup command
+@link(REQ-0222)
+@status(done)
+
+### Reason
+
+The explicit Codex workspace setup command currently rejects a new project before
+it can install the Agent Skill or MCP server because the default `mcutrace.toml`
+does not exist yet. This makes the setup command unable to establish the project
+environment it is meant to configure.
+
+### Work
+
+- [x] Initialize a minimal default `mcutrace.toml` and neutral requirements
+  document when the selected workspace has no default configuration.
+- [x] Preserve existing configuration and requirements files, and keep a missing
+  explicit custom configuration path actionable.
+- [x] Report whether the project was initialized or already present alongside
+  the skill and MCP setup states.
+- [x] Update user documentation for the complete setup behavior.
+
+### Verification
+
+- [x] Cover project initialization, repeat setup, file preservation, and missing
+  custom configuration paths in the VS Code extension tests.
+- [x] Run the complete VS Code extension and native test suites.
+- [x] Refresh mcutrace artifacts and validate REQ-0222.
+
+### Result
+
+The explicit Codex setup command now initializes a new workspace with a minimal
+`mcutrace.toml` and neutral `requirements.md` before installing the skill and MCP
+configuration. Existing project files remain unchanged, while a missing explicit
+custom configuration still produces the actionable diagnostic that previously
+applied to every new project. Completion messages report the project state as
+well as the skill and MCP states.
+
+All 35 VS Code extension tests and 138 instrumented native tests passed. The
+full traced build regenerated mcutest, mcucov, and mcucheck artifacts; mcucheck
+reported no violations, and project validation completed with zero errors.
+
 ## Implementation discipline
 
 Every implementation PR should identify the requirement IDs it satisfies or advances. New externally observable behavior should have a requirement before implementation. Tests should use requirement IDs in names or comments where doing so improves traceability without coupling the test framework to mcutrace itself.

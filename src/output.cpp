@@ -175,6 +175,30 @@ std::size_t nodes_buffer_size(std::span<const Node> nodes) {
     return result;
 }
 
+template <typename Write>
+std::expected<std::string, OutputError>
+serialize_context_json(std::size_t buffer_size, const Write& write) {
+    std::vector<char> buffer(buffer_size);
+    for (;;) {
+        mcujson::JsonWriter writer(std::span<char>(buffer.data(), buffer.size()));
+        write(writer);
+        const auto size = writer.finish();
+        if (size) {
+            return std::string(buffer.data(), *size);
+        }
+        if (size.error() != mcujson::Error::SerializeFailed ||
+            buffer.size() > buffer.max_size() / 2U) {
+            return std::unexpected(OutputError{
+                .code = OutputErrorCode::serialize_failed,
+                .detail = "failed to serialize requirement context JSON output",
+            });
+        }
+        // Estimates cannot bound escaped strings or arbitrary relationship data.
+        // Retry only output exhaustion; other JSON errors must remain failures.
+        buffer.resize(buffer.size() * 2U);
+    }
+}
+
 std::size_t diagnostic_count(const ValidationResult& validation, Severity severity) {
     return static_cast<std::size_t>(std::count_if(
         validation.diagnostics.begin(), validation.diagnostics.end(),
@@ -718,63 +742,59 @@ std::string render_requirement_context_text_report(const RequirementContextRepor
     return output.str();
 }
 
+// @req REQ-0134
 std::expected<std::string, OutputError>
 render_requirement_context_json_report(const RequirementContextReport& report) {
-    std::vector<char> buffer(4096U + nodes_buffer_size(report.requirements) +
-                             nodes_buffer_size(report.evidence) +
-                             report.dependencies.size() * 384U +
-                             report.diagnostics.size() * 384U);
-    mcujson::JsonWriter writer(std::span<char>(buffer.data(), buffer.size()));
-    writer.object([&](mcujson::JsonWriter::Object& root) {
-        root("schema_version", kOutputSchemaVersion);
-        root.object("requested", [&](mcujson::JsonWriter::Object& object) {
-            write_node(object, report.requested);
-        });
-        root.array("requirements", [&](mcujson::JsonWriter::Array& array) {
-            for (const auto& requirement : report.requirements) {
-                array.object([&](mcujson::JsonWriter::Object& object) {
-                    write_node(object, requirement);
-                });
-            }
-        });
-        root.array("dependencies", [&](mcujson::JsonWriter::Array& array) {
-            for (const auto& edge : report.dependencies) {
-                array.object([&](mcujson::JsonWriter::Object& object) { write_edge(object, edge); });
-            }
-        });
-        root.array("unresolved_dependencies", [&](mcujson::JsonWriter::Array& array) {
-            for (const auto& edge : report.unresolved_dependencies) {
-                array.object([&](mcujson::JsonWriter::Object& object) { write_edge(object, edge); });
-            }
-        });
-        root.array("evidence", [&](mcujson::JsonWriter::Array& array) {
-            for (const auto& evidence : report.evidence) {
-                array.object([&](mcujson::JsonWriter::Object& object) {
-                    write_node(object, evidence);
-                });
-            }
-        });
-        root.array("evidence_relationships", [&](mcujson::JsonWriter::Array& array) {
-            for (const auto& edge : report.evidence_relationships) {
-                array.object([&](mcujson::JsonWriter::Object& object) { write_edge(object, edge); });
-            }
-        });
-        root.array("diagnostics", [&](mcujson::JsonWriter::Array& array) {
-            for (const auto& diagnostic : report.diagnostics) {
-                array.object([&](mcujson::JsonWriter::Object& object) {
-                    write_diagnostic(object, diagnostic);
-                });
-            }
+    const auto edge_count = report.dependencies.size() + report.unresolved_dependencies.size() +
+                            report.evidence_relationships.size();
+    const auto buffer_size = 4096U + node_buffer_size(report.requested) +
+                             nodes_buffer_size(report.requirements) +
+                             nodes_buffer_size(report.evidence) + edge_count * 384U +
+                             report.diagnostics.size() * 384U;
+    return serialize_context_json(buffer_size, [&](mcujson::JsonWriter& writer) {
+        writer.object([&](mcujson::JsonWriter::Object& root) {
+            root("schema_version", kOutputSchemaVersion);
+            root.object("requested", [&](mcujson::JsonWriter::Object& object) {
+                write_node(object, report.requested);
+            });
+            root.array("requirements", [&](mcujson::JsonWriter::Array& array) {
+                for (const auto& requirement : report.requirements) {
+                    array.object([&](mcujson::JsonWriter::Object& object) {
+                        write_node(object, requirement);
+                    });
+                }
+            });
+            root.array("dependencies", [&](mcujson::JsonWriter::Array& array) {
+                for (const auto& edge : report.dependencies) {
+                    array.object([&](mcujson::JsonWriter::Object& object) { write_edge(object, edge); });
+                }
+            });
+            root.array("unresolved_dependencies", [&](mcujson::JsonWriter::Array& array) {
+                for (const auto& edge : report.unresolved_dependencies) {
+                    array.object([&](mcujson::JsonWriter::Object& object) { write_edge(object, edge); });
+                }
+            });
+            root.array("evidence", [&](mcujson::JsonWriter::Array& array) {
+                for (const auto& evidence : report.evidence) {
+                    array.object([&](mcujson::JsonWriter::Object& object) {
+                        write_node(object, evidence);
+                    });
+                }
+            });
+            root.array("evidence_relationships", [&](mcujson::JsonWriter::Array& array) {
+                for (const auto& edge : report.evidence_relationships) {
+                    array.object([&](mcujson::JsonWriter::Object& object) { write_edge(object, edge); });
+                }
+            });
+            root.array("diagnostics", [&](mcujson::JsonWriter::Array& array) {
+                for (const auto& diagnostic : report.diagnostics) {
+                    array.object([&](mcujson::JsonWriter::Object& object) {
+                        write_diagnostic(object, diagnostic);
+                    });
+                }
+            });
         });
     });
-    const auto size = writer.finish();
-    if (!size) {
-        return std::unexpected(OutputError{
-            .code = OutputErrorCode::serialize_failed,
-            .detail = "failed to serialize requirement context JSON output",
-        });
-    }
-    return std::string(buffer.data(), *size);
 }
 
 }  // namespace mcutrace

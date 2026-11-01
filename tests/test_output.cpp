@@ -1,4 +1,5 @@
 #include <mcutrace/output.hpp>
+#include <mcujson/mcujson.hpp>
 #include <mcutest/mcutest.hpp>
 
 #include "test_runner.hpp"
@@ -243,6 +244,157 @@ TEST(output, reports_dependencies_plans_and_cycle_safe_context,
     const auto summary = mcutrace::build_report(trace, validation);
     ASSERT_EQ(summary.summary.plan_items, std::size_t{1});
     ASSERT_EQ(summary.summary.outstanding_plan_items, std::size_t{1});
+}
+
+TEST(output, serializes_dense_requirement_context_without_losing_relationships,
+     "REQ-0134", "REQ-0148") {
+    mcutrace::RequirementContextReport report;
+    for (unsigned i = 0; i < 16U; ++i) {
+        report.requirements.push_back(mcutrace::Node{
+            .id = "REQ-" + std::to_string(1000U + i),
+            .kind = mcutrace::NodeKind::requirement,
+            .label = "Prerequisite " + std::to_string(i),
+        });
+        if (i != 0U) {
+            report.dependencies.push_back(mcutrace::Edge{
+                .source_id = report.requirements[i - 1U].id,
+                .target_id = report.requirements[i].id,
+                .type = mcutrace::RelationshipType::known(mcutrace::RelationshipKind::depends_on),
+            });
+        }
+    }
+    report.requested = report.requirements.front();
+    const std::string path = "src/" + std::string(400U, 'p') + "/component.cpp";
+    for (unsigned i = 0; i < 8U; ++i) {
+        report.evidence.push_back(mcutrace::Node{
+            .id = "implementation:" + path + "#function:" + std::to_string(i),
+            .kind = mcutrace::NodeKind::implementation,
+            .label = "function " + std::to_string(i),
+            .source = mcutrace::SourceLocation{.path = path, .line = i + 1U},
+        });
+        for (const auto& requirement : report.requirements) {
+            report.evidence_relationships.push_back(mcutrace::Edge{
+                .source_id = report.evidence.back().id,
+                .target_id = requirement.id,
+                .type = mcutrace::RelationshipType::known(mcutrace::RelationshipKind::implements),
+                .source = mcutrace::SourceLocation{.path = path, .line = i + 1U},
+            });
+        }
+    }
+
+    const auto json = mcutrace::render_requirement_context_json_report(report);
+    ASSERT_TRUE(json.has_value());
+    if (!json) {
+        return;
+    }
+    const auto repeated = mcutrace::render_requirement_context_json_report(report);
+    ASSERT_TRUE(repeated.has_value());
+    if (!repeated) {
+        return;
+    }
+    ASSERT_EQ(*json, *repeated);
+    const auto parsed = mcujson::JsonView::parse(*json);
+    ASSERT_TRUE(parsed.has_value());
+    if (!parsed) {
+        return;
+    }
+    const auto requirements = parsed->at("requirements");
+    const auto evidence = parsed->at("evidence");
+    const auto relationships = parsed->at("evidence_relationships");
+    ASSERT_TRUE(requirements.has_value());
+    if (!requirements) {
+        return;
+    }
+    ASSERT_TRUE(evidence.has_value());
+    if (!evidence) {
+        return;
+    }
+    ASSERT_TRUE(relationships.has_value());
+    if (!relationships) {
+        return;
+    }
+    ASSERT_EQ(requirements->size(), report.requirements.size());
+    ASSERT_EQ(evidence->size(), report.evidence.size());
+    ASSERT_EQ(relationships->size(), report.evidence_relationships.size());
+    const auto last = relationships->at(report.evidence_relationships.size() - 1U);
+    ASSERT_TRUE(last.has_value());
+    if (!last) {
+        return;
+    }
+    const auto source = last->field<std::string>("source");
+    ASSERT_TRUE(source.has_value());
+    if (!source) {
+        return;
+    }
+    ASSERT_EQ(*source, report.evidence.back().id);
+    const auto location = last->at("location");
+    ASSERT_TRUE(location.has_value());
+    if (!location) {
+        return;
+    }
+    const auto actual_path = location->field<std::string>("path");
+    ASSERT_TRUE(actual_path.has_value());
+    if (!actual_path) {
+        return;
+    }
+    ASSERT_EQ(*actual_path, path);
+}
+
+TEST(output, grows_requirement_context_buffer_for_escaped_content, "REQ-0134") {
+    mcutrace::RequirementContextReport report;
+    report.requested = mcutrace::Node{
+        .id = "REQ-0001",
+        .kind = mcutrace::NodeKind::requirement,
+        .label = "Escaped content",
+        .body = std::string(8192U, '\x01'),
+    };
+    report.requirements.push_back(report.requested);
+    report.diagnostics.push_back(mcutrace::Diagnostic{
+        .code = "TEST.LARGE_DIAGNOSTIC",
+        .severity = mcutrace::Severity::warning,
+        .message = report.requested.body,
+    });
+    report.unresolved_dependencies.push_back(mcutrace::Edge{
+        .source_id = report.requested.id,
+        .target_id = "REQ-9999",
+        .type = mcutrace::RelationshipType::known(mcutrace::RelationshipKind::depends_on),
+        .source = mcutrace::SourceLocation{.path = std::string(8192U, '\x01'), .line = 1U},
+    });
+
+    const auto json = mcutrace::render_requirement_context_json_report(report);
+    ASSERT_TRUE(json.has_value());
+    if (!json) {
+        return;
+    }
+    using ContextJson = mcujson::BasicJson<128U, 60000U>;
+    const auto parsed = ContextJson::parse(*json);
+    ASSERT_TRUE(parsed.has_value());
+    if (!parsed) {
+        return;
+    }
+    ASSERT_EQ((*parsed)["requested"]["body"].get<std::string_view>(),
+              std::string_view(report.requested.body));
+    ASSERT_EQ((*parsed)["requirements"][0]["body"].get<std::string_view>(),
+              std::string_view(report.requested.body));
+    ASSERT_EQ((*parsed)["diagnostics"][0]["message"].get<std::string_view>(),
+              std::string_view(report.diagnostics.front().message));
+    ASSERT_EQ((*parsed)["unresolved_dependencies"][0]["location"]["path"].get<std::string_view>(),
+              std::string_view(report.unresolved_dependencies.front().source->path));
+}
+
+TEST(output, preserves_invalid_encoding_errors_in_requirement_context, "REQ-0134") {
+    mcutrace::RequirementContextReport report;
+    report.requested = mcutrace::Node{
+        .id = "REQ-0001",
+        .kind = mcutrace::NodeKind::requirement,
+        .label = std::string(1U, static_cast<char>(0xff)),
+    };
+    const auto json = mcutrace::render_requirement_context_json_report(report);
+    ASSERT_FALSE(json.has_value());
+    if (json) {
+        return;
+    }
+    ASSERT_EQ(json.error().code, mcutrace::OutputErrorCode::serialize_failed);
 }
 
 int main(int argc, char* argv[]) {

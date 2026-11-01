@@ -195,8 +195,11 @@ When using the packaged VS Code extension, run **mcutrace: Set Up Codex in
 Workspace** from the Command Palette. For the selected trusted workspace, the
 command installs the skill and adds a project-scoped `mcutrace` MCP server to
 `.codex/config.toml`, backed by the packaged executable in stable extension
-storage. It leaves an existing skill or user-managed `mcutrace` MCP entry unchanged
-and can refresh only its own clearly marked configuration block.
+storage. If the default configuration is absent, it creates a minimal
+`mcutrace.toml` and a neutral `requirements.md` without replacing an existing
+requirements document. It leaves an existing skill or user-managed `mcutrace` MCP
+entry unchanged and can refresh only its own clearly marked configuration block.
+An explicitly configured custom path must already exist.
 
 Alternatively, `cmake --install` places the runtime skill files under
 `share/mcutrace/skills/mcutrace` in the chosen install prefix. Copy or link that

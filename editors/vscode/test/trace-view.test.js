@@ -142,10 +142,12 @@ test('shows dependency and plan groups and standalone plan documents', () => {
   assert.deepEqual(requirement.children.map((node) => node.label),
     ['Depends on', 'Required by', 'Implementation plans']);
   assert.equal(requirement.children[2].children[0].description, 'in_progress');
+  assert.equal(requirement.children[2].children[0].icon, 'loading~spin');
   const planDocument = tree[0].children[0].children.find(
     (node) => node.label === 'implementation-plan.md');
   assert.equal(planDocument.children[0].contextValue, 'mcutrace.plan');
   assert.equal(planDocument.children[0].description, 'PLN-0001 · in_progress');
+  assert.equal(planDocument.children[0].icon, 'loading~spin');
   const linkedRequirements = planDocument.children[0].children[0];
   assert.equal(linkedRequirements.label, 'Linked requirements');
   assert.equal(linkedRequirements.description, '2');

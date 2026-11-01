@@ -44,9 +44,12 @@ trust, and copy failures with an actionable message.
 The VS Code workspace setup command shall also make the packaged `mcutrace-mcp`
 runtime available from a stable extension storage location and add a project-scoped
 `mcutrace` STDIO server to `.codex/config.toml` using the selected folder's resolved
-configuration and working directory. It shall update only a clearly marked block
-that it previously generated, preserve unrelated configuration and an existing
-user-managed `mcutrace` server, and report the resulting skill and MCP states. A
-missing project configuration, packaged runtime, trust decision, or writable Codex
-configuration shall fail with an actionable diagnostic rather than leave a claimed
-complete setup.
+configuration and working directory. When the default project configuration is
+missing, the command shall initialize a minimal `mcutrace.toml` and a neutral
+`requirements.md` without replacing an existing requirements document. A missing
+explicit configuration override shall remain an error. The command shall update
+only a clearly marked block that it previously generated, preserve unrelated
+configuration and an existing user-managed `mcutrace` server, and report the
+resulting project, skill, and MCP states. A missing packaged runtime, trust decision,
+or writable project configuration shall fail with an actionable diagnostic rather
+than leave a claimed complete setup.

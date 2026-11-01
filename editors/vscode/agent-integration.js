@@ -10,6 +10,16 @@ const MCP_CONTEXT_KEY = 'mcutrace.agent.mcpAvailable';
 const SETUP_CODEX_COMMAND = 'mcutrace.setupCodex';
 const WORKSPACE_SKILL_PATH = '.agents/skills/mcutrace';
 const CODEX_CONFIG_PATH = '.codex/config.toml';
+const DEFAULT_PROJECT_CONFIG = [
+  '[project]',
+  'root = "."',
+  'requirements = ["requirements.md"]',
+  '',
+  '[validation]',
+  'fail_at_or_above = "error"',
+  '',
+].join('\n');
+const DEFAULT_REQUIREMENTS = '# Requirements\n';
 const MANAGED_MCP_BEGIN = '# BEGIN mcutrace VS Code managed MCP';
 const MANAGED_MCP_END = '# END mcutrace VS Code managed MCP';
 
@@ -281,6 +291,24 @@ async function configureWorkspaceMcp(vscode, folder, state) {
   return { status: merged.status, target };
 }
 
+// @req REQ-0222
+async function ensureWorkspaceProject(vscode, folder, state) {
+  if (await pathExists(vscode, state.configPath)) {
+    return { status: 'existing' };
+  }
+  if (state.settings.configPath) {
+    throw new Error(`the selected mcutrace configuration does not exist at ${state.configPath}`);
+  }
+
+  const requirements = vscode.Uri.joinPath(folder.uri, 'requirements.md');
+  if (!await uriExists(vscode, requirements)) {
+    await vscode.workspace.fs.writeFile(requirements, Buffer.from(DEFAULT_REQUIREMENTS, 'utf8'));
+  }
+  const config = vscode.Uri.joinPath(folder.uri, 'mcutrace.toml');
+  await vscode.workspace.fs.writeFile(config, Buffer.from(DEFAULT_PROJECT_CONFIG, 'utf8'));
+  return { status: 'initialized' };
+}
+
 function setupStateLabel(status) {
   return ({
     installed: 'installed',
@@ -319,9 +347,7 @@ async function runSetupCodexCommand(vscode, context) {
       vscode.workspace.getConfiguration('mcutrace', folder.uri),
       extensionPath
     );
-    if (!await pathExists(vscode, state.configPath)) {
-      throw new Error(`the selected mcutrace configuration does not exist at ${state.configPath}`);
-    }
+    const project = await ensureWorkspaceProject(vscode, folder, state);
 
     const skill = await installWorkspaceSkill(vscode, context, folder);
     const executable = await stageMcpExecutable(vscode, context, {
@@ -331,8 +357,9 @@ async function runSetupCodexCommand(vscode, context) {
     const mcp = await configureWorkspaceMcp(vscode, folder, state);
     const skillState = skill.status === 'installed' ? 'installed' : 'already present';
     const mcpState = setupStateLabel(mcp.status);
+    const projectState = project.status === 'initialized' ? 'initialized' : 'already present';
     await vscode.window.showInformationMessage(
-      `Codex setup completed in ${folder.name}: skill ${skillState}; MCP ${mcpState}. `
+      `Codex setup completed in ${folder.name}: project ${projectState}; skill ${skillState}; MCP ${mcpState}. `
       + 'Start a new Codex session in this workspace to load both.'
     );
   } catch (error) {
@@ -595,6 +622,7 @@ module.exports = {
   mergeMcpConfig,
   stageMcpExecutable,
   configureWorkspaceMcp,
+  ensureWorkspaceProject,
   runSetupCodexCommand,
   activateAgentIntegration,
 };

@@ -56,6 +56,9 @@ function evidenceIcon(node, fallback) {
   if (node.finding_state === 'violation' || node.finding_state === 'failed') {
     return 'warning';
   }
+  if (node.kind === 'plan' && node.status === 'in_progress') {
+    return 'loading~spin';
+  }
   return fallback;
 }
 
@@ -149,7 +152,9 @@ function planNode(plan) {
     label: plan.title || plan.id,
     description: [plan.id, plan.status].filter(Boolean).join(' · '),
     tooltip: `${plan.id}${plan.title ? ` — ${plan.title}` : ''}${plan.status ? ` [${plan.status}]` : ''}`,
-    icon: plan.status === 'done' ? 'pass' : plan.status === 'blocked' ? 'error' : 'notebook',
+    icon: plan.status === 'done' ? 'pass'
+      : plan.status === 'blocked' ? 'error'
+        : plan.status === 'in_progress' ? 'loading~spin' : 'notebook',
     contextValue: 'mcutrace.plan',
     traceId: plan.id,
     location: plan.location,

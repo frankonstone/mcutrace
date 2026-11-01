@@ -106,7 +106,10 @@ class TraceTreeProvider {
     });
     visit(this.roots);
     this.decorations.update(this.roots);
-    this.updateBadge(Array.isArray(payload.diagnostics) ? payload.diagnostics.length : 0);
+    const problemCount = Array.isArray(payload.diagnostics)
+      ? payload.diagnostics.filter((diagnostic) => diagnostic.severity !== 'note').length
+      : 0;
+    this.updateBadge(problemCount);
     this.lastPayload = serialized;
     this.changed.fire();
     return true;
